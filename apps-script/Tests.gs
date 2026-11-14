@@ -237,10 +237,152 @@ function test_pure_gemini() {
   return 'ok';
 }
 
+// ---------- Planificador ----------
+
+const CYCLE_ = { sessions: [
+  { key: 'A', groups: ['chest', 'triceps'] },
+  { key: 'B', groups: ['back', 'biceps'] },
+  { key: 'C', groups: ['quads', 'hamstrings', 'glutes', 'calves'] },
+  { key: 'D', groups: ['shoulders', 'core'] }
+] };
+const doneS_ = (key, date) => ({ status: 'done', cycleKey: key, date: date, groups: [] });
+const bb_ = (perSideKg) => normalizeLoad_({ implement: 'barbell', perSideKg: perSideKg }, {}).load;
+const wset_ = (reps, rir, load) => ({ type: 'working', reps: reps, rir: rir, load: load });
+const RX_ = { repsMin: 8, repsMax: 10, targetRir: 2 };
+
+function test_pure_rotation() {
+  assert_(validateCycle_(CYCLE_).length === 0, 'ciclo válido: ' + validateCycle_(CYCLE_));
+  assert_(validateCycle_({ sessions: [{ key: 'A', groups: ['chest', 'back', 'triceps'] }, { key: 'B', groups: ['quads', 'glutes'] },
+    { key: 'C', groups: ['shoulders', 'biceps'] }] }).length > 0, 'más de 2 grupos o grupos sin cubrir debe fallar');
+  assert_(validateCycle_({ sessions: [CYCLE_.sessions[0], CYCLE_.sessions[1]] }).length > 0, 'ciclo demasiado corto');
+
+  const next = (done) => pendingKeys_(CYCLE_, done)[0];
+  assert_(next([]) === 'A', 'sin historial empieza por A');
+  assert_(next([doneS_('A', '2026-11-01')]) === 'B', 'tras A toca B');
+  assert_(next([doneS_('A', '2026-11-01'), doneS_('B', '2026-11-03')]) === 'C', 'tras A y B toca C');
+  assert_(next([doneS_('A', '2026-11-01'), doneS_('B', '2026-11-03'), doneS_('C', '2026-11-05'), doneS_('D', '2026-11-07')]) === 'A', 'vuelta completa reinicia');
+  assert_(next([doneS_('A', '2026-11-01'), doneS_('A', '2026-11-03')]) === 'B', 'repetir A no avanza de más');
+  assert_(next([doneS_('B', '2026-11-01')]) === 'A', 'si B se hizo primero, A sigue pendiente');
+  assert_(next([{ status: 'planned', cycleKey: 'A', date: '2026-11-01' }]) === 'A', 'las planificadas no cuentan');
+
+  const done = [doneS_('A', '2026-11-01'), doneS_('B', '2026-11-03')];
+  const now = '2026-11-05T09:00:00Z';
+  let p = pickNextSession_(CYCLE_, done, [], now);
+  assert_(p.key === 'C' && p.reason === 'rotation', 'sin carreras toca pierna');
+  const long = { date: '2026-11-04', startedAt: '2026-11-04T13:00:00Z', durationSec: 4200, distanceKm: 8 };
+  p = pickNextSession_(CYCLE_, done, [long], now);
+  assert_(p.key === 'D' && p.skippedKey === 'C' && p.reason === 'long_run_skip_legs', 'tirada larga hace 20 h adelanta la sesión sin pierna');
+  p = pickNextSession_(CYCLE_, done, [Object.assign({}, long, { startedAt: '2026-11-03T13:00:00Z' })], now);
+  assert_(p.key === 'C', 'tirada larga hace 44 h no cuenta');
+  p = pickNextSession_(CYCLE_, done, [{ date: '2026-11-04', startedAt: '2026-11-04T13:00:00Z', durationSec: 1800, distanceKm: 5 }], now);
+  assert_(p.key === 'C', 'una salida corta no cuenta');
+  p = pickNextSession_(CYCLE_, done, [{ date: '2026-11-04', startedAt: '2026-11-04T13:00:00Z', durationSec: 3000, distanceKm: 10.5 }], now);
+  assert_(p.key === 'D', '10 km también es tirada larga');
+  p = pickNextSession_(CYCLE_, [done[0], done[1], doneS_('D', '2026-11-04')], [long], now);
+  assert_(p.key === 'C' && p.warning === 'legs_after_long_run', 'si solo queda pierna, se mantiene con aviso');
+  p = pickNextSession_(CYCLE_, done, [{ date: '2026-11-05', durationSec: 4000 }], '2026-11-05T20:00:00Z');
+  assert_(p.key === 'D', 'sin hora se asume mediodía');
+
+  assert_(returnAdjust_(done, '2026-11-10').loadFactor === 1, '7 días no activa la regla de vuelta');
+  const r = returnAdjust_(done, '2026-11-11');
+  assert_(r.days === 8 && r.loadFactor === 0.9 && r.setsDelta === -1, '8 días: −10 % y −1 serie');
+  assert_(returnAdjust_([], '2026-11-11').loadFactor === 1, 'sin historial no hay ajuste');
+  return 'ok';
+}
+
+function test_pure_progression() {
+  const eq = { barbellKg: 20, plateMinKg: 1.25, dumbbellStepKg: 2, stackStepKg: 5 };
+  const top = (load) => [wset_(10, 2, load), wset_(10, 2, load), wset_(10, 3, load), wset_(10, 2, load)];
+
+  let r = nextProgression_([{ sets: top(bb_(20)) }], RX_, eq);
+  assert_(r.action === 'increase' && r.load.totalKg === 62.5 && r.load.perSideKg === 21.25, 'barra: +2,5 kg (1,25 por lado)');
+  const db = normalizeLoad_({ implement: 'dumbbell', perHandKg: 15 }, eq).load;
+  r = nextProgression_([{ sets: top(db) }], RX_, eq);
+  assert_(r.load.perHandKg === 17 && r.load.totalKg === 34, 'mancuernas: siguiente par (+2 kg por mano)');
+  const mq = normalizeLoad_({ implement: 'machine', stackKg: 70 }, eq).load;
+  r = nextProgression_([{ sets: top(mq) }], RX_, eq);
+  assert_(r.load.stackKg === 75, 'máquina: siguiente placa');
+
+  r = nextProgression_([{ sets: [wset_(10, 2, bb_(20)), wset_(9, 2, bb_(20)), wset_(9, 2, bb_(20))] }], RX_, eq);
+  assert_(r.action === 'hold' && r.reason === 'in_range', 'dentro del rango: mantener');
+  r = nextProgression_([{ sets: [wset_(10, 2, bb_(20)), wset_(7, 1, bb_(20))] }], RX_, eq);
+  assert_(r.action === 'hold' && r.reason === 'below_target', 'una serie bajo el mínimo: mantener');
+  r = nextProgression_([{ sets: top(bb_(20)).map((s) => Object.assign({}, s, { rir: 0 })) }], RX_, eq);
+  assert_(r.action === 'hold', 'RIR menor que objetivo − 1: no sube aunque llegue a 10');
+  r = nextProgression_([{ sets: top(bb_(20)).map((s) => Object.assign({}, s, { rir: 1 })) }], RX_, eq);
+  assert_(r.action === 'hold', 'RIR 1 con objetivo 2: no sube');
+  r = nextProgression_([{ sets: top(bb_(20)).map((s) => Object.assign({}, s, { rir: null })) }], RX_, eq);
+  assert_(r.action === 'increase' && r.rirUnknown === true, 'RIR sin registrar no bloquea, pero se marca');
+
+  const miss = { sets: [wset_(7, 2, bb_(20)), wset_(6, 1, bb_(20))] };
+  r = nextProgression_([miss, miss], RX_, eq);
+  assert_(r.action === 'decrease' && r.suggestVariant && r.load.totalKg < 60 && r.load.totalKg >= 52.5, 'dos fallos seguidos: bajar 5-10 % o variante, obtenido ' + r.load.totalKg);
+  r = nextProgression_([{ sets: top(bb_(20)) }, miss], RX_, eq);
+  assert_(r.action === 'hold', 'un solo fallo tras una buena: mantener');
+  r = nextProgression_([{ sets: [{ type: 'warmup', reps: 10, load: bb_(10) }] }], RX_, eq);
+  assert_(r.reason === 'no_history', 'solo calentamiento = sin historial');
+
+  // Límite duro ±10 %
+  let c = clampLoadChange_(bb_(20), bb_(30), eq);
+  assert_(c.clamped && c.load.totalKg <= 66 && c.load.totalKg >= 62.5, 'subida de 60 a 80 se recorta, obtenido ' + c.load.totalKg);
+  c = clampLoadChange_(bb_(20), bb_(10), eq);
+  assert_(c.clamped && c.load.totalKg >= 54 && c.load.totalKg <= 60, 'bajada de 60 a 40 se recorta, obtenido ' + c.load.totalKg);
+  c = clampLoadChange_(bb_(20), bb_(21.25), eq);
+  assert_(!c.clamped, 'un escalón normal no se recorta');
+  const db8 = normalizeLoad_({ implement: 'dumbbell', perHandKg: 8 }, eq).load;
+  const db10 = normalizeLoad_({ implement: 'dumbbell', perHandKg: 10 }, eq).load;
+  assert_(!clampLoadChange_(db8, db10, eq).clamped, 'cargas ligeras: un escalón siempre se permite');
+
+  // Descarga
+  assert_(shouldDeload_(6, 0) && shouldDeload_(3, 2) && !shouldDeload_(3, 1) && !shouldDeload_(2, 5), 'criterios de descarga');
+  const dl = applyDeload_({ exerciseId: 'press_banca', sets: 4, targetLoad: bb_(20) }, eq);
+  assert_(dl.sets === 2 && dl.targetLoad.totalKg >= 52.5 && dl.targetLoad.totalKg <= 56, 'descarga: −40 % volumen y ~−10 % carga, obtenido ' + dl.targetLoad.totalKg);
+  assert_(applyDeload_({ sets: 1, targetLoad: null }, eq).sets === 1, 'nunca menos de 1 serie');
+
+  // Carga inicial
+  const st = conservativeStart_('barbell', 65, eq);
+  assert_(st.totalKg <= 55.25 && st.totalKg >= 50, 'inicio conservador (85 %) y hacia abajo, obtenido ' + st.totalKg);
+  return 'ok';
+}
+
+function test_pure_plan_rules() {
+  const eq = { barbellKg: 20, plateMinKg: 1.25 };
+  const planned = [{ exerciseId: 'press_banca', sets: 4, repsMin: 8, repsMax: 10, targetRir: 2, targetLoad: bb_(30) }];
+  const ctx = { lastLoads: { press_banca: bb_(20) }, equipment: eq };
+  let r = applyPlanRules_(planned, ctx);
+  assert_(r.exercises[0].targetLoad.totalKg <= 66 && r.notes.indexOf('clamped:press_banca') >= 0, 'la propuesta de la IA se recorta');
+  assert_(planned[0].targetLoad.totalKg === 80, 'no muta la entrada');
+
+  r = applyPlanRules_(planned, { lastLoads: {}, equipment: eq, firstSession: true });
+  assert_(r.exercises[0].targetRir === 3 && r.exercises[0].targetLoad.totalKg === 80, 'primera sesión: RIR 3 y sin recorte');
+  assert_(r.notes.indexOf('first_session') >= 0, 'nota de primera sesión');
+
+  r = applyPlanRules_([{ exerciseId: 'press_banca', sets: 4, targetLoad: bb_(20), targetRir: 2 }],
+    { lastLoads: { press_banca: bb_(20) }, equipment: eq, returnAdjust: { loadFactor: 0.9, setsDelta: -1 } });
+  assert_(r.exercises[0].sets === 3 && r.exercises[0].targetLoad.totalKg < 60 && r.notes.indexOf('layoff') >= 0, 'regla de vuelta aplicada');
+
+  r = applyPlanRules_([{ exerciseId: 'press_banca', sets: 4, targetLoad: bb_(20), targetRir: 2 }],
+    { lastLoads: {}, equipment: eq, deload: true, returnAdjust: { loadFactor: 0.9, setsDelta: -1 } });
+  assert_(r.exercises[0].sets === 2 && r.notes.indexOf('deload') >= 0 && r.notes.indexOf('layoff') < 0, 'la descarga prevalece sobre la vuelta');
+
+  // Volumen semanal
+  const sessions = [
+    { status: 'done', date: '2026-11-02', metrics: { setsByGroup: { chest: 10, triceps: 5 } } },
+    { status: 'done', date: '2026-11-04', metrics: { setsByGroup: { chest: 2, back: 12 } } },
+    { status: 'done', date: '2026-11-12', metrics: { setsByGroup: { chest: 99 } } }
+  ];
+  const w = weeklyGroupSets_(sessions, '2026-11-02', '2026-11-08');
+  assert_(w.chest === 12 && w.back === 12 && w.triceps === 5, 'suma semanal por grupo');
+  const low = groupsBelowMin_(w);
+  assert_(low.indexOf('triceps') >= 0 && low.indexOf('quads') >= 0 && low.indexOf('chest') < 0, 'grupos por debajo de 8 series');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
-    test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_commit_roundtrip].forEach((fn) => {
+    test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
+    test_pure_plan_rules, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

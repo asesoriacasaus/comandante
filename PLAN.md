@@ -186,7 +186,7 @@ ComandanteData/
   "profile": { "sex": null, "birthYear": null, "heightCm": null, "timezone": "Europe/Madrid" },
   "goal": { "type": "recomp", "startDate": "2026-11-14", "targetDate": "2027-05-14",
             "startWeightKg": null, "targetWeightKg": null, "startWaistCm": null },
-  "equipment": { "barbellKg": 20, "ezBarKg": 10, "dumbbellStepKg": 2, "plateMinKg": 1.25 },
+  "equipment": { "barbellKg": 20, "ezBarKg": 10, "dumbbellStepKg": 2, "plateMinKg": 1.25, "stackStepKg": 5 },
   "training": { "daysPerWeek": [3, 4], "groupsPerSession": [1, 2], "runsPerWeek": [1, 2],
                 "sessionMinutes": 75, "useRir": true },
   "nutrition": { "proteinGPerKg": 2.0, "kcalStrategy": "maintenance_minus_10" },
@@ -332,7 +332,9 @@ Híbrido: **reglas deterministas** fijan los límites y la estructura; **Gemini*
 - Si una o más series quedaron por debajo del mínimo, o RIR menor que objetivo − 1: mantener la carga.
 - Si eso ocurre en 2 sesiones seguidas del mismo ejercicio: bajar un 5-10 % o cambiar a una variante.
 - **Descarga** cada 5-6 semanas, o antes si se estancan 2 o más ejercicios principales: volumen −40 %, carga −10 % durante una semana.
-- Límite duro: Gemini no puede proponer un cambio de carga mayor del ±10 % respecto a la última vez (salvo descarga o primera sesión). Si lo hace, se recorta.
+- Límite duro: Gemini no puede proponer un cambio de carga mayor del ±10 % respecto a la última vez, o de un escalón de carga si este es mayor (así las cargas ligeras pueden progresar; por ejemplo, de mancuernas de 8 a 10 kg). Se exceptúan la descarga, la regla de vuelta y la primera sesión. Si lo supera, se recorta.
+- Si el RIR de una serie no se registró (`null`), no bloquea la subida de carga, pero se marca para que la revisión lo señale.
+- El escalón de las mancuernas se mide desde la carga actual (de 15 kg se sube a 17 kg).
 
 ### 8.4 Primera semana (sin historial)
 
@@ -431,7 +433,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %). En curso: tarea 1 hecha
+### Fase 1. Entrenar (30 %). En curso: tareas 1 y 2 hechas (cada tarea pesa 3,3 puntos)
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.
