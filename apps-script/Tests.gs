@@ -126,6 +126,9 @@ function test_pure_exercises() {
   assert_(findExercise_('hice dominadas hoy', lib).id === 'dominadas', 'coincidencia dentro de una frase');
   assert_(findExercise_('Peso muerto rumano', lib).id === 'peso_muerto_rumano', 'rumano distinto de peso muerto');
   assert_(findExercise_('sentadilla búlgara', lib).id === 'sentadilla_bulgara', 'acentos');
+  assert_(findExercise_('press de banca', lib).id === 'press_banca', 'ignora palabras de relleno (de)');
+  assert_(findExercise_('curl de bíceps con mancuernas', lib).id === 'curl_mancuernas', 'curl de bíceps con mancuernas');
+  assert_(findExercise_('el remo con barra', lib).id === 'remo_barra', 'artículos y preposiciones');
   assert_(findExercise_('baile flamenco', lib) === null, 'desconocido → null');
   assert_(findExercise_('', lib) === null, 'vacío → null');
   return 'ok';
@@ -474,12 +477,141 @@ function test_pure_prompts() {
   return 'ok';
 }
 
+// ---------- Dictado ----------
+
+const ev_ = (o) => Object.assign({ type: 'set', exerciseName: null, implement: null, setType: null, reps: null, rir: null,
+  perSideKg: null, perHandKg: null, totalKg: null, stackKg: null, addedKg: null, count: null, repeatLast: false, side: null, text: null }, o);
+const sess_ = (extra) => Object.assign({ id: 's_20261116_1800_ab12', date: '2026-11-16', status: 'in_progress', exercises: [], clips: [],
+  plannedExercises: [
+    { exerciseId: 'press_banca', name: 'Press banca', sets: 4, targetLoad: bb_(15) },
+    { exerciseId: 'press_inclinado', name: 'Press inclinado', sets: 3, targetLoad: normalizeLoad_({ implement: 'dumbbell', perHandKg: 20 }, {}).load }
+  ] }, extra || {});
+const CTX_ = { library: exerciseSeed_(), equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 }, clipId: 'c_20261116_1832_x7k2' };
+
+function test_pure_dictation() {
+  // "press banca con barra y 20 a cada lado, 8 repeticiones, me quedaban dos"
+  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), CTX_);
+  const set = r.exercises[0].sets[0];
+  assert_(r.exercises[0].exerciseId === 'press_banca' && set.load.totalKg === 60 && set.reps === 8 && set.rir === 2, '"20 a cada lado" = 60 kg, 8 reps, RIR 2');
+  assert_(set.order === 1 && set.type === 'working' && set.clipId === CTX_.clipId, 'orden, tipo y clip de origen');
+
+  // "otra igual"
+  const s2 = sess_({ exercises: r.exercises });
+  r = eventsToSets_([ev_({ repeatLast: true })], s2, CTX_);
+  assert_(r.exercises[0].sets.length === 2 && r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].reps === 8 && r.exercises[0].sets[1].rir === 2, '"otra igual" repite la última serie');
+  r = eventsToSets_([ev_({ repeatLast: true, reps: 7, rir: 1 })], s2, CTX_);
+  assert_(r.exercises[0].sets[1].reps === 7 && r.exercises[0].sets[1].rir === 1, '"otra igual pero 7" respeta lo nuevo');
+
+  // Solo repeticiones: hereda la carga y lo marca
+  r = eventsToSets_([ev_({ reps: 6, rir: 1 })], s2, CTX_);
+  assert_(r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].flags.indexOf('inherited_load') >= 0, 'sin carga: hereda la anterior y lo señala');
+
+  // Mancuernas de 15 y "otra serie de 10"
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', implement: 'dumbbell', perHandKg: 15, reps: 10 })], sess_(), CTX_);
+  assert_(r.exercises[0].sets[0].load.totalKg === 30 && r.exercises[0].sets[0].load.count === 2 && r.exercises[0].sets[0].rir === null, '"mancuernas de 15" = 30 kg y RIR sin inventar (null)');
+
+  // Cambio de ejercicio y orden de aparición
+  r = eventsToSets_([ev_({ exerciseName: 'banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
+    ev_({ exerciseName: 'elevaciones laterales', implement: 'dumbbell', perHandKg: 8, reps: 12, rir: 1 }),
+    ev_({ repeatLast: true })], sess_(), CTX_);
+  assert_(r.exercises.length === 2 && r.exercises[1].exerciseId === 'elevaciones_laterales' && r.exercises[1].sets.length === 2, 'varios ejercicios en un clip, la repetición va al último');
+
+  // Total de la barra dictado ("barra con 60 kilos")
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 60, reps: 5 })], sess_(), CTX_);
+  assert_(r.exercises[0].sets[0].load.perSideKg === 20, 'total 60 con barra de 20 = 20 por lado');
+
+  // Sin ejercicio ni historial: el siguiente del plan, con aviso
+  r = eventsToSets_([ev_({ implement: 'barbell', perSideKg: 15, reps: 10 })], sess_(), CTX_);
+  assert_(r.exercises[0].exerciseId === 'press_banca' && r.warnings[0] === 'assumed_exercise:press_banca', 'asume el siguiente del plan y avisa');
+  // Sin carga dicha ni serie previa: usa el plan y lo señala
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', reps: 10 })], sess_(), CTX_);
+  assert_(r.exercises[0].sets[0].load.totalKg === 50 && r.exercises[0].sets[0].flags[0] === 'load_from_plan', 'carga del plan señalada');
+  // Implemento por defecto del plan
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', perHandKg: 22, reps: 8 })], sess_(), CTX_);
+  assert_(r.exercises[0].sets[0].load.implement === 'dumbbell', 'implemento tomado del plan');
+
+  // Pendientes: nunca se inventa
+  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), CTX_);
+  assert_(r.exercises.length === 0 && r.pending[0].reason === 'unknown_exercise', 'ejercicio desconocido → pendiente');
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), CTX_);
+  assert_(r.exercises.length === 0 && r.pending[0].reason === 'missing_reps', 'sin repeticiones → pendiente');
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), CTX_);
+  assert_(r.pending[0].reason === 'invalid_load', 'carga imposible → pendiente');
+  r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), CTX_);
+  assert_(r.pending[0].reason === 'no_exercise', 'nada que repetir ni ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'curl de biceps', repeatLast: true })], sess_(), CTX_);
+  assert_(r.pending[0].reason === 'nothing_to_repeat', 'repetir sin serie previa');
+
+  // Dolor
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
+    ev_({ type: 'pain', text: 'me molesta el hombro derecho' })], sess_(), CTX_);
+  assert_(r.pain.length === 1 && r.pain[0].exerciseId === 'press_banca', 'dolor registrado para el entrenador');
+  // Calentamiento y dropset
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, reps: 10, setType: 'warmup' })], sess_(), CTX_);
+  assert_(r.exercises[0].sets[0].type === 'warmup', 'calentamiento');
+  assert_(sess_().exercises.length === 0, 'no muta la sesión original');
+  return 'ok';
+}
+
+function test_pure_clip_validation() {
+  const ok = { transcript: 'hola', events: [ev_({ exerciseName: 'press banca', reps: 8, perSideKg: 20, implement: 'barbell' })] };
+  assert_(validateClipResponse_(ok).length === 0, 'respuesta válida: ' + validateClipResponse_(ok));
+  assert_(validateClipResponse_({ transcript: 'x', events: [] }).length === 0, 'sin series es válido');
+  assert_(validateClipResponse_({ events: [] }).length > 0, 'sin transcript');
+  assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ type: 'baile' })] }).length > 0, 'tipo inválido');
+  assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ implement: 'trineo' })] }).length > 0, 'implemento inválido');
+  assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ reps: 2.5 })] }).length > 0, 'reps no enteras');
+  assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ rir: 14 })] }).length > 0, 'rir fuera de rango');
+  assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ perSideKg: -5 })] }).length > 0, 'carga negativa');
+  assert_(CLIP_SYSTEM_.indexOf('NO calcules kilos totales') >= 0, 'la IA no calcula totales');
+  assert_(JSON.stringify(buildClipUser_(sess_(), CTX_.library)).indexOf('press_banca') >= 0, 'contexto con el plan de hoy');
+  return 'ok';
+}
+
+function test_pure_edit_ops() {
+  const base = sess_();
+  const r0 = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 }), ev_({ repeatLast: true })], base, CTX_);
+  const s = sess_({ exercises: r0.exercises, pending: [{ reason: 'missing_reps' }] });
+  const eq = CTX_.equipment; const lib = CTX_.library;
+  let n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 2, patch: { reps: 9, rir: 1 } }, eq, lib);
+  assert_(n.exercises[0].sets[1].reps === 9 && n.exercises[0].sets[1].rir === 1, 'editar repeticiones y RIR');
+  n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 1, patch: { load: { perSideKg: 22.5 } } }, eq, lib);
+  assert_(n.exercises[0].sets[0].load.totalKg === 65, 'cambiar carga recalcula el total (22,5 por lado = 65)');
+  assert_(s.exercises[0].sets[0].load.totalKg === 60, 'no muta la original');
+  n = applyEditOp_(s, { op: 'delete', exerciseId: 'press_banca', order: 1 }, eq, lib);
+  assert_(n.exercises[0].sets.length === 1 && n.exercises[0].sets[0].order === 1, 'borrar reordena');
+  n = applyEditOp_(n, { op: 'delete', exerciseId: 'press_banca', order: 1 }, eq, lib);
+  assert_(n.exercises.length === 0, 'sin series, el ejercicio desaparece');
+  n = applyEditOp_(s, { op: 'add', exerciseId: 'curl_barra', set: { reps: 12, rir: 2, load: { implement: 'ezbar', perSideKg: 10 } } }, eq, lib);
+  assert_(n.exercises[1].sets[0].load.totalKg === 30, 'añadir serie a un ejercicio nuevo');
+  n = applyEditOp_(s, { op: 'dismiss_pending', index: 0 }, eq, lib);
+  assert_(n.pending.length === 0, 'descartar pendiente');
+  const fails = (op) => { try { applyEditOp_(s, op, eq, lib); return false; } catch (e) { return e.code === 'VALIDATION'; } };
+  assert_(fails({ op: 'update', exerciseId: 'press_banca', order: 9, patch: {} }), 'serie inexistente');
+  assert_(fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { reps: -3 } }), 'reps negativas');
+  assert_(fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { load: { perSideKg: -1 } } }), 'carga negativa');
+  assert_(fails({ op: 'add', exerciseId: 'baile', set: {} }), 'ejercicio desconocido');
+  assert_(fails({ op: 'borrar_todo' }), 'operación desconocida');
+  assert_(fails({ op: 'dismiss_pending', index: 7 }), 'pendiente inexistente');
+  return 'ok';
+}
+
+function test_pure_ids() {
+  assert_(SESSION_ID_RE_.test('s_20261116_1800_ab12') && !SESSION_ID_RE_.test('../x') && !SESSION_ID_RE_.test('s_2026_x'), 'ids de sesión');
+  assert_(CLIP_ID_RE_.test('c_20261116_1832_x7k2') && !CLIP_ID_RE_.test('c_ ') && !CLIP_ID_RE_.test('x_20261116'), 'ids de clip');
+  assert_(sessionPath_('s_20261116_1800_ab12') === 'sessions/2026-11.json', 'ruta del shard');
+  let c = null; try { sessionPath_('../etc'); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'id malicioso rechazado');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
-    test_pure_prompts, test_commit_roundtrip].forEach((fn) => {
+    test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
+    test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

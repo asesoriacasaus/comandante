@@ -146,14 +146,21 @@ function normalizeText_(s) {
     .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const STOPWORDS_ = ['de', 'del', 'la', 'el', 'las', 'los', 'con', 'en', 'a', 'al', 'un', 'una', 'para', 'mi', 'hice', 'hago', 'hoy'];
+
+/** Texto normalizado sin palabras de relleno: "press de banca" y "press banca" dan lo mismo. */
+function matchKey_(s) {
+  return normalizeText_(s).split(' ').filter((w) => w && STOPWORDS_.indexOf(w) < 0).join(' ');
+}
+
 /** Busca un ejercicio por id exacto, nombre o alias. `library` por defecto es la semilla. */
 function findExercise_(query, library) {
   const lib = library || exerciseSeed_();
-  const q = normalizeText_(query);
+  const q = matchKey_(query);
   if (!q) return null;
   const byId = lib.find((e) => e.id === String(query).trim());
   if (byId) return byId;
-  const names = (e) => [e.name].concat(e.aliases).map(normalizeText_);
+  const names = (e) => [e.name].concat(e.aliases).map(matchKey_);
   const exact = lib.find((e) => names(e).indexOf(q) >= 0);
   if (exact) return exact;
   // Coincidencia por palabras completas: gana el nombre más largo ("press banca inclinado" sobre "press banca").

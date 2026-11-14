@@ -1,0 +1,200 @@
+/**
+ * Interpretación del dictado (PLAN 7.3). Parte pura: instrucciones, validación de lo que devuelve la IA,
+ * conversión de eventos en series y operaciones de edición. La IA solo extrae lo dicho;
+ * los kilos totales los calcula normalizeLoad_.
+ */
+
+const NUM_NULL_ = { type: 'NUMBER', nullable: true };
+const CLIP_SCHEMA_ = { type: 'OBJECT', properties: {
+  transcript: { type: 'STRING' },
+  events: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+    type: { type: 'STRING' },
+    exerciseName: { type: 'STRING', nullable: true },
+    implement: { type: 'STRING', nullable: true },
+    setType: { type: 'STRING', nullable: true },
+    reps: { type: 'INTEGER', nullable: true },
+    rir: { type: 'INTEGER', nullable: true },
+    perSideKg: NUM_NULL_, perHandKg: NUM_NULL_, totalKg: NUM_NULL_, stackKg: NUM_NULL_, addedKg: NUM_NULL_,
+    count: { type: 'INTEGER', nullable: true },
+    repeatLast: { type: 'BOOLEAN' },
+    side: { type: 'STRING', nullable: true },
+    text: { type: 'STRING', nullable: true }
+  }, required: ['type', 'repeatLast'] } }
+}, required: ['transcript', 'events'] };
+
+const CLIP_SYSTEM_ = 'Eres el asistente de un diario de entrenamiento de pesas. Recibes el audio de un clip en español ' +
+  'y un contexto (plan de hoy, ejercicio en curso y últimas series). Transcribe el audio en "transcript" y extrae en "events", ' +
+  'en el orden en que se dicen, cada serie realizada ("type":"set"), cada molestia o dolor ("type":"pain", con "text") y cada ' +
+  'comentario útil ("type":"comment", con "text"). Reglas: ' +
+  '1) Solo extrae lo que se dice. NO calcules kilos totales ni inventes números: lo que falta va a null. ' +
+  '2) Barra: "20 a cada lado" es perSideKg 20; "barra sola" es perSideKg 0; si dice el peso total de la barra, ponlo en totalKg. ' +
+  'Mancuernas: "de 15" son 15 kg por mano (perHandKg 15) y count 2; una sola mancuerna es count 1. ' +
+  'Máquina o polea: stackKg con lo que marque la pila. Peso corporal: addedKg solo si hay lastre. ' +
+  '3) "otra igual", "lo mismo", "otra serie" sin más datos: repeatLast true. ' +
+  '4) RIR: "me quedaban dos" es 2; "al fallo" es 0; si no lo menciona, null. Nunca lo inventes. ' +
+  '5) Si no nombra ejercicio, exerciseName es null (se asume el ejercicio en curso). Usa el nombre tal como lo dice. ' +
+  '6) setType: "warmup" para calentamiento, "drop" para dropset o "bajé a", "failure" para al fallo, si no "working". ' +
+  '7) implement: barbell, ezbar, dumbbell, kettlebell, machine, cable, bodyweight o smith, solo si se deduce; si no, null. ' +
+  '8) Si el audio no contiene ninguna serie, devuelve events vacío. Responde solo con el JSON pedido.';
+
+function validateClipResponse_(o) {
+  const e = [];
+  if (!o || typeof o.transcript !== 'string') return ['falta transcript'];
+  if (!Array.isArray(o.events)) return ['events debe ser una lista'];
+  if (o.events.length > 40) e.push('demasiados eventos');
+  const optNum = (v, name, min, max, int) => { if (v === null || v === undefined) return; if (typeof v !== 'number' || !isFinite(v) || v < min || v > max || (int && !Number.isInteger(v))) e.push(name + ' inválido'); };
+  o.events.forEach((ev, i) => {
+    const l = 'evento ' + (i + 1);
+    if (['set', 'pain', 'comment'].indexOf(ev.type) < 0) e.push(l + ': type inválido');
+    if (ev.implement !== null && ev.implement !== undefined && IMPLEMENTS_.indexOf(ev.implement) < 0) e.push(l + ': implement inválido');
+    if (ev.setType !== null && ev.setType !== undefined && SET_TYPES_.indexOf(ev.setType) < 0) e.push(l + ': setType inválido');
+    if (ev.side !== null && ev.side !== undefined && ['left', 'right'].indexOf(ev.side) < 0) e.push(l + ': side inválido');
+    optNum(ev.reps, l + ' reps', 0, 100, true);
+    optNum(ev.rir, l + ' rir', 0, 10, true);
+    ['perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg'].forEach((k) => optNum(ev[k], l + ' ' + k, 0, 800, false));
+    optNum(ev.count, l + ' count', 1, 2, true);
+  });
+  return e;
+}
+
+function buildClipUser_(session, library) {
+  const planned = (session.plannedExercises || []).map((p) => {
+    const d = exerciseById_(p.exerciseId, library);
+    return { id: p.exerciseId, nombre: p.name || (d && d.name), implementos: d ? d.implements : [] };
+  });
+  const exs = session.exercises || [];
+  const cur = exs.length ? exs[exs.length - 1] : null;
+  const recent = [];
+  exs.forEach((x) => x.sets.forEach((s) => recent.push({ ejercicio: x.name, reps: s.reps, rir: s.rir, carga: s.load })));
+  return { planDeHoy: planned, ejercicioEnCurso: cur ? cur.name : null, ultimasSeries: recent.slice(-3) };
+}
+
+function hasLoadInfo_(ev) {
+  return ['perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg'].some((k) => isNum_(ev[k]));
+}
+
+/**
+ * Convierte los eventos de un clip en series. Devuelve { exercises, pending, pain, warnings }.
+ * Lo que no se puede resolver sin inventar (ejercicio desconocido, falta de repeticiones, carga inválida)
+ * va a `pending`, nunca se guarda como serie.
+ */
+function eventsToSets_(events, session, ctx) {
+  const lib = ctx.library;
+  const eq = ctx.equipment;
+  const clipId = ctx.clipId;
+  const exercises = JSON.parse(JSON.stringify(session.exercises || []));
+  const planned = session.plannedExercises || [];
+  const pending = []; const pain = []; const warnings = [];
+  let currentId = exercises.length ? exercises[exercises.length - 1].exerciseId : null;
+
+  const nextPlanned = () => planned.find((p) => !exercises.some((x) => x.exerciseId === p.exerciseId && x.sets.length));
+  const addPending = (reason, text, extra) => pending.push(Object.assign({ clipId: clipId, reason: reason, text: String(text || '').slice(0, 200) }, extra || {}));
+
+  events.forEach((ev) => {
+    if (ev.type === 'pain') { pain.push({ clipId: clipId, text: String(ev.text || '').slice(0, 200), exerciseId: currentId }); return; }
+    if (ev.type !== 'set') return;
+
+    let def = null;
+    if (ev.exerciseName) {
+      def = findExercise_(ev.exerciseName, lib);
+      if (!def) { addPending('unknown_exercise', ev.exerciseName); return; }
+    } else if (currentId) {
+      def = exerciseById_(currentId, lib);
+    } else {
+      const np = nextPlanned();
+      if (np) { def = exerciseById_(np.exerciseId, lib); warnings.push('assumed_exercise:' + np.exerciseId); }
+    }
+    if (!def) { addPending('no_exercise', ev.text || ''); return; }
+
+    const entry = exercises.find((x) => x.exerciseId === def.id) || null;
+    const last = entry && entry.sets.length ? entry.sets[entry.sets.length - 1] : null;
+    const plan = planned.find((p) => p.exerciseId === def.id) || null;
+    const flags = [];
+    let load = null;
+    let reps = isNum_(ev.reps) ? ev.reps : null;
+    let rir = isNum_(ev.rir) ? ev.rir : null;
+    let type = ev.setType || 'working';
+
+    if (ev.repeatLast && !hasLoadInfo_(ev)) {
+      if (!last) { addPending('nothing_to_repeat', def.name); return; }
+      load = last.load;
+      if (reps === null) reps = last.reps;
+      if (ev.rir === null || ev.rir === undefined) rir = last.rir;
+      if (!ev.setType) type = last.type;
+    } else if (hasLoadInfo_(ev)) {
+      const implement = ev.implement || (last && last.load.implement) || (plan && plan.targetLoad && plan.targetLoad.implement) || def.implements[0];
+      const raw = { implement: implement };
+      ['perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg', 'count'].forEach((k) => { if (isNum_(ev[k])) raw[k] = ev[k]; });
+      if (last && last.load.implement === implement && isNum_(last.load.barKg)) raw.barKg = last.load.barKg;
+      const n = normalizeLoad_(raw, eq);
+      if (!n.load) { addPending('invalid_load', def.name + ': ' + n.errors.join(', ')); return; }
+      load = n.load;
+    } else {
+      const implement = ev.implement || (last && last.load.implement);
+      if (last && (!implement || implement === last.load.implement)) { load = last.load; flags.push('inherited_load'); }
+      else if (plan && plan.targetLoad && (!implement || implement === plan.targetLoad.implement)) { load = plan.targetLoad; flags.push('load_from_plan'); }
+      else if ((implement || def.implements[0]) === 'bodyweight') load = normalizeLoad_({ implement: 'bodyweight' }, eq).load;
+      else { addPending('missing_load', def.name); return; }
+    }
+    if (reps === null) { addPending('missing_reps', def.name); return; }
+
+    let target = exercises.find((x) => x.exerciseId === def.id);
+    if (!target) { target = { exerciseId: def.id, name: def.name, sets: [] }; exercises.push(target); }
+    target.sets.push({ order: target.sets.length + 1, type: type, reps: reps, rir: rir, load: load, restSec: null,
+      side: ev.side || null, clipId: clipId, notes: '', flags: flags });
+    currentId = def.id;
+  });
+  return { exercises: exercises, pending: pending, pain: pain, warnings: warnings };
+}
+
+/** Operaciones de edición manual sobre una sesión. Devuelve una copia nueva o lanza VALIDATION. */
+function applyEditOp_(session, op, eq, library) {
+  const s = JSON.parse(JSON.stringify(session));
+  const fail = (m) => { throw { code: 'VALIDATION', message: m }; };
+  s.exercises = s.exercises || [];
+  const findEx = () => s.exercises.find((x) => x.exerciseId === op.exerciseId) || fail('ejercicio no encontrado');
+  const reindex = (x) => x.sets.forEach((st, i) => { st.order = i + 1; });
+  const checkSet = (st) => { const errs = validateSet_(st, 'serie', eq); if (errs.length) fail(errs.join('; ')); };
+
+  if (op.op === 'update') {
+    const x = findEx();
+    const st = x.sets.find((q) => q.order === op.order) || fail('serie no encontrada');
+    const p = op.patch || {};
+    if (p.reps !== undefined) st.reps = p.reps;
+    if (p.rir !== undefined) st.rir = p.rir;
+    if (p.type !== undefined) st.type = p.type;
+    if (p.load) {
+      const raw = Object.assign({}, p.load);
+      delete raw.totalKg;
+      const n = normalizeLoad_(Object.assign({}, st.load, raw, { totalKg: undefined }), eq);
+      if (!n.load) fail(n.errors.join('; '));
+      st.load = n.load;
+    }
+    st.flags = [];
+    checkSet(st);
+  } else if (op.op === 'delete') {
+    const x = findEx();
+    const i = x.sets.findIndex((q) => q.order === op.order);
+    if (i < 0) fail('serie no encontrada');
+    x.sets.splice(i, 1);
+    reindex(x);
+    if (!x.sets.length) s.exercises = s.exercises.filter((q) => q !== x);
+  } else if (op.op === 'add') {
+    const def = exerciseById_(op.exerciseId, library) || fail('ejercicio desconocido');
+    let x = s.exercises.find((q) => q.exerciseId === def.id);
+    if (!x) { x = { exerciseId: def.id, name: def.name, sets: [] }; s.exercises.push(x); }
+    const n = normalizeLoad_(op.set && op.set.load, eq);
+    if (!n.load) fail(n.errors.join('; '));
+    const st = { order: x.sets.length + 1, type: (op.set && op.set.type) || 'working', reps: op.set && op.set.reps,
+      rir: op.set && op.set.rir !== undefined ? op.set.rir : null, load: n.load, restSec: null, side: null, clipId: null, notes: '', flags: [] };
+    checkSet(st);
+    x.sets.push(st);
+  } else if (op.op === 'dismiss_pending') {
+    s.pending = s.pending || [];
+    if (!Number.isInteger(op.index) || op.index < 0 || op.index >= s.pending.length) fail('pendiente no encontrado');
+    s.pending.splice(op.index, 1);
+  } else {
+    fail('operación desconocida');
+  }
+  return s;
+}
