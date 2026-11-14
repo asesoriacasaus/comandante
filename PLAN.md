@@ -189,6 +189,8 @@ ComandanteData/
   "equipment": { "barbellKg": 20, "ezBarKg": 10, "dumbbellStepKg": 2, "plateMinKg": 1.25, "stackStepKg": 5 },
   "training": { "daysPerWeek": [3, 4], "groupsPerSession": [1, 2], "runsPerWeek": [1, 2],
                 "sessionMinutes": 75, "useRir": true },
+  "strength": { "experience": "advanced", "referenceExerciseId": "press_banca",
+                "referenceReps": 10, "referenceTotalKg": null },
   "nutrition": { "proteinGPerKg": 2.0, "kcalStrategy": "maintenance_minus_10" },
   "coach": { "persona": "comandante", "intensity": "alta" },
   "notifications": { "email": "<del propietario, configurable>", "weekly": true,
@@ -278,7 +280,9 @@ Todas desde Apps Script (`UrlFetchApp`) a `generateContent`, con `responseMimeTy
 |---|---|---|---|
 | `clip.process` | FAST | Audio del clip + plan de la sesión + últimas series registradas | Transcripción + eventos (series detectadas, cambios de ejercicio, comentarios, dolor) |
 | `session.consolidate` | SMART | Todas las transcripciones y eventos + plan | Sesión estructurada (6.3) + mensaje del Comandante |
-| `session.plan` | SMART | Historial, reglas de la sección 8, siguiente bloque de la rotación | Ejercicios, series, cargas y RIR objetivo + mensaje |
+| `plan.cycle.propose` | SMART | Preferencias de entrenamiento | Ciclo de sesiones A-D (validado por `validateCycle_`) |
+| `session.plan` | SMART | Grupos de hoy, referencia de fuerza y lista de ejercicios permitidos. **Solo la primera vez que toca esa sesión del ciclo**; después el plan es determinista (mismos ejercicios, cargas por progresión) | Ejercicios, series, rangos y una estimación de 10RM por ejercicio. El código calcula las cargas (85 % hacia abajo, RIR 3) y aplica `applyPlanRules_` |
+| `coach.message` | FAST | Grupos de hoy, avisos y `PERSONA_PROMPT` | Mensaje breve; si falla o se bloquea, texto neutro |
 | `meal.process` | FAST | Audio o texto | Ítems con cantidades, macros, micros y confianza |
 | `run.extract` | FAST | Pantallazo del reloj | Campos de carrera (6.4) |
 | `body.extract` | FAST | Pantallazo de la báscula o dictado de medidas | Campos de cuerpo (6.4) |
@@ -433,7 +437,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %). En curso: tareas 1 y 2 hechas (cada tarea pesa 3,3 puntos)
+### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3 y 9 hechas (cada tarea pesa 3,3 puntos)
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.

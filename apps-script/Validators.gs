@@ -133,13 +133,22 @@ function validateBody_(b, today) {
 
 function validateSettings_(s) {
   const e = [];
-  if (!s.profile || typeof s.profile.timezone !== 'string' || !s.profile.timezone) {
-    e.push('profile.timezone requerida');
-  }
-  if (!s.units || ['kg', 'lb'].indexOf(s.units.weight) < 0) e.push('units.weight debe ser kg o lb');
-  if (!s.units || ['km', 'mi'].indexOf(s.units.distance) < 0) e.push('units.distance debe ser km o mi');
-  if (!s.units || ['cm', 'in'].indexOf(s.units.length) < 0) e.push('units.length debe ser cm o in');
-  if (EXPERIENCE_.indexOf(s.experience) < 0) e.push('experience inválida');
-  if (s.goal) pushIf_(e, checkNum_(s.goal.targetKcal, 'goal.targetKcal', 500, 10000, false));
+  const p = s.profile || {};
+  const g = s.goal || {};
+  const q = s.equipment || {};
+  if (typeof p.timezone !== 'string' || !p.timezone) e.push('profile.timezone requerida');
+  if (p.sex !== null && p.sex !== undefined && ['male', 'female'].indexOf(p.sex) < 0) e.push('profile.sex debe ser male, female o null');
+  pushIf_(e, checkNum_(p.birthYear, 'profile.birthYear', 1920, 2015, true));
+  pushIf_(e, checkNum_(p.heightCm, 'profile.heightCm', 120, 230, false));
+  pushIf_(e, checkNum_(g.startWeightKg, 'goal.startWeightKg', 30, 300, false));
+  pushIf_(e, checkNum_(g.targetWeightKg, 'goal.targetWeightKg', 30, 300, false));
+  pushIf_(e, checkNum_(g.startWaistCm, 'goal.startWaistCm', 40, 250, false));
+  if (g.startDate && !isIsoDate_(g.startDate)) e.push('goal.startDate inválida');
+  if (g.targetDate && !isIsoDate_(g.targetDate)) e.push('goal.targetDate inválida');
+  ['barbellKg', 'ezBarKg', 'dumbbellStepKg', 'plateMinKg', 'stackStepKg'].forEach((k) => {
+    if (typeof q[k] !== 'number' || !(q[k] > 0 && q[k] <= 60)) e.push('equipment.' + k + ' debe ser un número entre 0 y 60');
+  });
+  pushIf_(e, checkNum_((s.strength || {}).referenceTotalKg, 'strength.referenceTotalKg', 5, 500, false));
+  if (!s.coach || ['baja', 'media', 'alta'].indexOf(s.coach.intensity) < 0) e.push('coach.intensity debe ser baja, media o alta');
   return e;
 }

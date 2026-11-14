@@ -15,7 +15,7 @@ const ctx = vm.createContext({
     DigestAlgorithm: { SHA_256: 'SHA_256' }
   }
 });
-['Validators.gs', 'Exercises.gs', 'Sets.gs', 'Planner.gs', 'Store.gs', 'Auth.gs', 'Limits.gs', 'Gemini.gs', 'Code.gs', 'Tests.gs'].forEach((f) => {
+['Validators.gs', 'Exercises.gs', 'Sets.gs', 'Planner.gs', 'PlanGen.gs', 'Store.gs', 'Planning.gs', 'Auth.gs', 'Limits.gs', 'Gemini.gs', 'Code.gs', 'Tests.gs'].forEach((f) => {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 });
 

@@ -378,11 +378,108 @@ function test_pure_plan_rules() {
   return 'ok';
 }
 
+// ---------- Generación del plan ----------
+
+function test_pure_settings() {
+  const d = defaultSettings_();
+  assert_(validateSettings_(d).length === 0, 'los ajustes por defecto son válidos: ' + validateSettings_(d));
+  assert_(isOnboarded_(d) === false, 'por defecto no hay bienvenida completada');
+  assert_(d.profile.heightCm === null && d.goal.startWeightKg === null && d.strength.referenceTotalKg === null,
+    'ningún dato personal en los valores por defecto');
+  const f = deepMerge_(d, { profile: { sex: 'male', birthYear: 1980, heightCm: 175 },
+    goal: { startWeightKg: 80, targetWeightKg: 82, startWaistCm: 90 }, strength: { referenceTotalKg: 60 } });
+  assert_(validateSettings_(f).length === 0 && isOnboarded_(f), 'ajustes rellenos válidos y bienvenida completa');
+  assert_(validateSettings_(deepMerge_(d, { profile: { heightCm: 20 } })).length > 0, 'altura absurda rechazada');
+  assert_(validateSettings_(deepMerge_(d, { coach: { intensity: 'extrema' } })).length > 0, 'intensidad inválida');
+  assert_(validateSettings_(deepMerge_(d, { profile: { sex: 'otro' } })).length > 0, 'sexo inválido');
+  return 'ok';
+}
+
+const LIB_ = exerciseSeed_();
+const EQ_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
+
+function test_pure_plan_from_history() {
+  const mk = (date, sets) => ({ status: 'done', cycleKey: 'A', date: date, groups: ['chest', 'triceps'],
+    plannedExercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: 4, repsMin: 8, repsMax: 10, targetRir: 2, restSec: 120, targetLoad: bb_(20) }],
+    exercises: [{ exerciseId: 'press_banca', sets: sets }] });
+  const full = [wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 3, bb_(20))];
+  const s1 = mk('2026-11-16', full);
+  let plan = planFromHistory_(s1, [s1], LIB_, EQ_);
+  assert_(plan.length === 1 && plan[0].exerciseId === 'press_banca', 'mismos ejercicios que la última vez');
+  assert_(plan[0].targetLoad.totalKg === 62.5 && plan[0].progression === 'increase', 'sube la carga tras llegar al máximo');
+  assert_(plan[0].sets === 4 && plan[0].repsMax === 10 && plan[0].targetRir === 2, 'conserva series y rangos');
+
+  const weak = mk('2026-11-16', [wset_(9, 2, bb_(20)), wset_(8, 2, bb_(20)), wset_(8, 2, bb_(20))]);
+  plan = planFromHistory_(weak, [weak], LIB_, EQ_);
+  assert_(plan[0].targetLoad.totalKg === 60 && plan[0].progression === 'hold', 'en rango: mantiene');
+
+  // Sin plannedExercises: se reconstruye desde lo hecho
+  const bare = { status: 'done', cycleKey: 'A', date: '2026-11-16', exercises: [{ exerciseId: 'curl_barra', sets: [wset_(12, 2, normalizeLoad_({ implement: 'ezbar', perSideKg: 10 }, EQ_).load)] }] };
+  plan = planFromHistory_(bare, [bare], LIB_, EQ_);
+  assert_(plan[0].repsMin === 10 && plan[0].repsMax === 15 && plan[0].targetLoad.totalKg === 30, 'reconstruye rangos de aislamiento');
+
+  assert_(exerciseHistory_([s1], 'press_banca', 2).length === 1 && exerciseHistory_([s1], 'sentadilla', 2).length === 0, 'historial por ejercicio');
+  assert_(lastLoads_([s1]).press_banca.totalKg === 60, 'última carga conocida');
+  assert_(lastSessionOfKey_([s1, mk('2026-11-20', full)], 'A').date === '2026-11-20', 'última sesión de la clave');
+  assert_(lastSessionOfKey_([s1], 'B') === null, 'clave sin historial');
+  return 'ok';
+}
+
+function test_pure_ai_plan() {
+  const groups = ['chest', 'triceps'];
+  const good = { exercises: [
+    { exerciseId: 'press_banca', implement: 'barbell', sets: 4, repsMin: 6, repsMax: 10, estimated10RmTotalKg: 65, restSec: 120 },
+    { exerciseId: 'press_inclinado', implement: 'dumbbell', sets: 3, repsMin: 8, repsMax: 12, estimated10RmTotalKg: 44, restSec: 90 },
+    { exerciseId: 'aperturas', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 30, restSec: 75 },
+    { exerciseId: 'extension_polea', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 35, restSec: 75 }
+  ] };
+  assert_(validateAiPlan_(good, groups, LIB_).length === 0, 'plan válido: ' + validateAiPlan_(good, groups, LIB_));
+  const bad = (mut) => { const c = JSON.parse(JSON.stringify(good)); mut(c); return validateAiPlan_(c, groups, LIB_).length > 0; };
+  assert_(bad((c) => { c.exercises[0].exerciseId = 'baile'; }), 'id inventado rechazado');
+  assert_(bad((c) => { c.exercises[0].exerciseId = 'sentadilla'; }), 'ejercicio de otro grupo rechazado');
+  assert_(bad((c) => { c.exercises[0].implement = 'machine'; }), 'implemento no válido rechazado');
+  assert_(bad((c) => { c.exercises[1].exerciseId = 'press_banca'; }), 'ejercicio repetido rechazado');
+  assert_(bad((c) => { c.exercises[0].sets = 9; }), 'demasiadas series rechazadas');
+  assert_(bad((c) => { c.exercises[0].repsMin = 12; }), 'rango invertido rechazado');
+  assert_(bad((c) => { c.exercises[0].estimated10RmTotalKg = -5; }), 'estimación negativa rechazada');
+  assert_(bad((c) => { c.exercises = c.exercises.slice(0, 2); }), 'muy pocos ejercicios rechazados');
+  assert_(validateAiPlan_({}, groups, LIB_).length > 0, 'sin ejercicios rechazado');
+
+  const planned = buildPlannedFromAi_(good, LIB_, EQ_);
+  assert_(planned[0].targetLoad.totalKg <= 55.25 && planned[0].targetLoad.totalKg >= 50, 'barra: 85 % hacia abajo, obtenido ' + planned[0].targetLoad.totalKg);
+  assert_(planned[1].targetLoad.implement === 'dumbbell' && planned[1].targetLoad.perHandKg === 18, 'mancuernas: 44 × 0,85 / 2 → 18 por mano');
+  assert_(planned.every((p) => p.targetRir === 3), 'primera sesión: RIR 3');
+  const ruled = applyPlanRules_(planned, { lastLoads: {}, equipment: EQ_, firstSession: true });
+  assert_(ruled.notes.indexOf('first_session') >= 0, 'primera sesión marcada');
+  return 'ok';
+}
+
+function test_pure_prompts() {
+  const settings = deepMerge_(defaultSettings_(), { strength: { referenceTotalKg: 65 } });
+  const user = buildSessionUser_(['chest', 'triceps'], settings, LIB_);
+  assert_(user.ejerciciosPermitidos.length > 5 && user.ejerciciosPermitidos.every((x) => LIB_.find((e) => e.id === x.id).primary.some((g) => ['chest', 'triceps'].indexOf(g) >= 0)), 'solo ejercicios de los grupos de hoy');
+  assert_(user.referenciaDeFuerza.pesoTotalKg === 65, 'la referencia viaja en el mensaje del usuario');
+  assert_(SESSION_SYSTEM_.indexOf('65') < 0, 'las instrucciones no contienen datos del usuario');
+  assert_(JSON.stringify(buildCycleUser_(settings)).indexOf('65') < 0, 'el ciclo no necesita la referencia');
+
+  const neutral = buildCoachSystem_('', 'alta');
+  assert_(neutral.indexOf('neutro') >= 0 && neutral.indexOf('Personalidad') < 0, 'sin persona: tono neutro');
+  const withP = buildCoachSystem_('TEXTO DE PRUEBA', 'baja');
+  assert_(withP.indexOf('TEXTO DE PRUEBA') >= 0 && withP.indexOf('templado') >= 0, 'con persona e intensidad');
+  assert_(buildCoachSystem_('x', 'alta').indexOf('No cambies ni inventes cargas') >= 0, 'el estilo no toca los números');
+  assert_(buildCoachSystem_('x', 'alta').indexOf('dolor') >= 0, 'seguridad física incluida');
+  const m = neutralCoachMessage_(['quads', 'glutes'], ['layoff', 'deload']);
+  assert_(m.indexOf('cuádriceps y glúteos') >= 0 && m.indexOf('parado') >= 0 && m.indexOf('descarga') >= 0, 'mensaje neutro con avisos');
+  assert_(CYCLE_SYSTEM_.indexOf('chest') >= 0, 'el ciclo pide los grupos válidos');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
-    test_pure_plan_rules, test_commit_roundtrip].forEach((fn) => {
+    test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
+    test_pure_prompts, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {
