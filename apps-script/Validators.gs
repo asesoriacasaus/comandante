@@ -3,8 +3,6 @@
  * Devuelven un array de errores en español; vacío = válido.
  */
 
-const SESSION_TYPES_ = ['strength', 'bodyweight', 'cardio', 'mixed'];
-const SET_TYPES_ = ['warmup', 'working', 'drop'];
 const MEAL_TYPES_ = ['breakfast', 'lunch', 'dinner', 'snack', 'pre_workout', 'post_workout'];
 const UNITS_ = ['g', 'ml', 'unidad', 'ración', 'cucharada', 'taza'];
 const EXPERIENCE_ = ['beginner', 'intermediate', 'advanced'];
@@ -45,68 +43,33 @@ function validateDate_(date, today) {
   return [];
 }
 
-function isRunExercise_(item) {
-  const probe = (String(item.exerciseId || '') + ' ' + String(item.name || '')).toLowerCase();
-  return /run|correr|trote/.test(probe);
-}
-
-function validateSet_(set, label) {
-  const e = [];
-  if (!set || typeof set !== 'object') return [label + ': set inválido'];
-  if (SET_TYPES_.indexOf(set.type) < 0) e.push(label + ': type inválido');
-  pushIf_(e, checkNum_(set.reps, label + ' reps', 0, 1000, true));
-  pushIf_(e, checkNum_(set.weightKg, label + ' weightKg', 0, 1000, false));
-  pushIf_(e, checkNum_(set.rir, label + ' rir', 0, 10, true));
-  pushIf_(e, checkNum_(set.restSec, label + ' restSec', 0, 3600, true));
-  if (set.durationSec !== null && set.durationSec !== undefined) {
-    pushIf_(e, checkNum_(set.durationSec, label + ' durationSec', 0.001, 86400, false));
-  }
-  return e;
-}
-
-function validateSession_(s, today) {
+function validateSession_(s, today, equipment) {
   const e = [];
   if (!s.id) e.push('id requerido');
-  e.push(...validateDate_(s.date, today));
-  if (SESSION_TYPES_.indexOf(s.type) < 0) e.push('type inválido');
+  if (SESSION_STATUS_.indexOf(s.status) < 0) e.push('status inválido');
+  if (s.status === 'planned') {
+    if (!isIsoDate_(s.date)) e.push('date debe tener formato YYYY-MM-DD');
+  } else {
+    e.push(...validateDate_(s.date, today));
+  }
   if (s.startedAt && !isIsoDateTime_(s.startedAt)) e.push('startedAt inválido');
   if (s.endedAt && !isIsoDateTime_(s.endedAt)) e.push('endedAt inválido');
   if (s.startedAt && s.endedAt && isIsoDateTime_(s.startedAt) && isIsoDateTime_(s.endedAt) &&
       Date.parse(s.endedAt) < Date.parse(s.startedAt)) {
     e.push('endedAt es anterior a startedAt');
   }
+  (s.groups || []).forEach((g) => { if (GROUPS_.indexOf(g) < 0) e.push('grupo inválido: ' + g); });
 
-  if ((s.exercises || []).length === 0 && (s.cardio || []).length === 0) {
-    e.push('la sesión no tiene ejercicios ni cardio');
-  }
-
-  (s.exercises || []).forEach((ex, i) => {
+  const exercises = s.exercises || [];
+  if (s.status === 'done' && exercises.length === 0) e.push('la sesión no tiene ejercicios');
+  exercises.forEach((ex, i) => {
     const label = 'exercises[' + i + ']';
     if (!ex.exerciseId && !ex.name) e.push(label + ': falta exerciseId o name');
     if (!Array.isArray(ex.sets)) {
       e.push(label + ': sets debe ser una lista');
       return;
     }
-    ex.sets.forEach((set, j) => e.push(...validateSet_(set, label + '.sets[' + j + ']')));
-    pushIf_(e, checkNum_(ex.addedWeightKg, label + ' addedWeightKg', 0, 500, false));
-    pushIf_(e, checkNum_(ex.bodyweightKg, label + ' bodyweightKg', 0, 400, false));
-  });
-
-  (s.cardio || []).forEach((c, i) => {
-    const label = 'cardio[' + i + ']';
-    if (!c.exerciseId && !c.name) e.push(label + ': falta exerciseId o name');
-    if (typeof c.durationSec !== 'number') e.push(label + ': durationSec es obligatorio');
-    else pushIf_(e, checkNum_(c.durationSec, label + ' durationSec', 1, 86400, false));
-    pushIf_(e, checkNum_(c.distanceM, label + ' distanceM', 0, 1000000, false));
-    pushIf_(e, checkNum_(c.avgHr, label + ' avgHr', 30, 250, false));
-    pushIf_(e, checkNum_(c.maxHr, label + ' maxHr', 30, 250, false));
-    pushIf_(e, checkNum_(c.rpe, label + ' rpe', 1, 10, false));
-    if (c.distanceM && c.durationSec && isRunExercise_(c)) {
-      const minPerKm = (c.durationSec / 60) / (c.distanceM / 1000);
-      if (minPerKm < 3 || minPerKm > 20) {
-        e.push(label + ': ritmo fuera de 3:00-20:00 min/km (coherencia distancia/duración)');
-      }
-    }
+    ex.sets.forEach((set, j) => e.push(...validateSet_(set, label + '.sets[' + j + ']', equipment)));
   });
   return e;
 }
