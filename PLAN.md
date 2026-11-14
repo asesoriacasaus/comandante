@@ -469,6 +469,18 @@ Criterio: un pantallazo real del Huawei Watch Fit 4 rellena los campos; una tira
 
 Criterio: el domingo llega el correo con balance y plan; el plan de la semana siguiente refleja los ajustes.
 
+### Resultados de la prueba de riesgo (Fase 0, 14-15 de noviembre de 2026)
+
+| Comprobación | Resultado |
+|---|---|
+| Formato de grabación en iPhone | `audio/mp4; codecs=mp4a.40.2`. Gemini lo acepta tal cual como `audio/mp4`, sin reintento como `audio/aac` |
+| Clip de 26 s | 0,6 MB. Gemini: 1,6 s. Total desde el iPhone: 5,1 s. Transcripción correcta |
+| Pantallazo (PNG de 246 KB, reducido a JPEG de 158 KB) | Gemini: 1,1 s. Total: 3,4 s. Extrae todos los campos de la carrera |
+| Permiso de micrófono | La app instalada **vuelve a pedirlo en cada apertura**. Mitigación de diseño: pedir el micrófono una sola vez al pulsar "Empezar sesión" y reutilizar el mismo flujo de audio para todos los clips de la sesión. Alternativa: abrir desde Safari con el micrófono en "Permitir" para el sitio |
+| Modelos | `gemini-2.5-flash` no sirve: está deprecado y da 404 en cuentas nuevas. `gemini-3.8-flash` se colgó 360 s en una prueba. Fijado `GEMINI_MODEL_FAST` = `gemini-3.5-flash-lite` y `GEMINI_MODEL_SMART` = `gemini-pro-latest`. Se reevalúa con clips reales en la Fase 1 |
+| Aritmética | En la prueba, el modelo sumó mal la carga de la barra. Confirma la regla: la IA solo extrae lo dicho; los kilos totales los calcula el código (6.2) |
+| Pendiente | Pantallazo real de la báscula Huawei (criterio de la Fase 2) |
+
 ---
 
 ## 12. Riesgos y comprobaciones
