@@ -108,6 +108,7 @@ Notas:
 - El frontend sigue sin dependencias ni empaquetador: módulos ES nativos.
 - Todas las llamadas al servidor son `POST` con `Content-Type: text/plain;charset=utf-8` para evitar el preflight `OPTIONS`, que Apps Script no responde.
 - El Web App se despliega como "Ejecutar como: yo" y "Acceso: cualquier persona". La protección está en la sección 5.
+- El workflow de Pages sustituye `CACHE_NAME` del Service Worker por el SHA del commit, para que el iPhone reciba cada versión.
 - La URL del Web App se mantiene estable porque Actions actualiza siempre el mismo despliegue (`clasp deploy -i <DEPLOYMENT_ID>`).
 
 ---
@@ -424,7 +425,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 2. Workflow `ci.yml`: tests de Node (frontend y funciones puras de Apps Script) y búsqueda de secretos.
 3. Workflow `deploy.yml`: publicar Pages y, en el entorno `production` con aprobación, `clasp push` + `clasp deploy -i $DEPLOYMENT_ID`.
 4. Seguridad: CSP, bloqueo global, límites de tamaño, nuevo `APP_TOKEN`, borrar la clave de DeepSeek.
-5. `Gemini.gs` con modelos en Propiedades del script; acción `ping.ai`.
+5. `Gemini.gs` con modelos en Propiedades del script; acciones `ping.ai` (comprueba clave y modelo), `ai.models` (lista los modelos de la clave, para elegir los identificadores) y `ai.probe` (clip o pantallazo de prueba; si `audio/mp4` da error 400, reintenta como `audio/aac`). Pantalla de prueba en Más > Prueba de voz y pantallazo.
 6. **Prueba de riesgo:** en el iPhone, con la app instalada, grabar un clip, subirlo y recibir la transcripción e interpretación. Medir tiempos. Probar también un pantallazo real del reloj y otro de la báscula.
 7. Renombrar el proyecto de Apps Script y la carpeta de datos.
 
@@ -491,7 +492,7 @@ Criterio: el domingo llega el correo con balance y plan; el plan de la semana si
 
 1. Crear en GitHub un repositorio **público y vacío** llamado `comandante`.
 2. En la cuenta de Google de la asesoría, activar la API de Apps Script en `https://script.google.com/home/usersettings` (era la causa del error `Insufficient Permission`).
-3. En el Mac, `clasp login` con esa cuenta y copiar el contenido de `~/.clasprc.json` a un secreto `CLASPRC_JSON` del entorno `production` del repo. La sesión de desarrollo guiará el paso.
+3. En el Mac, `npx @google/clasp@2.4.2 login` (la misma versión que usa el workflow) con esa cuenta y copiar el contenido de `~/.clasprc.json` a un secreto `CLASPRC_JSON` del entorno `production` del repo. La sesión de desarrollo guiará el paso.
 4. En el repo: activar Pages con origen "GitHub Actions", crear el entorno `production` con aprobación obligatoria, activar secret scanning y push protection.
 5. En las Propiedades del script: `GEMINI_API_KEY`, un `APP_TOKEN` nuevo, `GEMINI_MODEL_FAST`, `GEMINI_MODEL_SMART` y `PERSONA_PROMPT` (la sesión de desarrollo redacta su texto con el usuario en la Fase 1). Borrar `DEEPSEEK_API_KEY`.
 6. Añadir saldo a la cuenta de Gemini.

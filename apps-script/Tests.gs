@@ -119,25 +119,72 @@ function test_commit_roundtrip() {
   return 'ok';
 }
 
-function test_pure_parse() {
-  // Los few-shots son ejemplos de salida: deben cumplir el contrato del parser.
-  FEWSHOTS_.forEach((ex, i) => {
-    const obj = JSON.parse(ex.assistant);
-    const check = validParseResponse_(obj);
-    assert_(check.valid, 'few-shot ' + (i + 1) + ' no cumple el contrato: ' + check.errors.join('; '));
-  });
-  assert_(validParseResponse_({ intent: 'x' }).valid === false, 'intent inválido debe fallar');
-  assert_(validParseResponse_({ intent: 'log_meal', confidence: 0.9, data: { items: [] }, missing_fields: [], warnings: [], clarification: null }).valid === false,
-    'log_meal sin items debe fallar');
-  assert_(validParseResponse_({ intent: 'unknown', confidence: 0.2, data: {}, missing_fields: [], warnings: [], clarification: '¿Qué entrenaste?' }).valid === true,
-    'unknown con aclaración es válido');
-  assert_(buildParseMessages_('hola').length === 2 + FEWSHOTS_.length * 2, 'mensajes: system + few-shots + usuario');
+function fakeCache_() {
+  const m = {};
+  return { get: (k) => (k in m ? m[k] : null), put: (k, v) => { m[k] = String(v); } };
+}
+
+function test_pure_auth_lockout() {
+  const cache = fakeCache_();
+  const t = 1700000000000;
+  for (let i = 0; i < AUTH_FAIL_LIMIT_; i++) {
+    assert_(registerAuthFailure_(cache, t + i).blocked === false, 'no debe bloquear antes del límite');
+  }
+  const r = registerAuthFailure_(cache, t + 100);
+  assert_(r.blocked && r.justBlocked, 'el fallo 21 debe bloquear');
+  assert_(isAuthBlocked_(cache, t + 60000), 'sigue bloqueado a los 60 s');
+  assert_(!isAuthBlocked_(cache, t + AUTH_BLOCK_SEC_ * 1000 + 1000), 'se desbloquea a los 15 min');
+  assert_(registerAuthFailure_(cache, t + 200).justBlocked === false, 'no reenvía alerta mientras dura el bloqueo');
+  return 'ok';
+}
+
+function test_pure_limits() {
+  const b64 = (n) => 'A'.repeat(Math.ceil(n / 3) * 4);
+  assert_(baseMime_('Audio/MP4;codecs=mp4a.40.2') === 'audio/mp4', 'baseMime_ limpia parámetros');
+  assert_(validateMedia_('audio', 'audio/mp4;codecs=mp4a.40.2', b64(1000)) === 'audio/mp4', 'audio válido');
+  let code = null;
+  try { validateMedia_('audio', 'audio/mp4', b64(2 * 1024 * 1024 + 10)); } catch (e) { code = e.code; }
+  assert_(code === 'TOO_LARGE', 'audio >2 MB debe rechazarse');
+  code = null;
+  try { validateMedia_('image', 'image/svg+xml', b64(1000)); } catch (e) { code = e.code; }
+  assert_(code === 'VALIDATION', 'MIME fuera de lista blanca');
+  code = null;
+  try { validateMedia_('image', 'image/png', 'no es base64!!!!!!!!'); } catch (e) { code = e.code; }
+  assert_(code === 'VALIDATION', 'base64 inválido');
+  code = null;
+  try { validateText_('x'.repeat(2001)); } catch (e) { code = e.code; }
+  assert_(code === 'TOO_LARGE', 'texto >2000');
+  assert_(validateText_('hola') === 'hola', 'texto corto pasa');
+  code = null;
+  try { checkBodySize_(6 * 1024 * 1024 + 1); } catch (e) { code = e.code; }
+  assert_(code === 'TOO_LARGE', 'cuerpo >6 MB');
+  assert_(base64Bytes_('QUJD') === 3 && base64Bytes_('QUI=') === 2, 'base64Bytes_');
+  return 'ok';
+}
+
+function test_pure_gemini() {
+  const req = buildGeminiRequest_('SISTEMA', [{ text: 'usuario' }], { schema: { type: 'OBJECT' } });
+  assert_(req.systemInstruction.parts[0].text === 'SISTEMA', 'instrucciones en systemInstruction');
+  assert_(JSON.stringify(req.contents).indexOf('SISTEMA') < 0, 'las instrucciones no se mezclan con el mensaje del usuario');
+  assert_(req.generationConfig.responseMimeType === 'application/json', 'JSON forzado con schema');
+  const ok = parseGeminiResponse_({ candidates: [{ content: { parts: [{ text: '{"a":1}' }] }, finishReason: 'STOP' }] });
+  assert_(ok.text === '{"a":1}', 'extrae el texto');
+  let code = null;
+  try { parseGeminiResponse_({ promptFeedback: { blockReason: 'SAFETY' } }); } catch (e) { code = e.code; }
+  assert_(code === 'AI_BLOCKED', 'bloqueo detectado');
+  code = null;
+  try { parseGeminiResponse_({ candidates: [{ finishReason: 'SAFETY' }] }); } catch (e) { code = e.code; }
+  assert_(code === 'AI_BLOCKED', 'corte por seguridad detectado');
+  code = null;
+  try { parseGeminiResponse_({}); } catch (e) { code = e.code; }
+  assert_(code === 'AI_EMPTY', 'respuesta vacía');
   return 'ok';
 }
 
 function test_all() {
   const results = [];
-  [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_parse, test_commit_roundtrip].forEach((fn) => {
+  [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
+    test_pure_limits, test_pure_gemini, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

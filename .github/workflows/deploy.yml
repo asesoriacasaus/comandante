@@ -1,0 +1,73 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  pages:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - name: Preparar sitio estático
+        run: |
+          mkdir site
+          cp -r index.html manifest.webmanifest sw.js css js icons site/
+          # La versión de la caché cambia en cada despliegue para que el iPhone reciba lo nuevo.
+          sed -i "s/const CACHE_NAME = '[^']*'/const CACHE_NAME = 'comandante-${GITHUB_SHA::8}'/" site/sw.js
+          grep CACHE_NAME site/sw.js | head -1
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  apps-script:
+    needs: checks
+    runs-on: ubuntu-latest
+    # Aprobación obligatoria del propietario: configurada en el entorno "production".
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+      - name: Configurar clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ vars.SCRIPT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
+            echo "::error::Faltan el secreto CLASPRC_JSON o la variable SCRIPT_ID en el entorno production"; exit 1
+          fi
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
+          npm install --no-save --no-audit --no-fund @google/clasp@2.4.2
+      - name: Subir código
+        run: npx clasp push --force
+      - name: Publicar versión en el despliegue existente
+        env:
+          DEPLOYMENT_ID: ${{ vars.DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$DEPLOYMENT_ID" ]; then echo "::error::Falta la variable DEPLOYMENT_ID"; exit 1; fi
+          npx clasp deploy -i "$DEPLOYMENT_ID" -d "${GITHUB_SHA::8}"
+      - name: Limpiar credenciales
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" .clasp.json

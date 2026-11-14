@@ -2,35 +2,44 @@
  * Punto de entrada del Web App. Todas las peticiones llegan como POST text/plain
  * con cuerpo JSON: { action, token, payload }. Siempre responde HTTP 200.
  */
-const CONFIG = { VERSION: '0.1.0', RATE_LIMIT_PER_MIN: 60 };
+const CONFIG = { VERSION: '0.2.0', RATE_LIMIT_PER_MIN: 60 };
 
 function doPost(e) {
   const t0 = Date.now();
+  const raw = e && e.postData && e.postData.contents ? e.postData.contents : '';
+  try {
+    checkBodySize_(raw.length);
+  } catch (err) {
+    return json_({ ok: false, error: { code: err.code, message: err.message } });
+  }
+
   let body;
   try {
-    body = JSON.parse(e.postData.contents);
+    body = JSON.parse(raw);
   } catch (_) {
     return json_({ ok: false, error: { code: 'VALIDATION', message: 'JSON inválido' } });
   }
-
-  if (!checkToken_(body.token)) {
-    return json_({ ok: false, error: { code: 'AUTH', message: 'Token inválido' } });
+  if (!body || typeof body !== 'object') {
+    return json_({ ok: false, error: { code: 'VALIDATION', message: 'JSON inválido' } });
   }
-  if (!checkRate_(body.token)) {
-    return json_({ ok: false, error: { code: 'RATE_LIMIT', message: 'Demasiadas peticiones' } });
+
+  const denied = authGate_(body.token);
+  if (denied) {
+    const msg = { AUTH: 'Token inválido', LOCKED: 'Acceso bloqueado temporalmente', RATE_LIMIT: 'Demasiadas peticiones' }[denied];
+    return json_({ ok: false, error: { code: denied, message: msg } });
   }
 
   const payload = body.payload || {};
-
-  // Acciones del Hito 1. parse, analysis, range, etc. se añaden en sus hitos.
   const handlers = {
     ping: () => ({ version: CONFIG.VERSION, time: new Date().toISOString() }),
+    'ping.ai': () => pingAi(),
+    'ai.models': () => ({ models: listGeminiModels_() }),
+    'ai.probe': () => aiProbe(payload),
     commit: () => commitRecord(payload.entity, payload.record),
     query: () => queryRecords(payload),
     day: () => getDay(payload.date),
     'settings.get': () => getSettings(),
-    'settings.update': () => updateSettings(payload.patch),
-    parse: () => parseUtterance(payload)
+    'settings.update': () => updateSettings(payload.patch)
   };
 
   const action = String(body.action || '');
@@ -40,12 +49,14 @@ function doPost(e) {
 
   try {
     const data = handlers[action]();
+    // Solo código y tiempo en logs: nunca audio, transcripciones ni datos de salud.
+    console.log(action + ' ok ' + (Date.now() - t0) + 'ms');
     return json_({ ok: true, action: action, data: data, meta: { ms: Date.now() - t0 } });
   } catch (err) {
-    console.error(err);
+    console.error(action + ' error ' + (err && err.code ? err.code : 'INTERNAL'));
     return json_({
       ok: false,
-      error: { code: err.code || 'INTERNAL', message: String(err.message || err) }
+      error: { code: (err && err.code) || 'INTERNAL', message: err && err.code ? String(err.message) : 'Error interno' }
     });
   }
 }
