@@ -1,0 +1,11 @@
+# Secretos y configuración local. Nunca subir al repo (es público).
+.env
+token.txt
+.clasp.json
+.clasprc.json
+apps-script/.clasp.json
+deploy-apps-script/
+planificacion/
+*.zip
+node_modules/
+.DS_Store

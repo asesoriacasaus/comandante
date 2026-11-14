@@ -1,0 +1,235 @@
+:root {
+  --bg: #f6f7f9;
+  --fg: #14171c;
+  --muted: #5b6370;
+  --card: #ffffff;
+  --line: #d9dde3;
+  --accent: #1f7a5a;
+  --accent-fg: #ffffff;
+  --ok: #1f7a5a;
+  --warn: #9a5b00;
+  --err: #b3261e;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0e12;
+    --fg: #e8ebf0;
+    --muted: #9aa3af;
+    --card: #161a21;
+    --line: #2a303b;
+    --accent: #3fbf8f;
+    --accent-fg: #0c0e12;
+    --ok: #3fbf8f;
+    --warn: #f0b35a;
+    --err: #ff8a80;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c0e12;
+  --fg: #e8ebf0;
+  --muted: #9aa3af;
+  --card: #161a21;
+  --line: #2a303b;
+  --accent: #3fbf8f;
+  --accent-fg: #0c0e12;
+  --ok: #3fbf8f;
+  --warn: #f0b35a;
+  --err: #ff8a80;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  overflow-x: hidden;
+}
+
+.topbar {
+  padding: 14px 16px 8px;
+  padding-top: calc(14px + env(safe-area-inset-top));
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+
+.tabs a {
+  flex: 0 0 auto;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+
+.tabs a[aria-current="page"] {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.contenido {
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  outline: none;
+}
+
+.vista h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input {
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 100%;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+}
+
+.btn-sec {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+
+.estado { min-height: 1.4em; margin: 0; }
+.estado.ok { color: var(--ok); }
+.estado.error { color: var(--err); }
+
+.nota, .vacio {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Registro por voz (Hito 2) */
+.captura { text-align: center; }
+
+.mic {
+  min-height: 96px;
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.mic.activo { background: var(--err); }
+.mic:disabled { opacity: 0.6; }
+
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+select {
+  min-height: 44px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.editor { display: grid; gap: 10px; }
+
+.bloque {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.bloque legend { color: var(--muted); font-size: 0.85rem; padding: 0 4px; }
+
+.btn-mini {
+  min-height: 32px;
+  min-width: 44px;
+  margin-left: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--err);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.avisos { color: var(--warn); margin: 0; padding-left: 18px; }
