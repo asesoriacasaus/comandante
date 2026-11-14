@@ -129,29 +129,29 @@ function deepMerge_(base, patch) {
   return out;
 }
 
-/** Métricas de sesión: volumen, series de trabajo, duración y distancia. */
-function computeSessionMetrics_(s) {
+/**
+ * Métricas de sesión: volumen, series efectivas (no calentamiento), series por grupo
+ * (primario cuenta 1, secundario 0,5) y duración. `opts.bodyweightKg` para peso corporal.
+ */
+function computeSessionMetrics_(s, opts) {
+  opts = opts || {};
+  const library = opts.library || exerciseSeed_();
   let totalVolumeKg = 0;
   let workingSets = 0;
+  const setsByGroup = {};
 
   (s.exercises || []).forEach((ex) => {
-    const isBodyweight = ex.kind === 'bodyweight' || s.type === 'bodyweight';
-    const factor = typeof ex.bodyweightFactor === 'number' ? ex.bodyweightFactor : 1;
-    const bw = Number(ex.bodyweightKg) || 0;
-    const added = Number(ex.addedWeightKg) || 0;
+    const def = findExercise_(ex.exerciseId || ex.name, library);
     (ex.sets || []).forEach((set) => {
-      if (set.type === 'working') workingSets++;
-      const reps = Number(set.reps) || 0;
-      if (isBodyweight) {
-        totalVolumeKg += reps * (bw * factor + added);
-      } else {
-        totalVolumeKg += reps * (Number(set.weightKg) || 0);
+      if (set.type === 'warmup') return;
+      workingSets++;
+      totalVolumeKg += setVolume_(set, opts.bodyweightKg, def && def.bodyweightFactor);
+      if (def) {
+        def.primary.forEach((g) => { setsByGroup[g] = (setsByGroup[g] || 0) + 1; });
+        def.secondary.forEach((g) => { setsByGroup[g] = (setsByGroup[g] || 0) + 0.5; });
       }
     });
   });
-
-  let distanceM = 0;
-  (s.cardio || []).forEach((c) => { distanceM += Number(c.distanceM) || 0; });
 
   let durationMin = null;
   if (s.startedAt && s.endedAt) {
@@ -163,8 +163,7 @@ function computeSessionMetrics_(s) {
     totalVolumeKg: Math.round(totalVolumeKg * 10) / 10,
     workingSets: workingSets,
     durationMin: durationMin,
-    distanceKm: Math.round((distanceM / 1000) * 100) / 100,
-    activeKcalEstimate: null
+    setsByGroup: setsByGroup
   };
 }
 
@@ -231,13 +230,21 @@ function commitRecord(entity, record) {
   }
 }
 
+/** Último peso registrado; si no hay, el de partida de los ajustes. */
+function latestBodyweight_(settings) {
+  const arr = readJson_('body.json', []);
+  for (let i = arr.length - 1; i >= 0; i--) if (typeof arr[i].weightKg === 'number') return arr[i].weightKg;
+  return (settings.goal && settings.goal.startWeightKg) || null;
+}
+
 function commitSession_(input, tz, today) {
   requireDate_(input.date);
   const rec = Object.assign({}, input);
   rec.id = rec.id || makeId_('s', rec.date, tz);
-  const errors = validateSession_(rec, today);
+  const settings = getSettings();
+  const errors = validateSession_(rec, today, settings.equipment);
   if (errors.length) throw { code: 'VALIDATION', message: errors.join('; ') };
-  rec.metrics = computeSessionMetrics_(rec);
+  rec.metrics = computeSessionMetrics_(rec, { bodyweightKg: latestBodyweight_(settings) });
   return upsertShard_('sessions', rec, sortByDateTime_, tz);
 }
 

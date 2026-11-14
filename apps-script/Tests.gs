@@ -10,30 +10,27 @@ function assert_(cond, msg) {
 
 function test_pure_validators() {
   const today = '2026-11-11';
+  const bar = (perSideKg) => ({ implement: 'barbell', perSideKg: perSideKg });
   const okSession = {
-    id: 's1', date: '2026-11-11', type: 'strength',
+    id: 's1', date: '2026-11-11', status: 'done', groups: ['chest'],
     startedAt: '2026-11-11T07:30:00+01:00', endedAt: '2026-11-11T08:35:00+01:00',
-    exercises: [{ exerciseId: 'press_banca', sets: [{ type: 'working', reps: 8, weightKg: 80, rir: 2, restSec: 150 }] }]
+    exercises: [{ exerciseId: 'press_banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bar(20), restSec: 150 }] }]
   };
-  assert_(validateSession_(okSession, today).length === 0, 'sesión válida no debe tener errores');
+  assert_(validateSession_(okSession, today).length === 0, 'sesión válida no debe tener errores: ' + validateSession_(okSession, today));
   assert_(validateSession_(Object.assign({}, okSession, { date: '2026-11-20' }), today).length > 0, 'fecha futura debe fallar');
   assert_(validateSession_(Object.assign({}, okSession, { date: '2026-02-30' }), today).length > 0, 'fecha inexistente debe fallar');
-  assert_(validateSession_(Object.assign({}, okSession, { type: 'zumba' }), today).length > 0, 'type inválido debe fallar');
+  assert_(validateSession_(Object.assign({}, okSession, { status: 'zumba' }), today).length > 0, 'status inválido debe fallar');
+  assert_(validateSession_(Object.assign({}, okSession, { groups: ['cejas'] }), today).length > 0, 'grupo inválido debe fallar');
   assert_(validateSession_(Object.assign({}, okSession, { endedAt: '2026-11-11T07:00:00+01:00' }), today).length > 0, 'fin anterior al inicio debe fallar');
+  assert_(validateSession_({ id: 'p1', date: '2026-12-01', status: 'planned', exercises: [] }, today).length === 0, 'sesión planificada futura y vacía es válida');
+  assert_(validateSession_({ id: 's4', date: '2026-11-11', status: 'done' }, today).length > 0, 'sesión hecha sin ejercicios debe fallar');
 
   const badReps = JSON.parse(JSON.stringify(okSession));
   badReps.exercises[0].sets[0].reps = 2.5;
   assert_(validateSession_(badReps, today).length > 0, 'reps no enteras deben fallar');
-
-  const run = {
-    id: 's2', date: '2026-11-11', type: 'cardio',
-    cardio: [{ exerciseId: 'running_outdoor', durationSec: 1800, distanceM: 50000 }]
-  };
-  assert_(validateSession_(run, today).some((x) => x.indexOf('ritmo') >= 0), 'ritmo absurdo en carrera debe fallar');
-
-  const noDuration = { id: 's3', date: '2026-11-11', type: 'cardio', cardio: [{ exerciseId: 'running_outdoor', durationSec: null }] };
-  assert_(validateSession_(noDuration, today).length > 0, 'cardio sin duración debe fallar');
-  assert_(validateSession_({ id: 's4', date: '2026-11-11', type: 'strength' }, today).length > 0, 'sesión vacía debe fallar');
+  const rirNull = JSON.parse(JSON.stringify(okSession));
+  rirNull.exercises[0].sets[0].rir = null;
+  assert_(validateSession_(rirNull, today).length === 0, 'rir null (no mencionado) es válido');
 
   const meal = {
     id: 'm1', date: '2026-11-11', time: '13:30', mealType: 'lunch',
@@ -57,24 +54,80 @@ function test_pure_validators() {
 
 function test_pure_metrics() {
   const s = {
-    type: 'strength', startedAt: '2026-11-11T07:30:00+01:00', endedAt: '2026-11-11T08:35:00+01:00',
+    startedAt: '2026-11-11T07:30:00+01:00', endedAt: '2026-11-11T08:35:00+01:00',
     exercises: [
-      { kind: 'strength', sets: [
-        { type: 'warmup', reps: 10, weightKg: 40 },
-        { type: 'working', reps: 8, weightKg: 80 },
-        { type: 'working', reps: 8, weightKg: 80 }
+      { exerciseId: 'press_banca', sets: [
+        { type: 'warmup', reps: 10, load: { implement: 'barbell', barKg: 20, perSideKg: 10, totalKg: 40 } },
+        { type: 'working', reps: 8, load: { implement: 'barbell', barKg: 20, perSideKg: 20, totalKg: 60 } },
+        { type: 'working', reps: 8, load: { implement: 'barbell', barKg: 20, perSideKg: 20, totalKg: 60 } }
       ] },
-      { kind: 'bodyweight', bodyweightKg: 75.4, addedWeightKg: 10, bodyweightFactor: 1,
-        sets: [{ type: 'working', reps: 6 }] }
-    ],
-    cardio: [{ distanceM: 5000 }]
+      { exerciseId: 'dominadas', sets: [{ type: 'working', reps: 6, load: { implement: 'bodyweight', addedKg: 10, totalKg: 10 } }] }
+    ]
   };
-  const m = computeSessionMetrics_(s);
-  // 400 + 640 + 640 + 6 * (75.4 + 10) = 1680 + 512.4 = 2192.4
-  assert_(m.totalVolumeKg === 2192.4, 'volumen total esperado 2192.4, obtenido ' + m.totalVolumeKg);
-  assert_(m.workingSets === 3, 'series de trabajo esperadas: 3');
+  const m = computeSessionMetrics_(s, { bodyweightKg: 80 });
+  // 8×60 + 8×60 + 6×(80×1 + 10) = 960 + 540 = 1500 (el calentamiento no cuenta)
+  assert_(m.totalVolumeKg === 1500, 'volumen total esperado 1500, obtenido ' + m.totalVolumeKg);
+  assert_(m.workingSets === 3, 'series efectivas esperadas: 3');
   assert_(m.durationMin === 65, 'duración esperada: 65 min');
-  assert_(m.distanceKm === 5, 'distancia esperada: 5 km');
+  assert_(m.setsByGroup.chest === 2 && m.setsByGroup.back === 1, 'series por grupo (primario 1)');
+  assert_(m.setsByGroup.shoulders === 1 && m.setsByGroup.triceps === 1 && m.setsByGroup.biceps === 0.5, 'secundarios cuentan 0,5');
+  return 'ok';
+}
+
+function test_pure_loads() {
+  const eq = { barbellKg: 20, ezBarKg: 10 };
+  let r = normalizeLoad_({ implement: 'barbell', perSideKg: 20 }, eq);
+  assert_(r.load.totalKg === 60 && r.load.barKg === 20, '"20 a cada lado" con barra de 20 = 60 kg');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 0 }, eq);
+  assert_(r.load.totalKg === 20, '"la barra sola" = 20 kg');
+  r = normalizeLoad_({ implement: 'barbell', totalKg: 50 }, eq);
+  assert_(r.load.perSideKg === 15, 'total 50 → 15 por lado');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 20, totalKg: 70 }, eq);
+  assert_(r.load === null && r.errors.length > 0, 'total que no cuadra debe fallar');
+  r = normalizeLoad_({ implement: 'barbell', totalKg: 10 }, eq);
+  assert_(r.load === null, 'total menor que la barra debe fallar');
+  r = normalizeLoad_({ implement: 'ezbar', perSideKg: 10 }, eq);
+  assert_(r.load.totalKg === 30, 'barra Z de 10 + 2×10 = 30');
+  r = normalizeLoad_({ implement: 'dumbbell', perHandKg: 15 }, eq);
+  assert_(r.load.totalKg === 30 && r.load.count === 2, '"mancuernas de 15" = 15 por mano, 2 mancuernas');
+  r = normalizeLoad_({ implement: 'dumbbell', perHandKg: 24, count: 1 }, eq);
+  assert_(r.load.totalKg === 24, 'una mancuerna de 24');
+  r = normalizeLoad_({ implement: 'machine', stackKg: 70 }, eq);
+  assert_(r.load.totalKg === 70, 'máquina: pila tal cual');
+  r = normalizeLoad_({ implement: 'bodyweight' }, eq);
+  assert_(r.load.addedKg === 0, 'peso corporal sin lastre');
+  assert_(normalizeLoad_({ implement: 'barbell' }, eq).load === null, 'barra sin carga debe fallar');
+  assert_(normalizeLoad_({ implement: 'trineo', stackKg: 5 }, eq).load === null, 'implemento desconocido');
+  assert_(normalizeLoad_(null, eq).load === null, 'sin carga');
+  // Volumen
+  const set = { type: 'working', reps: 10, load: { implement: 'dumbbell', perHandKg: 15, count: 2, totalKg: 30 } };
+  assert_(setVolume_(set, 80, 1) === 300, 'volumen = reps × total');
+  assert_(setVolume_({ type: 'warmup', reps: 10, load: set.load }, 80, 1) === 0, 'el calentamiento no suma volumen');
+  assert_(setVolume_({ type: 'working', reps: 10, load: { implement: 'bodyweight', addedKg: 0 } }, 80, 0.65) === 520, 'flexiones: 10 × 80 × 0,65');
+  return 'ok';
+}
+
+function test_pure_exercises() {
+  const lib = exerciseSeed_();
+  assert_(lib.length >= 85 && lib.length <= 110, 'tamaño de la biblioteca: ' + lib.length);
+  const ids = {};
+  lib.forEach((e) => {
+    assert_(!ids[e.id], 'id duplicado: ' + e.id); ids[e.id] = 1;
+    assert_(e.name && e.implements.length > 0, e.id + ': nombre e implementos');
+    assert_(e.primary.length > 0, e.id + ': necesita grupo primario');
+    e.primary.concat(e.secondary).forEach((g) => assert_(GROUPS_.indexOf(g) >= 0, e.id + ': grupo inválido ' + g));
+    e.implements.forEach((i) => assert_(IMPLEMENTS_.indexOf(i) >= 0, e.id + ': implemento inválido ' + i));
+  });
+  GROUPS_.forEach((g) => assert_(lib.some((e) => e.primary.indexOf(g) >= 0), 'ningún ejercicio primario para ' + g));
+  assert_(findExercise_('Press banca', lib).id === 'press_banca', 'nombre exacto');
+  assert_(findExercise_('PRESS BANCA!', lib).id === 'press_banca', 'tolera mayúsculas y signos');
+  assert_(findExercise_('banca', lib).id === 'press_banca', 'alias "banca"');
+  assert_(findExercise_('press banca inclinado', lib).id === 'press_inclinado', 'gana el nombre más largo');
+  assert_(findExercise_('hice dominadas hoy', lib).id === 'dominadas', 'coincidencia dentro de una frase');
+  assert_(findExercise_('Peso muerto rumano', lib).id === 'peso_muerto_rumano', 'rumano distinto de peso muerto');
+  assert_(findExercise_('sentadilla búlgara', lib).id === 'sentadilla_bulgara', 'acentos');
+  assert_(findExercise_('baile flamenco', lib) === null, 'desconocido → null');
+  assert_(findExercise_('', lib) === null, 'vacío → null');
   return 'ok';
 }
 
@@ -100,10 +153,10 @@ function test_pure_helpers() {
 function test_commit_roundtrip() {
   const tz = 'Europe/Madrid';
   const rec = {
-    id: 's_test_19990105_0730_t1t1', date: '1999-01-05', type: 'strength',
+    id: 's_test_19990105_0730_t1t1', date: '1999-01-05', status: 'done',
     startedAt: '1999-01-05T07:30:00+01:00', endedAt: '1999-01-05T08:00:00+01:00',
     exercises: [{ exerciseId: 'press_banca', name: 'Press banca',
-      sets: [{ type: 'working', reps: 8, weightKg: 80, rir: 2, restSec: 150 }] }]
+      sets: [{ order: 1, type: 'working', reps: 8, rir: 2, restSec: 150, load: { implement: 'barbell', perSideKg: 30 } }] }]
   };
   try {
     const first = commitRecord('session', rec);
@@ -187,7 +240,7 @@ function test_pure_gemini() {
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
-    test_pure_limits, test_pure_gemini, test_commit_roundtrip].forEach((fn) => {
+    test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

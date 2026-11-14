@@ -419,7 +419,7 @@ Cada fase termina con una entrega probada en el iPhone. Los pesos suman el 100 %
 
 Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
-### Fase 0. Base (10 %)
+### Fase 0. Base (10 %). Cerrada el 15 de noviembre de 2026
 
 1. Crear la estructura del repo, mover el código reutilizable y borrar lo sustituido.
 2. Workflow `ci.yml`: tests de Node (frontend y funciones puras de Apps Script) y búsqueda de secretos.
@@ -431,7 +431,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %)
+### Fase 1. Entrenar (30 %). En curso: tarea 1 hecha
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.
