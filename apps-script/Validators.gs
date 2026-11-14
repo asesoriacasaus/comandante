@@ -180,36 +180,3 @@ function validateSettings_(s) {
   if (s.goal) pushIf_(e, checkNum_(s.goal.targetKcal, 'goal.targetKcal', 500, 10000, false));
   return e;
 }
-
-const INTENTS_ = ['log_strength', 'log_bodyweight', 'log_cardio', 'log_meal', 'log_body',
-  'query', 'plan_request', 'recommend', 'unknown'];
-
-/** Valida el contrato de salida del parser NLP (§6.2). Devuelve { valid, errors }. */
-function validParseResponse_(obj) {
-  const e = [];
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-    return { valid: false, errors: ['la respuesta no es un objeto JSON'] };
-  }
-  if (INTENTS_.indexOf(obj.intent) < 0) e.push('intent inválido');
-  if (typeof obj.confidence !== 'number' || !(obj.confidence >= 0 && obj.confidence <= 1)) {
-    e.push('confidence debe estar entre 0 y 1');
-  }
-  if (!obj.data || typeof obj.data !== 'object' || Array.isArray(obj.data)) e.push('data debe ser un objeto');
-  if (!Array.isArray(obj.missing_fields)) e.push('missing_fields debe ser una lista');
-  if (!Array.isArray(obj.warnings)) e.push('warnings debe ser una lista');
-  if (obj.clarification !== null && obj.clarification !== undefined && typeof obj.clarification !== 'string') {
-    e.push('clarification debe ser texto o null');
-  }
-
-  if (e.length === 0) {
-    const d = obj.data;
-    const needsList = (key, label) => {
-      if (!Array.isArray(d[key]) || d[key].length === 0) e.push('data.' + key + ' debe tener al menos un elemento (' + label + ')');
-    };
-    if (obj.intent === 'log_strength' || obj.intent === 'log_bodyweight') needsList('exercises', obj.intent);
-    if (obj.intent === 'log_cardio') needsList('cardio', obj.intent);
-    if (obj.intent === 'log_meal') needsList('items', obj.intent);
-    if (obj.intent === 'query' && (!d.query || typeof d.query !== 'object')) e.push('data.query requerido');
-  }
-  return { valid: e.length === 0, errors: e };
-}

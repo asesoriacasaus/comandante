@@ -1,16 +1,25 @@
 /**
- * Persistencia JSON en Google Drive (carpeta GymAppData) con sharding mensual.
+ * Persistencia JSON en Google Drive (carpeta ComandanteData) con sharding mensual.
  * Escrituras bajo LockService. Upsert por id: reenviar el mismo registro no duplica.
  */
 
-const ROOT_NAME_ = 'GymAppData';
+const ROOT_NAME_ = 'ComandanteData';
+const LEGACY_ROOT_NAME_ = 'GymAppData';
 const BACKUP_KEEP_ = 7;
 
 // ---------- Drive: lectura y escritura de bajo nivel ----------
 
 function rootFolder_() {
   const it = DriveApp.getFoldersByName(ROOT_NAME_);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_NAME_);
+  if (it.hasNext()) return it.next();
+  // Migración de nombre: la carpeta antigua se renombra, no se copia ni se borra nada.
+  const old = DriveApp.getFoldersByName(LEGACY_ROOT_NAME_);
+  if (old.hasNext()) {
+    const f = old.next();
+    f.setName(ROOT_NAME_);
+    return f;
+  }
+  return DriveApp.createFolder(ROOT_NAME_);
 }
 
 function folder_(sub) {
@@ -369,7 +378,7 @@ function ensureFile_(path, obj) {
   if (!fileExists_(path)) writeFile_(path, obj);
 }
 
-/** Ejecutar una vez desde el editor. Crea la estructura de GymAppData. */
+/** Ejecutar una vez desde el editor. Crea la estructura de ComandanteData. */
 function setup() {
   withLock_(() => {
     folder_('sessions');
@@ -383,5 +392,5 @@ function setup() {
   });
   const token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN') || '';
   if (token.length < 32) Logger.log('AVISO: define APP_TOKEN (mínimo 32 caracteres) en Propiedades del script.');
-  Logger.log('GymAppData lista: ' + rootFolder_().getUrl());
+  Logger.log('ComandanteData lista: ' + rootFolder_().getUrl());
 }

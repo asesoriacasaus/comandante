@@ -1,5 +1,5 @@
 // Configuración del cliente en localStorage. Solo URL del Web App y token.
-const KEYS = { apiUrl: 'gym.apiUrl', token: 'gym.token' };
+const KEYS = { apiUrl: 'comandante.apiUrl', token: 'comandante.token' };
 
 function read(key) {
   try {
@@ -25,4 +25,14 @@ export function getConfig() {
 export function saveConfig({ apiUrl, token }) {
   write(KEYS.apiUrl, String(apiUrl || '').trim());
   write(KEYS.token, String(token || '').trim());
+}
+
+/** "Cerrar sesión en este dispositivo": borra URL y token. */
+export function clearConfig() {
+  try {
+    localStorage.removeItem(KEYS.apiUrl);
+    localStorage.removeItem(KEYS.token);
+  } catch (err) {
+    console.error('No se pudo borrar la configuración', err);
+  }
 }

@@ -3,30 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0c0e12">
-  <meta name="description" content="Registro de entrenos, comidas y cuerpo por voz.">
-  <title>Mi Gym</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src https://script.google.com https://script.googleusercontent.com; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="theme-color" content="#f5f1ea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Comandante">
+  <meta name="description" content="Entrenador personal con IA.">
+  <title>Comandante</title>
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/192.png">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>Mi Gym</h1>
-  </header>
+  <main id="view" class="contenido" tabindex="-1"></main>
 
   <nav class="tabs" aria-label="Secciones">
-    <a href="#home">Inicio</a>
-    <a href="#log">Voz</a>
-    <a href="#workouts">Entreno</a>
-    <a href="#nutrition">Nutrición</a>
-    <a href="#body">Cuerpo</a>
-    <a href="#plan">Plan</a>
-    <a href="#analysis">Análisis</a>
-    <a href="#calendar">Calendario</a>
-    <a href="#settings">Ajustes</a>
+    <a href="#hoy">Hoy</a>
+    <a href="#diario">Diario</a>
+    <a href="#cuerpo">Cuerpo</a>
+    <a href="#comida">Comida</a>
+    <a href="#mas">Más</a>
   </nav>
-
-  <main id="view" class="contenido" tabindex="-1"></main>
 
   <script type="module" src="js/app.js"></script>
 </body>

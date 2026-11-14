@@ -1,7 +1,7 @@
 // Service Worker: precache del shell y cache-first para estáticos del mismo origen.
 // Las llamadas al Web App de Apps Script son POST y no pasan por caché.
-// Para publicar cambios, subir CACHE_NAME (gym-v2, gym-v3...).
-const CACHE_NAME = 'gym-v2';
+// Para publicar cambios, subir CACHE_NAME (comandante-v3, comandante-v4...).
+const CACHE_NAME = 'comandante-v3';
 
 const SHELL = [
   './',
@@ -13,18 +13,14 @@ const SHELL = [
   './js/app.js',
   './js/api.js',
   './js/state.js',
-  './js/voice.js',
-  './js/lib/dates.js',
-  './js/lib/records.js',
-  './js/views/home.js',
-  './js/views/log.js',
-  './js/views/workouts.js',
-  './js/views/nutrition.js',
-  './js/views/body.js',
-  './js/views/plan.js',
-  './js/views/analysis.js',
-  './js/views/calendar.js',
-  './js/views/settings.js'
+  './js/lib/media.js',
+  './js/views/hoy.js',
+  './js/views/diario.js',
+  './js/views/cuerpo.js',
+  './js/views/comida.js',
+  './js/views/mas.js',
+  './js/views/ajustes.js',
+  './js/views/prueba.js'
 ];
 
 self.addEventListener('install', (event) => {
