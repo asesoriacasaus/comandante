@@ -13,9 +13,14 @@ function geminiKey_() {
 
 function geminiModel_(tier) {
   const name = tier === 'SMART' ? 'GEMINI_MODEL_SMART' : 'GEMINI_MODEL_FAST';
-  const m = PropertiesService.getScriptProperties().getProperty(name);
+  const m = cleanModelName_(PropertiesService.getScriptProperties().getProperty(name));
   if (!m) throw { code: 'AI_CONFIG', message: 'Falta ' + name + ' en las Propiedades del script' };
   return m;
+}
+
+/** Tolera espacios, saltos de línea, comillas y el prefijo "models/" al pegar el identificador. */
+function cleanModelName_(raw) {
+  return String(raw == null ? '' : raw).trim().replace(/^["']+|["']+$/g, '').trim().replace(/^models\//, '');
 }
 
 /** Cuerpo de generateContent. Puro: se prueba en Node. */
@@ -69,8 +74,9 @@ function callGemini_(tier, system, parts, opts) {
     status = res.getResponseCode();
   }
   if (status >= 300) {
-    console.error('Gemini HTTP ' + status);
-    throw { code: 'AI_HTTP', status: status, message: 'La IA ha devuelto el error HTTP ' + status };
+    console.error('Gemini HTTP ' + status + ' modelo=' + model);
+    // El nombre del modelo no es secreto y ayuda a diagnosticar (404 = modelo mal escrito).
+    throw { code: 'AI_HTTP', status: status, message: 'La IA ha devuelto el error HTTP ' + status + ' con el modelo "' + model + '"' };
   }
   const out = parseGeminiResponse_(JSON.parse(res.getContentText()));
   out.model = model;

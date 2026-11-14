@@ -163,6 +163,9 @@ function test_pure_limits() {
 }
 
 function test_pure_gemini() {
+  assert_(cleanModelName_('  gemini-2.5-flash\n') === 'gemini-2.5-flash', 'recorta espacios y saltos de línea');
+  assert_(cleanModelName_('"models/gemini-2.5-flash"') === 'gemini-2.5-flash', 'quita comillas y prefijo models/');
+  assert_(cleanModelName_(null) === '', 'null → vacío');
   const req = buildGeminiRequest_('SISTEMA', [{ text: 'usuario' }], { schema: { type: 'OBJECT' } });
   assert_(req.systemInstruction.parts[0].text === 'SISTEMA', 'instrucciones en systemInstruction');
   assert_(JSON.stringify(req.contents).indexOf('SISTEMA') < 0, 'las instrucciones no se mezclan con el mensaje del usuario');
