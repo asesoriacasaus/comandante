@@ -2,7 +2,7 @@
  * Punto de entrada del Web App. Todas las peticiones llegan como POST text/plain
  * con cuerpo JSON: { action, token, payload }. Siempre responde HTTP 200.
  */
-const CONFIG = { VERSION: '0.2.0', RATE_LIMIT_PER_MIN: 60 };
+const CONFIG = { VERSION: '0.3.0', RATE_LIMIT_PER_MIN: 60 };
 
 function doPost(e) {
   const t0 = Date.now();
@@ -35,6 +35,10 @@ function doPost(e) {
     'ping.ai': () => pingAi(),
     'ai.models': () => ({ models: listGeminiModels_() }),
     'ai.probe': () => aiProbe(payload),
+    'plan.state': () => planState(),
+    'plan.cycle.propose': () => proposeCycle(),
+    'plan.cycle.accept': () => acceptCycle(payload.cycle),
+    'plan.today': () => planToday(),
     commit: () => commitRecord(payload.entity, payload.record),
     query: () => queryRecords(payload),
     day: () => getDay(payload.date),

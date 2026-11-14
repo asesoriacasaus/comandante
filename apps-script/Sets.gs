@@ -7,7 +7,7 @@ const IMPLEMENTS_ = ['barbell', 'ezbar', 'dumbbell', 'kettlebell', 'machine', 'c
 const SET_TYPES_ = ['warmup', 'working', 'drop', 'failure'];
 const SESSION_STATUS_ = ['planned', 'in_progress', 'review', 'done'];
 
-const DEFAULT_EQUIPMENT_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25 };
+const DEFAULT_EQUIPMENT_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
 
 function round2_(n) { return Math.round(n * 100) / 100; }
 function isNum_(v) { return typeof v === 'number' && isFinite(v); }

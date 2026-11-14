@@ -178,21 +178,33 @@ function sortByDateTime_(a, b) {
 
 function defaultSettings_() {
   return {
-    schemaVersion: 1,
-    profile: { name: '', sex: 'male', birthYear: null, heightCm: null, timezone: 'Europe/Madrid', voiceLang: 'es-ES' },
-    units: { weight: 'kg', distance: 'km', length: 'cm' },
-    goal: {
-      type: 'recomp', targetWeightKg: null, rateKgPerWeek: 0, targetKcal: null,
-      targetProteinG: null, targetCarbsG: null, targetFatG: null, trainingDaysPerWeek: null
-    },
-    experience: 'intermediate',
-    injuries: [],
-    activePlanId: null
+    schemaVersion: 2,
+    profile: { sex: null, birthYear: null, heightCm: null, timezone: 'Europe/Madrid' },
+    goal: { type: 'recomp', startDate: '2026-11-14', targetDate: '2027-05-14',
+            startWeightKg: null, targetWeightKg: null, startWaistCm: null },
+    equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 },
+    training: { daysPerWeek: [3, 4], groupsPerSession: [1, 2], runsPerWeek: [1, 2], sessionMinutes: 75, useRir: true },
+    strength: { experience: 'advanced', referenceExerciseId: 'press_banca', referenceReps: 10, referenceTotalKg: null },
+    nutrition: { proteinGPerKg: 2.0, kcalStrategy: 'maintenance_minus_10' },
+    coach: { persona: 'comandante', intensity: 'alta' },
+    notifications: { email: null, weekly: true, weeklyAt: 'domingo 19:00', reminder: true,
+                     reminderAt: '07:30', reminderAfterRestDays: 2 }
   };
 }
 
+/** Un settings.json de una versión anterior se sustituye por los valores por defecto (solo se conserva la zona horaria). */
 function getSettings() {
-  return readJson_('settings.json', defaultSettings_());
+  const stored = readJson_('settings.json', null);
+  if (stored && stored.schemaVersion === 2) return deepMerge_(defaultSettings_(), stored);
+  const base = defaultSettings_();
+  if (stored && stored.profile && typeof stored.profile.timezone === 'string') base.profile.timezone = stored.profile.timezone;
+  return base;
+}
+
+/** ¿Están rellenos los datos de la pantalla de bienvenida? */
+function isOnboarded_(s) {
+  const p = s.profile; const g = s.goal;
+  return [p.sex, p.birthYear, p.heightCm, g.startWeightKg, g.targetWeightKg, g.startWaistCm, (s.strength || {}).referenceTotalKg].every((v) => v !== null && v !== undefined);
 }
 
 function updateSettings(patch) {
@@ -362,7 +374,7 @@ function maybeBackup_(tz) {
   writeFile_(name, {
     date: today,
     settings: getSettings(),
-    plans: readJson_('plans.json', { plans: [] }),
+    plan: readJson_('plan/current.json', null),
     body: readJson_('body.json', []),
     sessions: readJson_('sessions/' + month + '.json', []),
     meals: readJson_('meals/' + month + '.json', [])
@@ -388,14 +400,11 @@ function ensureFile_(path, obj) {
 /** Ejecutar una vez desde el editor. Crea la estructura de ComandanteData. */
 function setup() {
   withLock_(() => {
-    folder_('sessions');
-    folder_('meals');
-    folder_('backups');
+    ['sessions', 'runs', 'meals', 'plan', 'plan/history', 'media', 'backups'].forEach(folder_);
     ensureFile_('settings.json', defaultSettings_());
-    ensureFile_('plans.json', { plans: [] });
-    ensureFile_('exercises-user.json', []);
+    ensureFile_('exercises.json', []);
     ensureFile_('body.json', []);
-    ensureFile_('meta.json', { schemaVersion: 1, lastRevision: 0, updatedAt: new Date().toISOString() });
+    ensureFile_('meta.json', { schemaVersion: 2, lastRevision: 0, updatedAt: new Date().toISOString() });
   });
   const token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN') || '';
   if (token.length < 32) Logger.log('AVISO: define APP_TOKEN (mínimo 32 caracteres) en Propiedades del script.');

@@ -48,3 +48,15 @@ pre.salida { white-space: pre-wrap; word-break: break-word; margin: 12px 0 0; pa
 .tabs a { display: flex; align-items: center; justify-content: center; min-height: 56px; color: var(--tinta-2);
   text-decoration: none; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 .tabs a[aria-current="page"] { color: var(--tinta); box-shadow: inset 0 2px 0 var(--acento); }
+
+/* Hoy */
+.fila { display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 12px 0; border-bottom: 1px solid var(--piedra); font: 400 20px var(--serif); }
+.fila .clave { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--acento); color: var(--acento); font: 600 14px var(--sans); letter-spacing: .08em; }
+.mensaje { margin: 0 0 20px; padding: 0 0 0 16px; border-left: 2px solid var(--acento); font: italic 400 19px/1.45 var(--serif); }
+.aviso { margin: 0 0 12px; padding: 12px 14px; background: var(--blanco); border: 1px solid var(--piedra); font-size: 14px; color: var(--tinta-2); }
+.ejercicio { padding: 16px 0; border-bottom: 1px solid var(--piedra); }
+.ejercicio h3 { margin: 0 0 4px; }
+.ejercicio p { margin: 0; }
+.detalle { font-size: 14px; color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+.carga { margin-top: 4px; font: 600 15px var(--sans); font-variant-numeric: tabular-nums; }
+select { background: var(--lino); }
