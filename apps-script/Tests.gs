@@ -662,13 +662,52 @@ function test_pure_save_validation() {
   return 'ok';
 }
 
+function test_pure_bar_inference() {
+  const eq = { barbellKg: 20, ezBarKg: 10 };
+  let r = normalizeLoad_({ implement: 'barbell', perSideKg: 10, totalKg: 30 }, eq);
+  assert_(r.load === null && r.errors[0].indexOf('no cuadra') >= 0 && r.errors[0].indexOf('barKg') < 0, 'estricto por defecto y mensaje sin jerga');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 10, totalKg: 30 }, eq, { inferBar: true });
+  assert_(r.load.barKg === 10 && r.load.totalKg === 30 && r.load.barInferred === true, 'deduce barra de 10 kg a partir de 10 por lado y 30 en total');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 20, totalKg: 60 }, eq, { inferBar: true });
+  assert_(r.load.totalKg === 60 && !r.load.barInferred, 'si cuadra con la barra por defecto no se deduce nada');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 20, totalKg: 20 }, eq, { inferBar: true });
+  assert_(r.load === null, 'barra deducida imposible (negativa) se rechaza');
+  r = normalizeLoad_({ implement: 'barbell', perSideKg: 10, totalKg: 90 }, eq, { inferBar: true });
+  assert_(r.load === null, 'barra deducida de 70 kg no es plausible');
+
+  // En el dictado: se acepta, se avisa y se reutiliza en las series siguientes
+  let res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_);
+  const set = res.exercises[0].sets[0];
+  assert_(res.pending.length === 0 && set.load.totalKg === 30 && set.load.barKg === 10 && set.flags.indexOf('bar_inferred') >= 0 && set.load.barInferred === undefined, 'dictado: barra deducida y señalada');
+  const s2 = sess_({ exercises: res.exercises });
+  res = eventsToSets_([ev_({ perSideKg: 12.5, reps: 8 })], s2, CTX_);
+  assert_(res.exercises[0].sets[1].load.totalKg === 35, 'las series siguientes reutilizan la barra deducida (10 + 2 × 12,5)');
+
+  // Pendientes con lo entendido
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_);
+  assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.totalKg === 60 && res.exercises[0].sets[0].flags.indexOf('total_ignored') >= 0,
+    'total absurdo junto a "20 por lado": se fía de los kilos por lado (60 kg) y avisa');
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), CTX_);
+  assert_(res.pending[0].reason === 'invalid_load' && res.pending[0].heard.totalKg === 10 && res.pending[0].heard.reps === 8, 'el pendiente guarda lo que la IA entendió');
+  const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  assert_(rv2.issues.some((i) => i.type === 'total_ignored'), 'la revisión avisa de que se ignoró el total');
+  res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), CTX_);
+  assert_(res.pending[0].heard.reps === 5, 'también en ejercicio desconocido');
+
+  // Aviso en la revisión
+  const rv = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  assert_(rv.issues.some((i) => i.type === 'bar_inferred' && i.barKg === 10), 'la revisión avisa de la barra deducida');
+  assert_(CLIP_SYSTEM_.indexOf('nunca reps 20') >= 0 && CLIP_SYSTEM_.indexOf('no sumes la barra') >= 0, 'el prompt distingue reps de kilos y no suma la barra');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_pure_review, test_pure_save_validation, test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

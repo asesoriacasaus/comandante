@@ -1,8 +1,8 @@
 // Pantalla Revisión: lo hecho frente al plan y a la última vez, avisos, edición y guardado.
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
-import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue } from '../lib/format.js';
-import { ACTIVE_KEY, serieNodo } from './sesion.js';
+import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTranscript } from '../lib/format.js';
+import { ACTIVE_KEY, serieNodo, pendienteDetalle } from './sesion.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -65,6 +65,7 @@ function vista(st, ctx) {
   // Pendientes: lo único que impide guardar.
   (s.pending || []).forEach((p, i) => nodes.push(h('div', { class: 'aviso peligro' },
     (MOTIVOS[p.reason] || 'Pendiente') + (p.text ? ': ' + p.text : '') + '. Añade la serie en el ejercicio correspondiente o descártala.',
+    ...pendienteDetalle(p, s),
     h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
   const avisos = r.issues.map(describeIssue).filter(Boolean);
@@ -86,6 +87,10 @@ function vista(st, ctx) {
       ...cmp.map((t) => h('p', { class: 'detalle' }, t)),
       full ? h('ul', { class: 'series' }, full.sets.map((set) => serieNodo(st, full, set, edit, ctx.paint))) : null));
   });
+
+  const clips = (s.clips || []).filter((c) => c.transcript);
+  if (clips.length) nodes.push(h('details', { class: 'bloque' }, h('summary', {}, 'Lo que oí en cada clip (' + clips.length + ')'),
+    ...clips.map((c, i) => h('p', { class: 'nota' }, (i + 1) + '. ' + quoteTranscript(c.transcript, 400)))));
 
   nodes.push(h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg));
   nodes.push(h('div', { class: 'acciones fin' },

@@ -16,7 +16,8 @@ function isNum_(v) { return typeof v === 'number' && isFinite(v); }
  * Normaliza la carga de una serie. Devuelve { load, errors }.
  * Acepta la forma dictada (por lado, por mano, pila) o el total, y rellena el resto.
  */
-function normalizeLoad_(load, equipment) {
+function normalizeLoad_(load, equipment, opts) {
+  opts = opts || {};
   const eq = Object.assign({}, DEFAULT_EQUIPMENT_, equipment || {});
   const errors = [];
   if (!load || typeof load !== 'object') return { load: null, errors: ['carga ausente'] };
@@ -24,9 +25,11 @@ function normalizeLoad_(load, equipment) {
   const imp = out.implement;
   if (IMPLEMENTS_.indexOf(imp) < 0) return { load: null, errors: ['implemento inválido: ' + imp] };
 
+  const LABELS = { barKg: 'el peso de la barra', perSideKg: 'los kilos por lado', totalKg: 'el total', perHandKg: 'los kilos por mano',
+    stackKg: 'los kilos de la pila', addedKg: 'el lastre' };
   const check = (name, v, min, max) => {
     if (v === null || v === undefined) return;
-    if (!isNum_(v) || v < min || v > max) errors.push(name + ' fuera de rango (' + min + '-' + max + ')');
+    if (!isNum_(v) || v < min || v > max) errors.push(LABELS[name] + ' está fuera de rango (' + min + '-' + max + ' kg)');
   };
 
   if (imp === 'barbell' || imp === 'ezbar' || imp === 'smith') {
@@ -36,27 +39,30 @@ function normalizeLoad_(load, equipment) {
     check('perSideKg', out.perSideKg, 0, 400);
     check('totalKg', out.totalKg, 0, 800);
     if (isNum_(out.perSideKg)) {
-      const total = round2_(out.barKg + 2 * out.perSideKg);
+      let total = round2_(out.barKg + 2 * out.perSideKg);
       if (isNum_(out.totalKg) && Math.abs(out.totalKg - total) > 0.01) {
-        errors.push('totalKg no cuadra con barKg + 2 × perSideKg');
+        // Si el usuario dijo los dos números, el desajuste es el peso de la barra: se deduce si es plausible.
+        const bar = round2_(out.totalKg - 2 * out.perSideKg);
+        if (opts.inferBar && bar >= 5 && bar <= 25) { out.barKg = bar; out.barInferred = true; total = out.totalKg; }
+        else errors.push('el total no cuadra con la barra más los discos de cada lado');
       }
       out.totalKg = total;
     } else if (isNum_(out.totalKg)) {
       out.perSideKg = round2_((out.totalKg - out.barKg) / 2);
-      if (out.perSideKg < 0) errors.push('totalKg menor que el peso de la barra');
+      if (out.perSideKg < 0) errors.push('el total es menor que el peso de la barra');
     } else {
-      errors.push('falta perSideKg o totalKg');
+      errors.push('faltan los kilos (por lado o en total)');
     }
   } else if (imp === 'dumbbell' || imp === 'kettlebell') {
     if (!isNum_(out.count)) out.count = imp === 'dumbbell' ? 2 : 1;
-    if (out.count !== 1 && out.count !== 2) errors.push('count debe ser 1 o 2');
+    if (out.count !== 1 && out.count !== 2) errors.push('el número de mancuernas debe ser 1 o 2');
     check('perHandKg', out.perHandKg, 0, 150);
     if (isNum_(out.perHandKg)) out.totalKg = round2_(out.perHandKg * out.count);
-    else errors.push('falta perHandKg');
+    else errors.push('faltan los kilos por mano');
   } else if (imp === 'machine' || imp === 'cable') {
     check('stackKg', out.stackKg, 0, 500);
     if (isNum_(out.stackKg)) out.totalKg = out.stackKg;
-    else errors.push('falta stackKg');
+    else errors.push('faltan los kilos de la pila');
   } else { // bodyweight
     if (!isNum_(out.addedKg)) out.addedKg = 0;
     check('addedKg', out.addedKg, 0, 200);

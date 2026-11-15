@@ -1,5 +1,6 @@
 // Ajustes de conexión. El resto (objetivo, material, avisos) llega en la Fase 1.
 import { getConfig, saveConfig, clearConfig } from '../state.js';
+import { parseNum } from '../lib/format.js';
 import { ping, call } from '../api.js';
 import { BUILD } from '../version.js';
 
@@ -21,6 +22,15 @@ export function render(el) {
           <button type="button" id="btn-ai" class="btn btn-sec">Probar IA</button>
         </div>
         <p id="estado" class="estado" role="status" aria-live="polite"></p>
+      </form>
+      <h2>Material</h2>
+      <form id="form-material" class="card" novalidate>
+        <label>Peso de la barra olímpica (kg)<input id="m-barra" inputmode="decimal" autocomplete="off"></label>
+        <label>Peso de la barra Z (kg)<input id="m-z" inputmode="decimal" autocomplete="off"></label>
+        <label>Salto entre mancuernas (kg)<input id="m-mancuerna" inputmode="decimal" autocomplete="off"></label>
+        <label>Salto de las placas de la pila (kg)<input id="m-pila" inputmode="decimal" autocomplete="off"></label>
+        <div class="acciones"><button type="submit" class="btn">Guardar material</button></div>
+        <p id="estado-material" class="estado" role="status" aria-live="polite"></p>
       </form>
       <p class="nota">Versión de la app: ${BUILD.slice(0, 8)}</p>
       <p class="nota">El token se guarda solo en este dispositivo. Cambiarlo en el servidor invalida todos los clientes.</p>
@@ -51,6 +61,25 @@ export function render(el) {
     try { const d = await call('ping.ai', {}, { timeoutMs: 60000 }); mostrar('IA correcta (' + d.model + ', ' + d.ms + ' ms)', 'ok'); }
     catch (err) { mostrar(err.message, 'error'); }
   });
+  const campos = { barbellKg: '#m-barra', ezBarKg: '#m-z', dumbbellStepKg: '#m-mancuerna', stackStepKg: '#m-pila' };
+  const estadoM = el.querySelector('#estado-material');
+  const mostrarM = (msg, tipo = '') => { estadoM.textContent = msg; estadoM.className = 'estado ' + tipo; };
+  if (cfg.apiUrl && cfg.token) {
+    call('settings.get', {}, { timeoutMs: 60000 }).then((s) => {
+      if (el.dataset.route !== 'ajustes') return;
+      for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
+    }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
+  }
+  el.querySelector('#form-material').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const equipment = {};
+    for (const [k, sel] of Object.entries(campos)) equipment[k] = parseNum(el.querySelector(sel).value);
+    if (Object.values(equipment).some((v) => v === null || v <= 0)) { mostrarM('Rellena los cuatro valores con números mayores que cero.', 'error'); return; }
+    mostrarM('Guardando…');
+    try { await call('settings.update', { patch: { equipment } }, { timeoutMs: 60000 }); mostrarM('Material guardado. Se aplica a las series nuevas.', 'ok'); }
+    catch (err) { console.error(err); mostrarM(err.message, 'error'); }
+  });
+
   el.querySelector('#btn-salir').addEventListener('click', () => {
     clearConfig();
     urlInput.value = ''; tokenInput.value = '';

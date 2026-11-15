@@ -4,7 +4,15 @@ import { h } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
-import { groupsEs, formatLoad, formatClock, formatDateEs, formatRest, loadField, parseNum } from '../lib/format.js';
+import { groupsEs, formatLoad, formatClock, formatDateEs, formatRest, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
+
+/** Lo que la IA entendió y oyó en un pendiente: así se ve por qué no cuadra. */
+export function pendienteDetalle(p, session) {
+  const clip = (session.clips || []).find((c) => c.id === p.clipId);
+  const heard = describeHeard(p.heard);
+  const quote = clip ? quoteTranscript(clip.transcript) : '';
+  return [heard ? h('p', { class: 'nota' }, heard) : null, quote ? h('p', { class: 'nota' }, 'Oí: ' + quote) : null];
+}
 
 export const ACTIVE_KEY = 'comandante.sessionId';
 const getActive = () => { try { return localStorage.getItem(ACTIVE_KEY) || ''; } catch (_) { return ''; } };
@@ -180,6 +188,7 @@ function view(st, ctx) {
 
   (s.pending || []).forEach((p, i) => nodes.push(h('div', { class: 'aviso' },
     (MOTIVOS[p.reason] || 'Pendiente') + (p.text ? ': ' + p.text : '') + '. Añade la serie a mano.',
+    ...pendienteDetalle(p, s),
     h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));

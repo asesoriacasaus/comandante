@@ -61,12 +61,18 @@ function buildReview_(session, prev, library, opts) {
   (session.pending || []).forEach((p) => issues.push({ type: 'pending', reason: p.reason, text: p.text }));
   const inh = [];
   const fromPlan = [];
+  const bars = [];
+  const ignored = [];
   exs.forEach((x) => (x.sets || []).forEach((s) => {
     if ((s.flags || []).indexOf('inherited_load') >= 0 && inh.indexOf(x.name) < 0) inh.push(x.name);
     if ((s.flags || []).indexOf('load_from_plan') >= 0 && fromPlan.indexOf(x.name) < 0) fromPlan.push(x.name);
+    if ((s.flags || []).indexOf('total_ignored') >= 0 && ignored.indexOf(x.name) < 0) ignored.push(x.name);
+    if ((s.flags || []).indexOf('bar_inferred') >= 0 && s.load && !bars.some((b) => b.barKg === s.load.barKg)) bars.push({ name: x.name, barKg: s.load.barKg });
   }));
   if (inh.length) issues.push({ type: 'inherited_load', names: inh });
   if (fromPlan.length) issues.push({ type: 'load_from_plan', names: fromPlan });
+  if (ignored.length) issues.push({ type: 'total_ignored', names: ignored });
+  bars.forEach((b) => issues.push({ type: 'bar_inferred', name: b.name, barKg: b.barKg }));
   const rirUnknown = exercises.reduce((a, e) => a + e.rirUnknown, 0);
   if (rirUnknown) issues.push({ type: 'rir_unknown', n: rirUnknown });
   (session.painFlags || []).forEach((p) => issues.push({ type: 'pain', text: p.text }));
