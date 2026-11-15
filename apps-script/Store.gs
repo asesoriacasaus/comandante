@@ -185,7 +185,7 @@ function defaultSettings_() {
     equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 },
     training: { daysPerWeek: [3, 4], groupsPerSession: [1, 2], runsPerWeek: [1, 2], sessionMinutes: 75, useRir: true },
     strength: { experience: 'advanced', referenceExerciseId: 'press_banca', referenceReps: 10, referenceTotalKg: null },
-    nutrition: { proteinGPerKg: 2.0, kcalStrategy: 'maintenance_minus_10' },
+    nutrition: { proteinGPerKg: 2.0, kcalStrategy: 'maintenance_minus_10', activityFactor: 1.55, fatGPerKg: 0.9 },
     coach: { persona: 'comandante', intensity: 'alta' },
     notifications: { email: null, weekly: true, weeklyAt: 'domingo 19:00', reminder: true,
                      reminderAt: '07:30', reminderAfterRestDays: 2 }
@@ -266,15 +266,8 @@ function commitMeal_(input, tz, today) {
   rec.id = rec.id || makeId_('m', rec.date, tz);
   const errors = validateMeal_(rec, today);
   if (errors.length) throw { code: 'VALIDATION', message: errors.join('; ') };
-  // Los totales se recalculan siempre desde los ítems (fuente de verdad).
-  const sum = (k) => rec.items.reduce((acc, it) => acc + (Number(it[k]) || 0), 0);
-  rec.totals = {
-    kcal: Math.round(sum('kcal') * 10) / 10,
-    proteinG: Math.round(sum('proteinG') * 10) / 10,
-    carbsG: Math.round(sum('carbsG') * 10) / 10,
-    fatG: Math.round(sum('fatG') * 10) / 10,
-    fiberG: Math.round(sum('fiberG') * 10) / 10
-  };
+  // Los totales se recalculan siempre desde los ítems (fuente de verdad): macros y micronutrientes.
+  rec.totals = sumMeals_([rec]);
   return upsertShard_('meals', rec, sortByDateTime_, tz);
 }
 

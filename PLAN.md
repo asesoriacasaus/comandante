@@ -460,9 +460,9 @@ Criterio de aceptación: el usuario hace una sesión real en el gimnasio dictand
 
 Criterio: un pantallazo real de la báscula Huawei rellena bien todos los campos; la cintura se dicta y queda registrada.
 
-### Fase 3. Comida (15 %)
+### Fase 3. Comida (15 %). Código completo el 15 de noviembre; falta la prueba en el iPhone
 
-`meal.process`, pantalla **Comida**, objetivos de 8.5, micronutrientes marcados como aproximados.
+`meal.process`, pantalla **Comida**, objetivos de 8.5, micronutrientes marcados como aproximados. Detalles: las calorías de cada alimento se comprueban contra sus macros (4-4-9) y se corrigen si difieren más de un 25 %; al cambiar la cantidad en la revisión, todos los nutrientes se reescalan; la media de 7 días avisa de micronutrientes por debajo del 60 % de la referencia (o de sodio, azúcares y grasa saturada por encima del 130 % del máximo) cuando hay al menos 3 días con datos. Objetivos: Mifflin-St Jeor × 1,55 menos un 10 %, proteína 2 g/kg y grasa 0,9 g/kg; el resto, hidratos.
 
 Criterio: una comida dictada genera ítems coherentes con macros y micronutrientes y suma bien los totales del día.
 

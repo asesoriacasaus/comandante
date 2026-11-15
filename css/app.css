@@ -122,3 +122,15 @@ progress::-moz-progress-bar { background: var(--acento); }
 .grafica { display: block; margin: 4px 0 16px; background: var(--blanco); border: 1px solid var(--piedra); }
 .gr-punto { fill: var(--tinta-2); opacity: .55; }
 .gr-linea { stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+
+/* Comida */
+.dia-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 0 16px; }
+.dia-nav .btn { min-width: 48px; padding: 10px 14px; font-size: 20px; }
+.dia-titulo { font: 400 22px var(--serif); }
+.comida { padding: 12px 0; border-bottom: 1px solid var(--piedra); }
+.comida-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.comida-cab h3 { margin: 0; }
+.comida-cab .btn { min-height: 40px; padding: 8px 14px; }
+.item-comida { padding: 16px 0; border-top: 1px solid var(--piedra); }
+.rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: 16px var(--sans); color: var(--tinta); background: var(--lino); border: 1px solid var(--piedra); border-radius: 0; resize: vertical; }

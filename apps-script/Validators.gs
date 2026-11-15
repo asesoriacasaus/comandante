@@ -98,7 +98,7 @@ function validateMeal_(m, today) {
     pushIf_(e, checkNum_(it.proteinG, label + ' proteinG', 0, 10000, false));
     pushIf_(e, checkNum_(it.carbsG, label + ' carbsG', 0, 10000, false));
     pushIf_(e, checkNum_(it.fatG, label + ' fatG', 0, 10000, false));
-    pushIf_(e, checkNum_(it.fiberG, label + ' fiberG', 0, 10000, false));
+    MICRO_KEYS_.forEach((k) => pushIf_(e, checkNum_(it[k], label + ' ' + k, 0, 100000, false)));
     pushIf_(e, checkNum_(it.confidence, label + ' confidence', 0, 1, false));
     sumKcal += Number(it.kcal) || 0;
     sumProtein += Number(it.proteinG) || 0;
@@ -143,6 +143,9 @@ function validateSettings_(s) {
     if (typeof q[k] !== 'number' || !(q[k] > 0 && q[k] <= 60)) e.push('equipment.' + k + ' debe ser un número entre 0 y 60');
   });
   pushIf_(e, checkNum_((s.strength || {}).referenceTotalKg, 'strength.referenceTotalKg', 5, 500, false));
+  pushIf_(e, checkNum_((s.nutrition || {}).proteinGPerKg, 'nutrition.proteinGPerKg', 0.8, 3.5, false));
+  pushIf_(e, checkNum_((s.nutrition || {}).activityFactor, 'nutrition.activityFactor', 1.2, 2.2, false));
+  pushIf_(e, checkNum_((s.nutrition || {}).fatGPerKg, 'nutrition.fatGPerKg', 0.4, 2, false));
   if (!s.coach || ['baja', 'media', 'alta'].indexOf(s.coach.intensity) < 0) e.push('coach.intensity debe ser baja, media o alta');
   return e;
 }

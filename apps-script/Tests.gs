@@ -770,13 +770,103 @@ function test_pure_scale() {
   return 'ok';
 }
 
+// ---------- Nutrición ----------
+
+function test_pure_nutrition_targets() {
+  const st = deepMerge_(defaultSettings_(), { profile: { sex: 'male', birthYear: 1990, heightCm: 180 } });
+  // Mifflin-St Jeor: 10×80 + 6,25×180 − 5×36 + 5 = 1750
+  const t = nutritionTargets_(st, 80, 2026);
+  assert_(t.bmr === 1750 && t.tdee === 2713 && t.kcal === 2441, 'BMR 1750, mantenimiento 2713 (×1,55) y −10 % = 2441: ' + JSON.stringify(t));
+  assert_(t.proteinG === 160 && t.fatG === 72, 'proteína 2 g/kg y grasa 0,9 g/kg');
+  assert_(Math.abs(4 * t.proteinG + 9 * t.fatG + 4 * t.carbsG - t.kcal) <= 4, 'los macros suman las calorías objetivo');
+  const f = nutritionTargets_(deepMerge_(st, { profile: { sex: 'female' } }), 80, 2026);
+  assert_(f.bmr === 1584, 'mujer: −161 en lugar de +5');
+  assert_(nutritionTargets_(defaultSettings_(), 80, 2026) === null, 'sin perfil no hay objetivos');
+  assert_(nutritionTargets_(st, null, 2026) === null, 'sin peso no hay objetivos');
+  const m = nutritionTargets_(deepMerge_(st, { nutrition: { kcalStrategy: 'maintenance' } }), 80, 2026);
+  assert_(m.kcal === 2713, 'estrategia de mantenimiento');
+  assert_(validateSettings_(deepMerge_(st, { nutrition: { proteinGPerKg: 9 } })).length > 0, 'proteína absurda rechazada');
+  assert_(MICROS_.length === 21 && MICROS_.every((x) => x.ref > 0 && ['min', 'max'].indexOf(x.kind) >= 0), '21 micronutrientes con referencia');
+  return 'ok';
+}
+
+const rawItem_ = (o) => Object.assign({ name: 'Pollo a la plancha', quantity: 150, unit: 'g', kcal: 248, proteinG: 46.5, carbsG: 0, fatG: 5.4, confidence: 0.8 }, o || {});
+
+function test_pure_meal_extraction() {
+  const ok = { mealType: 'lunch', time: '14:30', items: [rawItem_(), rawItem_({ name: 'Arroz', quantity: 200, kcal: 260, proteinG: 5.4, carbsG: 56, fatG: 0.6, fiberG: 0.6 })] };
+  assert_(validateMealExtraction_(ok).length === 0, 'extracción válida: ' + validateMealExtraction_(ok));
+  const r = sanitizeMeal_(ok);
+  assert_(r.items.length === 2 && r.mealType === 'lunch' && r.time === '14:30' && r.warnings.length === 0, 'comida coherente sin avisos');
+  assert_(r.items[1].fiberG === 0.6 && r.items[0].fiberG === undefined, 'los micronutrientes null se omiten');
+
+  // Coherencia de calorías (Atwater)
+  let n = normalizeMealItem_(rawItem_({ kcal: 900 }));
+  assert_(n.flags[0] === 'kcal_fixed' && n.item.kcal === 235, 'calorías incoherentes con los macros se corrigen: ' + JSON.stringify(n));
+  n = normalizeMealItem_(rawItem_({ kcal: null }));
+  assert_(n.flags[0] === 'kcal_from_macros' && n.item.kcal === 235, 'sin calorías se calculan de los macros');
+  n = normalizeMealItem_(rawItem_({ kcal: 240 }));
+  assert_(n.flags.length === 0 && n.item.kcal === 240, 'dentro del 25 % se respeta la estimación');
+  n = normalizeMealItem_(rawItem_({ name: 'Agua', quantity: 500, unit: 'ml', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }));
+  assert_(n.item.kcal === 0 && n.flags.length === 0, 'el agua tiene 0 kcal sin avisos');
+
+  // Rangos y limpieza
+  n = normalizeMealItem_(rawItem_({ proteinG: 9999, vitCMg: -5, ironMg: 2.345 }));
+  assert_(n.item.proteinG === 300 && n.item.vitCMg === 0, 'se acotan los valores absurdos (máximo y mínimo)');
+  assert_(n.item.ironMg === 2.35, 'micros con 2 decimales');
+  assert_(normalizeMealItem_(rawItem_({ confidence: 7 })).item.confidence === 1, 'confianza acotada a 1');
+  const low = sanitizeMeal_({ items: [rawItem_({ confidence: 0.3 })] });
+  assert_(low.warnings.some((w) => w.flag === 'low_confidence'), 'confianza baja marcada');
+  assert_(sanitizeMeal_({ mealType: 'elevenses', time: '25:99', items: [rawItem_()] }).mealType === null, 'tipo de comida inválido a null');
+  assert_(sanitizeMeal_({ mealType: 'snack', time: 'tarde', items: [rawItem_()] }).time === null, 'hora inválida a null');
+
+  // Validación del formato
+  assert_(validateMealExtraction_({ items: [] }).length > 0, 'sin alimentos');
+  assert_(validateMealExtraction_({ items: [rawItem_({ unit: 'litros' })] }).length > 0, 'unidad inválida');
+  assert_(validateMealExtraction_({ items: [rawItem_({ quantity: 0 })] }).length > 0, 'cantidad cero');
+  assert_(validateMealExtraction_({ items: [rawItem_({ proteinG: null })] }).length > 0, 'macros obligatorios');
+  let c = null; try { sanitizeMeal_({ items: [] }); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'sin alimentos no se acepta');
+  assert_(MEAL_SYSTEM_.indexOf('NO por 100 g') >= 0 && MEAL_SYSTEM_.indexOf('No añadas alimentos') >= 0, 'el prompt pide totales y prohíbe inventar alimentos');
+  return 'ok';
+}
+
+function test_pure_meal_totals() {
+  const meal = (date, items) => ({ id: 'm_' + date, date: date, items: items });
+  const a = { name: 'a', quantity: 1, unit: 'unidad', kcal: 500, proteinG: 30, carbsG: 50, fatG: 20, fiberG: 5, ironMg: 4, sodiumMg: 800 };
+  const b = { name: 'b', quantity: 1, unit: 'unidad', kcal: 300, proteinG: 10, carbsG: 40, fatG: 8, fiberG: 3.5 };
+  const tot = sumMeals_([meal('2026-11-15', [a, b])]);
+  assert_(tot.kcal === 800 && tot.proteinG === 40 && tot.fiberG === 8.5 && tot.ironMg === 4 && tot.vitCMg === undefined, 'suma de macros y micros presentes');
+  assert_(commitMealTotalsCheck_(), 'los totales guardados se recalculan con todos los nutrientes');
+
+  // Media semanal: solo cuentan los días con datos
+  const meals = [meal('2026-11-15', [a]), meal('2026-11-14', [a]), meal('2026-11-13', [a, b]), meal('2026-11-01', [a])];
+  const w = weekNutrition_(meals, '2026-11-15');
+  assert_(w.days === 3, 'tres días con comidas en la última semana (el del 1 de noviembre queda fuera)');
+  assert_(Math.abs(w.avg.kcal - 600) < 0.01 && w.avg.ironMg === 4, 'media diaria de kcal 600');
+  const lowIron = w.alerts.find((x) => x.key === 'ironMg');
+  assert_(lowIron && lowIron.level === 'low' && lowIron.pct === 29, 'hierro: 4 de 14 mg es el 29 %, por debajo del 60 %: aviso');
+  assert_(w.alerts.some((x) => x.key === 'fiberG' && x.level === 'low'), 'fibra baja también avisa');
+  assert_(!w.alerts.some((x) => x.key === 'vitCMg'), 'sin dato de un nutriente no hay aviso (no se asume que falte)');
+  assert_(weekNutrition_(meals.slice(0, 2), '2026-11-15').alerts.length === 0, 'con menos de 3 días de datos no se avisa');
+  const salty = weekNutrition_([meal('2026-11-15', [Object.assign({}, a, { sodiumMg: 4000 })]), meal('2026-11-14', [Object.assign({}, a, { sodiumMg: 4000 })]), meal('2026-11-13', [Object.assign({}, a, { sodiumMg: 4000 })])], '2026-11-15');
+  assert_(salty.alerts.some((x) => x.key === 'sodiumMg' && x.level === 'high'), 'sodio muy por encima: aviso de exceso');
+  return 'ok';
+}
+
+function commitMealTotalsCheck_() {
+  const rec = { id: 'm1', date: '2026-11-15', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 500, proteinG: 30, carbsG: 50, fatG: 20, vitCMg: 10 }] };
+  const totals = sumMeals_([rec]);
+  return totals.vitCMg === 10 && totals.kcal === 500;
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
+    test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {
