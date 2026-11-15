@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupsEs, formatLoad, formatReps, formatRest, parseNum } from '../js/lib/format.js';
+import { groupsEs, formatLoad, formatReps, formatRest, parseNum, formatDateEs, formatClock, loadField } from '../js/lib/format.js';
 
 test('grupos en español', () => {
   assert.equal(groupsEs(['chest', 'triceps']), 'pecho y tríceps');
@@ -29,4 +29,17 @@ test('números con coma', () => {
   assert.equal(parseNum(' 174 '), 174);
   assert.equal(parseNum(''), null);
   assert.equal(parseNum('abc'), null);
+});
+
+test('fecha en español', () => {
+  assert.equal(formatDateEs('2026-11-15'), 'domingo 15 de noviembre');
+  assert.equal(formatDateEs('2026-11-16'), 'lunes 16 de noviembre');
+  assert.equal(formatDateEs('basura'), 'basura');
+});
+test('reloj y campo de carga', () => {
+  assert.equal(formatClock(125), '2:05'); assert.equal(formatClock(-3), '0:00'); assert.equal(formatClock(59.9), '0:59');
+  assert.deepEqual(loadField('barbell'), ['perSideKg', 'kg por lado']);
+  assert.equal(loadField('dumbbell')[0], 'perHandKg');
+  assert.equal(loadField('machine')[0], 'stackKg');
+  assert.equal(loadField('bodyweight')[0], 'addedKg');
 });

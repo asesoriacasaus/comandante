@@ -278,7 +278,7 @@ Todas desde Apps Script (`UrlFetchApp`) a `generateContent`, con `responseMimeTy
 
 | Operación | Modelo | Entrada | Salida |
 |---|---|---|---|
-| `clip.process` | FAST | Audio del clip + plan de la sesión + últimas series registradas | Transcripción + eventos (series detectadas, cambios de ejercicio, comentarios, dolor) |
+| `clip.process` | FAST | Audio del clip + plan de la sesión + últimas series registradas | Transcripción + eventos (series, comentarios, dolor). La IA solo extrae lo dicho; `eventsToSets_` calcula las cargas y manda a `pending` lo que no puede resolver sin inventar (ejercicio desconocido, sin repeticiones, carga imposible). Idempotente por `clipId` |
 | `session.consolidate` | SMART | Todas las transcripciones y eventos + plan | Sesión estructurada (6.3) + mensaje del Comandante |
 | `plan.cycle.propose` | SMART | Preferencias de entrenamiento | Ciclo de sesiones A-D (validado por `validateCycle_`) |
 | `session.plan` | SMART | Grupos de hoy, referencia de fuerza y lista de ejercicios permitidos. **Solo la primera vez que toca esa sesión del ciclo**; después el plan es determinista (mismos ejercicios, cargas por progresión) | Ejercicios, series, rangos y una estimación de 10RM por ejercicio. El código calcula las cargas (85 % hacia abajo, RIR 3) y aplica `applyPlanRules_` |
@@ -379,6 +379,7 @@ Navegación inferior con 5 entradas (Hoy, Diario, Cuerpo, Comida, Más). Carrera
 ### 9.2 Grabación
 
 - `getUserMedia` + `MediaRecorder` (en iPhone produce `audio/mp4`). Mono y clips cortos.
+- La cola procesa los clips en orden, con reintentos y espera creciente; un error permanente (validación, tamaño) se marca y se conserva. Un clip solo se borra del móvil cuando el servidor confirma que lo procesó. El corte automático es a los 75 s.
 - Cada clip se guarda primero en IndexedDB con su marca de tiempo y después se sube. Sin conexión, se encolan y se procesan en orden al volver la red.
 - Feedback táctil y visual claro al empezar y parar. Nunca se pierde un clip: si la subida falla, sigue en la cola.
 
@@ -437,7 +438,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3 y 9 hechas (cada tarea pesa 3,3 puntos)
+### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3, 4, 5 y 9 hechas (cada tarea pesa 3,3 puntos)
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.

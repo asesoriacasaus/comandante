@@ -18,11 +18,11 @@ function addDays_(iso, n) {
 }
 
 /** Llama a Gemini pidiendo JSON, valida y reintenta una vez con los errores. */
-function callJson_(tier, system, userObj, schema, validate) {
+function callJson_(tier, system, userObj, schema, validate, extraParts) {
   const data = JSON.stringify(userObj);
   let extra = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const parts = [{ text: data }];
+    const parts = [{ text: data }].concat(extraParts || []);
     if (extra) parts.push({ text: 'Tu respuesta anterior tenía estos errores: ' + extra + '. Devuelve el JSON corregido.' });
     const r = callGemini_(tier, system, parts, { schema: schema, temperature: 0.4 });
     let obj = null;

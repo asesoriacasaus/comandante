@@ -60,3 +60,17 @@ pre.salida { white-space: pre-wrap; word-break: break-word; margin: 12px 0 0; pa
 .detalle { font-size: 14px; color: var(--tinta-2); font-variant-numeric: tabular-nums; }
 .carga { margin-top: 4px; font: 600 15px var(--sans); font-variant-numeric: tabular-nums; }
 select { background: var(--lino); }
+
+/* Sesión */
+.descanso { margin: 0 0 16px; font: 600 14px var(--sans); color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+.aviso.peligro { border-color: var(--error); color: var(--error); }
+.bloque { margin: 0 0 20px; padding: 16px 0 0; border-top: 1px solid var(--piedra); }
+.bloque.actual h3 { color: var(--acento); }
+.series { list-style: none; margin: 0 0 8px; padding: 0; }
+.serie { border-bottom: 1px solid var(--piedra); }
+.serie-btn { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; width: 100%; min-height: 52px; padding: 8px 0;
+  background: none; border: 0; text-align: left; font: 15px var(--sans); color: var(--tinta); font-variant-numeric: tabular-nums; }
+.serie-btn .n { color: var(--tinta-2); font-size: 13px; }
+.serie-btn .carga { margin: 0; font-size: 13px; text-align: right; }
+.editor { padding: 8px 0 16px; }
+.acciones.fin { margin-top: 24px; }

@@ -40,3 +40,29 @@ export function parseNum(text) {
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** "2026-11-15" → "domingo 15 de noviembre". Independiente de la zona horaria del navegador. */
+export function formatDateEs(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y || !m || !d) return String(iso);
+  return DIAS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + ' ' + d + ' de ' + MESES[m - 1];
+}
+
+/** 125 → "2:05". */
+export function formatClock(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/** Campo editable de carga según el implemento: [clave, etiqueta]. */
+export function loadField(implement) {
+  switch (implement) {
+    case 'barbell': case 'ezbar': case 'smith': return ['perSideKg', 'kg por lado'];
+    case 'dumbbell': case 'kettlebell': return ['perHandKg', 'kg por mano'];
+    case 'machine': case 'cable': return ['stackKg', 'kg de pila'];
+    default: return ['addedKg', 'kg de lastre'];
+  }
+}
