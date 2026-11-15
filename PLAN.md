@@ -440,7 +440,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3, 4, 5, 6 y 9 hechas (cada tarea pesa 3,3 puntos)
+### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3, 4, 5, 6, 7 y 9 hechas (cada tarea pesa 3,3 puntos)
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.

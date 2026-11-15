@@ -101,3 +101,13 @@ label.sospechosa input { border-color: var(--error); }
 .fig-cinta { stroke: var(--acento); fill: none; stroke-width: 5.5; }
 .fig-texto { fill: var(--tinta-2); font: 600 14px var(--sans); }
 @media (max-width: 380px) { .guia-tarjeta { grid-template-columns: 1fr; } }
+
+/* Diario */
+.diario-item { border-bottom: 1px solid var(--piedra); }
+.diario-fila { display: grid; gap: 2px; width: 100%; min-height: 64px; padding: 14px 0; background: none; border: 0; text-align: left; color: var(--tinta); }
+.diario-fecha { font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--tinta-2); }
+.diario-titulo { font: 400 21px var(--serif); }
+.detalle-sesion { padding: 0 0 16px; }
+.serie-solo { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; min-height: 40px; font: 15px var(--sans); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--piedra); }
+.serie-solo .n { color: var(--tinta-2); font-size: 13px; }
+.serie-solo .carga { margin: 0; font-size: 13px; text-align: right; }
