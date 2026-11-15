@@ -41,5 +41,16 @@ window.addEventListener('hashchange', render);
 render();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch((err) => console.error('SW no registrado', err));
+  // Cuando una versión nueva toma el control, se recarga para mostrarla. Nunca a mitad de una sesión de entreno:
+  // en ese caso se espera a que salgas de la pantalla Sesión.
+  const hadController = !!navigator.serviceWorker.controller;
+  let pendingReload = false;
+  const reloadIfSafe = () => { if (pendingReload && location.hash !== '#sesion') location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // primera instalación: no hay nada que actualizar
+    pendingReload = true;
+    reloadIfSafe();
+  });
+  window.addEventListener('hashchange', reloadIfSafe);
+  navigator.serviceWorker.register('sw.js').then((reg) => reg.update()).catch((err) => console.error('SW no registrado', err));
 }

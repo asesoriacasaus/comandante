@@ -31,7 +31,8 @@ jobs:
           cp -r index.html manifest.webmanifest sw.js css js icons site/
           # La versión de la caché cambia en cada despliegue para que el iPhone reciba lo nuevo.
           sed -i "s/const CACHE_NAME = '[^']*'/const CACHE_NAME = 'comandante-${GITHUB_SHA::8}'/" site/sw.js
-          grep CACHE_NAME site/sw.js | head -1
+          sed -i "s/export const BUILD = '[^']*'/export const BUILD = '${GITHUB_SHA}'/" site/js/version.js
+          grep -h "CACHE_NAME =\|BUILD =" site/sw.js site/js/version.js
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: site

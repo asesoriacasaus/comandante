@@ -14,6 +14,7 @@ const SHELL = [
   './js/api.js',
   './js/state.js',
   './js/lib/media.js',
+  './js/version.js',
   './js/lib/dom.js',
   './js/lib/ids.js',
   './js/lib/queue.js',
