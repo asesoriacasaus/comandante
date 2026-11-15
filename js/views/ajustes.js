@@ -1,6 +1,7 @@
 // Ajustes de conexión. El resto (objetivo, material, avisos) llega en la Fase 1.
 import { getConfig, saveConfig, clearConfig } from '../state.js';
 import { ping, call } from '../api.js';
+import { BUILD } from '../version.js';
 
 export function render(el) {
   el.innerHTML = `
@@ -21,6 +22,7 @@ export function render(el) {
         </div>
         <p id="estado" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <p class="nota">Versión de la app: ${BUILD.slice(0, 8)}</p>
       <p class="nota">El token se guarda solo en este dispositivo. Cambiarlo en el servidor invalida todos los clientes.</p>
       <div class="acciones"><button type="button" id="btn-salir" class="btn btn-sec">Cerrar sesión en este dispositivo</button></div>
     </section>`;

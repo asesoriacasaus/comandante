@@ -91,18 +91,18 @@ function renderSesion(el, s) {
     accion(el, s)));
 }
 
-async function empezar(el, s, btn) {
+async function empezar(el, s, btn, destino = '#sesion') {
   btn.disabled = true;
   try {
     if (s.status === 'planned') await call('session.start', { id: s.id }, { timeoutMs: 60000 });
     try { localStorage.setItem(ACTIVE_KEY, s.id); } catch (_) { /* sin almacenamiento */ }
-    location.hash = '#sesion';
+    location.hash = destino;
   } catch (err) { btn.disabled = false; btn.after(h('p', { class: 'estado error' }, err.message)); }
 }
 
 function accion(el, s) {
   if (s.status === 'done') return null;
-  if (s.status === 'review') return h('p', { class: 'nota' }, 'Sesión terminada. La revisión llega en la próxima entrega.');
+  if (s.status === 'review') return h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: (e) => empezar(el, s, e.currentTarget, '#revision') }, 'Revisar y guardar'));
   return h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: (e) => empezar(el, s, e.currentTarget) },
     s.status === 'in_progress' ? 'Continuar sesión' : 'Empezar sesión'));
 }

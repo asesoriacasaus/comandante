@@ -66,3 +66,24 @@ export function loadField(implement) {
     default: return ['addedKg', 'kg de lastre'];
   }
 }
+
+/** +5 → "+5 kg", -2.5 → "−2,5 kg", 0 → "igual". */
+export function formatDelta(kg) {
+  if (kg === null || kg === undefined) return '';
+  if (kg === 0) return 'igual';
+  return (kg > 0 ? '+' : '−') + num(Math.abs(kg)) + ' kg';
+}
+
+/** Textos de los avisos de la revisión. Cada uno dice qué pasa y qué hacer. */
+export function describeIssue(i) {
+  switch (i.type) {
+    case 'missing': return 'No hiciste ' + i.name + ' (' + i.planned + ' series previstas).';
+    case 'fewer_sets': return i.name + ': hiciste ' + i.done + ' de ' + i.planned + ' series previstas.';
+    case 'unplanned': return i.name + ' no estaba en el plan de hoy.';
+    case 'inherited_load': return 'Carga heredada de la serie anterior en ' + i.names.join(', ') + '. Revisa que sea la que usaste.';
+    case 'load_from_plan': return 'Carga tomada del plan en ' + i.names.join(', ') + ', porque no la dijiste. Revísala.';
+    case 'rir_unknown': return i.n + (i.n === 1 ? ' serie sin RIR' : ' series sin RIR') + ': sin él, la próxima subida de carga se decide solo por repeticiones.';
+    case 'pain': return 'Molestia anotada: ' + (i.text || 'sin detalle') + '. Si persiste, baja la carga o consúltalo antes de seguir.';
+    default: return '';
+  }
+}

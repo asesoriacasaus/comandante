@@ -202,13 +202,13 @@ function view(st, ctx) {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
-    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); recorder.releaseMic(); releaseWake(); location.hash = '#hoy'; }
+    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
   return h('section', {}, nodes);
 }
 
-function serieNodo(st, x, set, edit, paint) {
+export function serieNodo(st, x, set, edit, paint) {
   const editing = st.editing && st.editing.exerciseId === x.exerciseId && st.editing.order === set.order;
   const resumen = set.reps + ' rep · ' + (set.rir === null || set.rir === undefined ? 'RIR sin dato' : 'RIR ' + set.rir) +
     (set.type !== 'working' ? ' · ' + ({ warmup: 'calentamiento', drop: 'dropset', failure: 'al fallo' }[set.type] || set.type) : '');
