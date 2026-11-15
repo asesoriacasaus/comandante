@@ -92,7 +92,7 @@ function renderSesion(el, s) {
     s.coachMessage ? botonEscuchar(s.coachMessage) : null,
     ...avisos, lista,
     accion(el, s),
-    h('p', { class: 'nota' }, h('a', { href: '#chat' }, 'Habla con el Comandante'))));
+    h('div', { class: 'acciones fin' }, h('a', { class: 'btn btn-sec', href: '#chat' }, 'Habla con el Comandante'))));
 }
 
 async function empezar(el, s, btn, destino = '#sesion') {
