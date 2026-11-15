@@ -145,6 +145,7 @@ function validateSettings_(s) {
   pushIf_(e, checkNum_((s.strength || {}).referenceTotalKg, 'strength.referenceTotalKg', 5, 500, false));
   pushIf_(e, checkNum_((s.nutrition || {}).proteinGPerKg, 'nutrition.proteinGPerKg', 0.8, 3.5, false));
   pushIf_(e, checkNum_((s.nutrition || {}).activityFactor, 'nutrition.activityFactor', 1.2, 2.2, false));
+  pushIf_(e, checkNum_((s.nutrition || {}).kcalAdjust, 'nutrition.kcalAdjust', -KCAL_ADJUST_MAX_, KCAL_ADJUST_MAX_, false));
   pushIf_(e, checkNum_((s.nutrition || {}).fatGPerKg, 'nutrition.fatGPerKg', 0.4, 2, false));
   if (!s.coach || ['baja', 'media', 'alta'].indexOf(s.coach.intensity) < 0) e.push('coach.intensity debe ser baja, media o alta');
   return e;

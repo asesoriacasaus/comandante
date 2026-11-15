@@ -35,6 +35,16 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h2>Correo semanal</h2>
+      <div class="card">
+        <p class="nota">Cada domingo recibes el balance y el plan de la semana siguiente. Aquí puedes ver cómo sería ahora mismo o enviarlo ya.</p>
+        <div class="acciones">
+          <button type="button" id="btn-prev" class="btn btn-sec">Vista previa</button>
+          <button type="button" id="btn-enviar" class="btn btn-sec">Enviar ahora</button>
+        </div>
+        <p id="estado-semanal" class="estado" role="status" aria-live="polite"></p>
+        <pre id="vista-semanal" class="salida" hidden></pre>
+      </div>
       <h2>Material</h2>
       <form id="form-material" class="card" novalidate>
         <label>Peso de la barra olímpica (kg)<input id="m-barra" inputmode="decimal" autocomplete="off"></label>
@@ -83,6 +93,19 @@ export function render(el) {
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
+  const estS = el.querySelector('#estado-semanal');
+  const salidaS = el.querySelector('#vista-semanal');
+  const semanal = async (dryRun) => {
+    estS.className = 'estado'; estS.textContent = dryRun ? 'Preparando la vista previa…' : 'Enviando…'; salidaS.hidden = true;
+    try {
+      const r = await call('weekly.review', { dryRun, force: !dryRun }, { timeoutMs: 170000 });
+      estS.className = 'estado ok'; estS.textContent = dryRun ? 'Vista previa de ' + r.subject : 'Enviado: ' + r.subject;
+      salidaS.hidden = false; salidaS.textContent = r.text || '';
+    } catch (err) { console.error(err); estS.className = 'estado error'; estS.textContent = err.message; }
+  };
+  el.querySelector('#btn-prev').addEventListener('click', () => semanal(true));
+  el.querySelector('#btn-enviar').addEventListener('click', () => { if (confirm('¿Enviar ahora el correo semanal?')) semanal(false); });
+
   el.querySelector('#form-coach').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const e = el.querySelector('#estado-coach');

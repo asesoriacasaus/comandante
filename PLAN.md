@@ -358,6 +358,13 @@ Disparador de tiempo en Apps Script: `weekly.review` → actualiza `plan/current
 
 ---
 
+### 8.7 Cómo se ejecuta la revisión semanal
+
+- `weeklyTrigger` (domingo, 19:00) calcula los hechos de los últimos 7 días (`weeklyFacts_`), aplica las reglas (`calorieAdjustment_`: ±150 kcal según tendencia de peso y cintura, acumulado y acotado a ±450; grupos con menos de 8 series reciben una serie más; ejercicios principales estancados cuentan para adelantar la descarga) y guarda `plan/history/AAAA-Www.json`.
+- La IA solo redacta el comentario de apertura del correo (modelo SMART, con el rápido y un texto neutro de respaldo). Los números y los ajustes salen del código y no dependen del estilo.
+- `reminderTrigger` (a diario, hacia las 7:00) avisa solo si llevas `reminderAfterRestDays` días sin entrenar y hoy no has empezado una sesión.
+- `installTriggers` crea ambos disparadores; se ejecuta una vez desde el editor. En Ajustes hay "Vista previa" y "Enviar ahora" para probar sin esperar al domingo.
+
 ## 9. Interfaz
 
 ### 9.1 Pantallas
@@ -472,7 +479,7 @@ Criterio: una comida dictada genera ítems coherentes con macros y micronutrient
 
 Criterio: un pantallazo real del Huawei Watch Fit 4 rellena los campos; una tirada larga reciente adelanta la sesión sin pierna.
 
-### Fase 5. Semana y pulido (17 %)
+### Fase 5. Semana y pulido (17 %). En curso: revisión semanal, correos y disparadores hechos en el código; faltan Progreso, exportar e importar, y la prueba real
 
 `weekly.review`, disparadores de tiempo, correos (semanal y aviso), pantalla **Progreso**, exportar e importar, accesibilidad, estados vacíos y textos.
 

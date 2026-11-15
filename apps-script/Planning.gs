@@ -100,7 +100,7 @@ function planToday() {
   const anchor = plan.lastDeloadDate || plan.cycleStartDate || today;
   let lastDeloadDate = plan.lastDeloadDate || null;
   let deload = lastDeloadDate && daysBetween_(lastDeloadDate, today) < 7;
-  if (!deload && shouldDeload_(Math.floor(daysBetween_(anchor, today) / 7), 0)) { deload = true; lastDeloadDate = today; }
+  if (!deload && shouldDeload_(Math.floor(daysBetween_(anchor, today) / 7), plan.stalledMainLifts || 0)) { deload = true; lastDeloadDate = today; }
 
   const prev = lastSessionOfKey_(sessions, pick.key);
   let planned;
@@ -114,6 +114,11 @@ function planToday() {
 
   const ruled = applyPlanRules_(planned, { lastLoads: lastLoads_(sessions), returnAdjust: returnAdjust_(sessions, today),
     deload: !!deload, firstSession: !prev, equipment: eq });
+  // Prioridad de volumen de la revisión semanal: no se aplica en descarga, tras un parón ni en la primera sesión.
+  if (prev && !deload && ruled.notes.indexOf('layoff') < 0) {
+    const pr = applyPriority_(ruled.exercises, plan.priorityGroups, library);
+    if (pr.boosted.length) { ruled.exercises = pr.exercises; ruled.notes.push('priority'); }
+  }
   const notes = ruled.notes.concat(pick.reason === 'long_run_skip_legs' ? ['long_run'] : [], pick.warning ? [pick.warning] : []);
 
   const rec = { id: makeId_('s', today, tz), date: today, status: 'planned', cycleKey: pick.key, groups: pick.groups,

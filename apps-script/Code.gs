@@ -2,7 +2,7 @@
  * Punto de entrada del Web App. Todas las peticiones llegan como POST text/plain
  * con cuerpo JSON: { action, token, payload }. Siempre responde HTTP 200.
  */
-const CONFIG = { VERSION: '0.8.0', RATE_LIMIT_PER_MIN: 60 };
+const CONFIG = { VERSION: '0.9.0', RATE_LIMIT_PER_MIN: 60 };
 
 function doPost(e) {
   const t0 = Date.now();
@@ -49,6 +49,7 @@ function doPost(e) {
     'session.resume': () => sessionResume(payload.id),
     'clip.process': () => clipProcess(payload),
     'body.extract': () => bodyExtract(payload),
+    'weekly.review': () => weeklyReview(payload),
     'run.extract': () => runExtract(payload),
     'run.delete': () => runDelete(payload),
     'meal.process': () => mealProcess(payload),

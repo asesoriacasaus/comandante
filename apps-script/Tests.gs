@@ -909,6 +909,120 @@ function test_pure_runs() {
   return 'ok';
 }
 
+// ---------- Revisión semanal ----------
+
+const wsess_ = (date, key, groups, sets, vol, ex, extra) => Object.assign({ status: 'done', date: date, cycleKey: key, groups: groups,
+  metrics: { workingSets: sets, totalVolumeKg: vol, setsByGroup: {} }, exercises: ex || [] }, extra || {});
+const wex_ = (id, name, ps, reps) => ({ exerciseId: id, name: name, sets: [{ type: 'working', reps: reps || 8, rir: 2, load: bb_(ps) }, { type: 'working', reps: reps || 8, rir: 2, load: bb_(ps) }] });
+
+function test_pure_weekly_facts() {
+  const lib = exerciseSeed_();
+  const sessions = [
+    wsess_('2026-11-02', 'A', ['chest', 'triceps'], 12, 3000, [wex_('press_banca', 'Press banca', 15)]),
+    wsess_('2026-11-10', 'A', ['chest', 'triceps'], 12, 3300, [wex_('press_banca', 'Press banca', 17.5)], { metrics: { workingSets: 12, totalVolumeKg: 3300, setsByGroup: { chest: 10, triceps: 4 } } }),
+    wsess_('2026-11-12', 'B', ['back', 'biceps'], 10, 2500, [wex_('remo_barra', 'Remo con barra', 20)], { metrics: { workingSets: 10, totalVolumeKg: 2500, setsByGroup: { back: 9, biceps: 5 } }, painFlags: [{ text: 'x' }] }),
+    wsess_('2026-11-14', 'D', ['shoulders'], 8, 1000, [], { status: 'discarded' })
+  ];
+  const body = [{ date: '2026-11-03', weightKg: 88, measurementsCm: { waist: 100 } }, { date: '2026-11-05', weightKg: 88.2 },
+    { date: '2026-11-11', weightKg: 87.4, measurementsCm: { waist: 99 } }, { date: '2026-11-13', weightKg: 87.6, bodyFatPct: 23 }];
+  const meals = [{ date: '2026-11-11', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 2000, proteinG: 150, carbsG: 200, fatG: 60 }] }, { date: '2026-11-12', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 2400, proteinG: 170, carbsG: 250, fatG: 70 }] }];
+  const runs = [{ date: '2026-11-11', distanceKm: 12, durationSec: 4200 }, { date: '2026-11-13', distanceKm: 5, durationSec: 1700 }, { date: '2026-11-01', distanceKm: 20, durationSec: 7000 }];
+  const f = weeklyFacts_({ today: '2026-11-16', sessions: sessions, runs: runs, meals: meals, body: body, targets: { kcal: 2470, proteinG: 174 }, library: lib });
+  assert_(f.from === '2026-11-10' && f.to === '2026-11-16', 'ventana de 7 días terminada hoy');
+  assert_(f.training.sessions === 2 && f.training.sets === 22 && f.training.volumeKg === 5800 && f.training.prevVolumeKg === 0, 'solo sesiones hechas de la semana (las descartadas y las anteriores no cuentan)');
+  assert_(f.training.setsByGroup.chest === 10 && f.training.setsByGroup.back === 9, 'series por grupo');
+  assert_(f.training.belowMin.indexOf('triceps') >= 0 && f.training.belowMin.indexOf('quads') >= 0 && f.training.belowMin.indexOf('chest') < 0, 'grupos por debajo de 8 series');
+  assert_(f.training.pain === 1, 'molestias de la semana');
+  const pb = f.training.progressions.find((x) => x.name === 'Press banca');
+  assert_(pb.kg === 55 && pb.prevKg === 50 && pb.deltaKg === 5, 'progresión de carga frente a la última vez');
+  assert_(f.training.progressions.find((x) => x.name === 'Remo con barra').prevKg === null, 'ejercicio nuevo sin comparación');
+  assert_(f.runs.count === 2 && f.runs.km === 17 && f.runs.longRuns === 1, 'carreras de la semana (la del día 1 queda fuera)');
+  assert_(f.nutrition.daysLogged === 2 && f.nutrition.avgKcal === 2200 && f.nutrition.avgProteinG === 160, 'media solo de los días registrados');
+  assert_(f.body.weight.avg === 87.5 && f.body.weight.prevAvg === 88.1 && f.body.weight.delta === -0.6, 'peso medio y cambio: ' + JSON.stringify(f.body.weight));
+  assert_(f.body.waist.now === 99 && f.body.waist.before === 100 && f.body.fat.avg === 23 && f.body.fat.delta === null, 'cintura y grasa');
+  const empty = weeklyFacts_({ today: '2026-11-16', sessions: [], runs: [], meals: [], body: [], targets: null, library: lib });
+  assert_(empty.training.sessions === 0 && empty.training.belowMin.length === 0 && empty.body.weight.avg === null && empty.nutrition.avgKcal === null, 'semana vacía sin errores ni avisos de grupos');
+  return 'ok';
+}
+
+function test_pure_weekly_rules() {
+  const f = (delta, now, before) => ({ body: { weight: { delta: delta }, waist: { now: now, before: before } } });
+  assert_(calorieAdjustment_(f(-0.6, 99, 100)).deltaKcal === 150, 'bajar más de 0,5 kg/semana: +150 kcal');
+  assert_(calorieAdjustment_(f(-0.5, 99, 100)).deltaKcal === 0, 'exactamente 0,5 kg no ajusta');
+  assert_(calorieAdjustment_(f(0.2, 101, 100)).deltaKcal === -150 && calorieAdjustment_(f(0.2, 101, 100)).reason === 'waist_rising', 'cintura +1 cm: −150 kcal');
+  assert_(calorieAdjustment_(f(0.2, 100.4, 100)).deltaKcal === 0, 'cintura +0,4 cm: sin ajuste');
+  assert_(calorieAdjustment_(f(null, 99, 100)).reason === 'insufficient_data', 'sin dos semanas de peso no se toca nada');
+  assert_(calorieAdjustment_(f(0.1, null, null)).reason === 'on_track', 'sin cintura y con peso estable: en ruta');
+  assert_(clampAdjust_(300, 150) === 450 && clampAdjust_(450, 150) === 450 && clampAdjust_(-400, -150) === -450 && clampAdjust_(0, 150) === 150, 'el ajuste acumulado se acota a ±450');
+  const st = deepMerge_(defaultSettings_(), { profile: { sex: 'male', birthYear: 1990, heightCm: 180 }, nutrition: { kcalAdjust: 150 } });
+  assert_(nutritionTargets_(st, 80, 2026).kcal === 2591, 'el ajuste se suma a las calorías objetivo (2441 + 150)');
+  assert_(validateSettings_(deepMerge_(st, { nutrition: { kcalAdjust: 900 } })).length > 0, 'ajuste fuera de rango rechazado');
+
+  // Estancamiento
+  const lib = exerciseSeed_();
+  const mk = (date, ps, reps) => wsess_(date, 'A', ['chest'], 4, 0, [wex_('press_banca', 'Press banca', ps, reps)]);
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 20, 8), mk('2026-11-03', 20, 8)], lib).length === 1, 'tres sesiones con la misma carga y repeticiones: estancado');
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 21.25, 8), mk('2026-11-03', 21.25, 8)], lib).length === 0, 'si ha subido la carga no está estancado');
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 20, 9), mk('2026-11-03', 20, 10)], lib).length === 0, 'si suben las repeticiones tampoco');
+  assert_(stalledMainLifts_([mk('2026-10-27', 20, 8), mk('2026-11-03', 20, 8)], lib).length === 0, 'con menos de tres apariciones no hay veredicto');
+  const iso = (id) => wsess_('2026-11-03', 'D', ['shoulders'], 3, 0, [wex_(id, id, 5)]);
+  assert_(stalledMainLifts_([iso('elevaciones_laterales'), iso('elevaciones_laterales'), iso('elevaciones_laterales')], lib).length === 0, 'los de aislamiento no cuentan como principales');
+
+  // Prioridad de volumen
+  const ex = [{ exerciseId: 'press_banca', sets: 4 }, { exerciseId: 'remo_barra', sets: 6 }, { exerciseId: 'curl_barra', sets: 3 }];
+  const pr = applyPriority_(ex, ['chest', 'back'], lib);
+  assert_(pr.exercises[0].sets === 5 && pr.exercises[1].sets === 6 && pr.exercises[2].sets === 3 && pr.boosted.length === 1, '+1 serie a los grupos prioritarios, máximo 6');
+  assert_(ex[0].sets === 4, 'no muta la entrada');
+  assert_(applyPriority_(ex, [], lib).boosted.length === 0, 'sin prioridades no cambia nada');
+  return 'ok';
+}
+
+function test_pure_weekly_email() {
+  const facts = { from: '2026-11-10', to: '2026-11-16',
+    training: { sessions: 2, sets: 22, volumeKg: 5800, prevVolumeKg: 3000, prevSessions: 1, setsByGroup: {}, belowMin: ['triceps', 'quads'], pain: 1,
+      list: [], progressions: [{ name: 'Press banca', kg: 55, prevKg: 50, deltaKg: 5 }] },
+    runs: { count: 2, km: 17, longRuns: 1 }, nutrition: { daysLogged: 2, avgKcal: 2200, avgProteinG: 160, targets: { kcal: 2470, proteinG: 174 }, micro: { days: 3, avg: {}, alerts: [{ key: 'ironMg', level: 'low', pct: 29 }] } },
+    body: { weight: { avg: 87.5, prevAvg: 88.1, delta: -0.6 }, waist: { now: 99, before: 100 }, fat: { avg: 23, delta: null } } };
+  const plan = { adjustment: { deltaKcal: 150, reason: 'weight_dropping_fast' }, nextSession: { key: 'C', groups: ['quads', 'hamstrings'] }, priorityGroups: ['triceps', 'quads'], stalled: ['press_banca'] };
+  const mail = buildWeeklyEmail_(facts, plan, 'Compañero, buena semana <script>alert(1)</script>.');
+  assert_(mail.subject === 'Comandante · Balance semanal (10/11 al 16/11)', 'asunto con fechas: ' + mail.subject);
+  ['2 sesión(es), 22 series de trabajo, 5800 kg', 'Press banca: +5 kg', '17 km', '1 tirada(s) larga(s)', 'Peso medio: 87,5 kg (−0,6 kg', 'Cintura: 99 cm (−1 cm)', 'Poco hierro (29 %', 'subo 150 kcal', 'Próxima sesión del ciclo: C (cuádriceps y femorales)', 'Prioridad de volumen: tríceps, cuádriceps', 'Ejercicios estancados: 1'].forEach((t) =>
+    assert_(mail.text.indexOf(t) >= 0, 'el correo debe contener «' + t + '»'));
+  assert_(mail.html.indexOf('<script>') < 0 && mail.html.indexOf('&lt;script&gt;') >= 0, 'el texto de la IA se escapa en el HTML');
+  assert_(escapeHtml_('<a href="x">&\'</a>') === '&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;', 'escapeHtml_');
+  const empty = buildWeeklyEmail_({ from: '2026-11-10', to: '2026-11-16', training: { sessions: 0, sets: 0, volumeKg: 0, prevVolumeKg: 0, prevSessions: 0, setsByGroup: {}, belowMin: [], pain: 0, list: [], progressions: [] },
+    runs: { count: 0, km: 0, longRuns: 0 }, nutrition: { daysLogged: 0, avgKcal: null, avgProteinG: null, targets: null, micro: { days: 0, avg: {}, alerts: [] } },
+    body: { weight: { avg: null, prevAvg: null, delta: null }, waist: { now: null, before: null }, fat: { avg: null, delta: null } } },
+    { adjustment: { deltaKcal: 0, reason: 'insufficient_data' }, nextSession: null, priorityGroups: [], stalled: [] }, 'x');
+  assert_(empty.text.indexOf('no has registrado carreras') >= 0 && empty.text.indexOf('Faltan pesos') >= 0 && empty.text.indexOf('NaN') < 0 && empty.text.indexOf('undefined') < 0, 'semana vacía: textos limpios');
+  assert_(neutralWeeklyMessage_(facts, plan).indexOf('2 sesiones') >= 0 && neutralWeeklyMessage_(empty.facts || { training: { sessions: 0 } }, plan).indexOf('no has entrenado') >= 0, 'mensaje neutro');
+  return 'ok';
+}
+
+function test_pure_reminder() {
+  const st = defaultSettings_();
+  const done = (date) => ({ status: 'done', date: date, cycleKey: 'A', groups: ['chest'] });
+  assert_(shouldRemind_([done('2026-11-12')], '2026-11-14', st, null) === true, 'tras 2 días de descanso se avisa');
+  assert_(shouldRemind_([done('2026-11-13')], '2026-11-14', st, null) === false, 'con 1 día de descanso no');
+  assert_(shouldRemind_([done('2026-11-12')], '2026-11-14', st, '2026-11-14') === false, 'no se avisa dos veces el mismo día');
+  assert_(shouldRemind_([done('2026-11-12'), done('2026-11-14')], '2026-11-14', st, null) === false, 'si ya has entrenado hoy, no');
+  assert_(shouldRemind_([done('2026-11-12'), { status: 'in_progress', date: '2026-11-14' }], '2026-11-14', st, null) === false, 'si la sesión de hoy está en curso, no');
+  assert_(shouldRemind_([done('2026-11-12'), { status: 'planned', date: '2026-11-14' }], '2026-11-14', st, null) === true, 'una sesión solo planificada no cuenta como entrenada');
+  assert_(shouldRemind_([], '2026-11-14', st, null) === false, 'sin historial no se avisa');
+  assert_(shouldRemind_([done('2026-11-01')], '2026-11-14', deepMerge_(st, { notifications: { reminder: false } }), null) === false, 'aviso desactivado');
+  assert_(shouldRemind_([done('2026-11-10')], '2026-11-14', deepMerge_(st, { notifications: { reminderAfterRestDays: 5 } }), null) === false, 'umbral configurable');
+  const m = buildReminderEmail_({ key: 'C', groups: ['quads', 'glutes'] }, 3);
+  assert_(m.subject === 'Comandante · Hoy toca cuádriceps y glúteos' && m.text.indexOf('3 días') >= 0 && m.html.indexOf('<') >= 0, 'correo de recordatorio');
+  return 'ok';
+}
+
+function test_pure_week_key() {
+  assert_(isoWeekKey_('2026-11-16') === '2026-W47' && isoWeekKey_('2026-11-22') === '2026-W47' && isoWeekKey_('2026-11-23') === '2026-W48', 'semanas ISO de noviembre 2026');
+  assert_(isoWeekKey_('2026-01-01') === '2026-W01' && isoWeekKey_('2025-12-29') === '2026-W01', 'semana 1 que cruza el año');
+  assert_(isoWeekKey_('2027-01-03') === '2026-W53', 'la semana 53 de 2026 termina el 3 de enero de 2027');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -916,7 +1030,8 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_commit_roundtrip].forEach((fn) => {
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key,
+    test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

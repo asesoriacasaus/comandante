@@ -47,7 +47,7 @@ function nutritionTargets_(settings, weightKg, year) {
   if (!p.sex || !p.birthYear || !p.heightCm || !isNum_(weightKg)) return null;
   const bmr = mifflinBmr_(p.sex, weightKg, p.heightCm, year - p.birthYear);
   const tdee = bmr * (n.activityFactor || 1.55);
-  const kcal = n.kcalStrategy === 'maintenance' ? tdee : tdee * 0.9;
+  const kcal = (n.kcalStrategy === 'maintenance' ? tdee : tdee * 0.9) + (isNum_(n.kcalAdjust) ? n.kcalAdjust : 0);
   const proteinG = (n.proteinGPerKg || 2.0) * weightKg;
   const fatG = (n.fatGPerKg || 0.9) * weightKg;
   const carbsG = Math.max(0, (kcal - 4 * proteinG - 9 * fatG) / 4);
