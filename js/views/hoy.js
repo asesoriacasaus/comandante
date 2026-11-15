@@ -3,6 +3,7 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs } from '../lib/format.js';
 import { ACTIVE_KEY } from './sesion.js';
+import { botonEscuchar } from '../lib/voz.js';
 import { renderOnboarding } from './bienvenida.js';
 
 const SLOW = { timeoutMs: 150000 };
@@ -88,6 +89,7 @@ function renderSesion(el, s) {
   el.replaceChildren(h('section', {},
     ...cabecera('Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date), groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     s.coachMessage ? h('blockquote', { class: 'mensaje' }, s.coachMessage) : null,
+    s.coachMessage ? botonEscuchar(s.coachMessage) : null,
     ...avisos, lista,
     accion(el, s)));
 }

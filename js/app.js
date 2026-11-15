@@ -11,6 +11,7 @@ import * as revision from './views/revision.js';
 import * as guia from './views/guia.js';
 import * as carreras from './views/carreras.js';
 import * as progreso from './views/progreso.js';
+import { detenerVoz } from './lib/voz.js';
 
 const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia, carreras, progreso };
 // Ajustes y prueba cuelgan de "Más".
@@ -22,6 +23,7 @@ function currentRoute() {
   return Object.prototype.hasOwnProperty.call(ROUTES, key) ? key : 'hoy';
 }
 function render() {
+  detenerVoz();   // la voz se corta al cambiar de pantalla
   const key = currentRoute();
   // Las vistas asíncronas comprueban este valor antes de dibujar, para no
   // pisar otra sección si el usuario ya ha navegado.

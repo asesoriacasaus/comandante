@@ -1073,6 +1073,24 @@ function test_pure_export_import() {
   return 'ok';
 }
 
+function test_pure_tts() {
+  assert_(TTS_VOICES_.length === 30 && TTS_VOICES_.indexOf('Orus') >= 0, 'catálogo de voces');
+  assert_(ttsVoice_('Fenrir') === 'Fenrir' && ttsVoice_('  Kore ') === 'Kore' && ttsVoice_('') === 'Orus' && ttsVoice_('voz inventada') === 'Orus' && ttsVoice_(null) === 'Orus', 'voz válida, o la de por defecto');
+  assert_(ttsVoice_('Orus"}],"x":[{') === 'Orus', 'una voz con comillas no se cuela en la petición');
+  const r = buildTtsRequest_('¡A la carga, compatriota!', 'Charon');
+  assert_(r.generationConfig.responseModalities[0] === 'AUDIO' && r.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Charon', 'petición de audio con la voz elegida');
+  assert_(r.contents[0].parts[0].text.indexOf('"¡A la carga, compatriota!"') >= 0 && r.contents[0].parts[0].text.indexOf('acento venezolano') >= 0, 'el estilo y el texto van en el mensaje del usuario');
+  assert_(/Chávez|Chavez|Hugo|presidente/i.test(TTS_STYLE_) === false, 'el estilo pide un acento y una manera de decir, no la voz de una persona concreta');
+  const a = parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: 'AAAA' } }] } }] });
+  assert_(a.data === 'AAAA' && a.mime.indexOf('rate=24000') >= 0, 'extrae el audio');
+  assert_(parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { data: 'AAAA' } }] } }] }).mime.indexOf('L16') >= 0, 'mime por defecto');
+  const fails = (b) => { try { parseGeminiAudio_(b); return null; } catch (e) { return e.code; } };
+  assert_(fails({}) === 'AI_EMPTY' && fails({ candidates: [{ content: { parts: [{ text: 'hola' }] } }] }) === 'AI_EMPTY', 'sin audio');
+  assert_(fails({ promptFeedback: { blockReason: 'SAFETY' } }) === 'AI_BLOCKED', 'bloqueo');
+  assert_(TTS_MAX_CHARS_ === 600, 'límite de lectura');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1080,7 +1098,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

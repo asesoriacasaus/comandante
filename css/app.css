@@ -157,3 +157,6 @@ h3.seccion { margin: 28px 0 12px; font-size: 24px; }
 /* Franja superior de cartel */
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--acento); z-index: 5; }
 .contenido { padding-top: calc(30px + env(safe-area-inset-top)); }
+
+.voz { margin: 0 0 16px; }
+.voz .estado { min-height: 0; margin: 6px 0 0; }

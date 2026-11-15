@@ -3,6 +3,7 @@ import { getConfig, saveConfig, clearConfig } from '../state.js';
 import { parseNum } from '../lib/format.js';
 import { ping, call } from '../api.js';
 import { BUILD } from '../version.js';
+import { botonEscuchar } from '../lib/voz.js';
 
 export function render(el) {
   el.innerHTML = `
@@ -35,6 +36,10 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h3 class="seccion">Voz del Comandante</h3>
+      <div class="card" id="caja-voz">
+        <p class="nota">Cada mensaje del Comandante tiene un botón "Escuchar" con una voz de orador. Prueba aquí que funciona.</p>
+      </div>
       <h3 class="seccion">Correo semanal</h3>
       <div class="card">
         <p class="nota">Cada domingo recibes el balance y el plan de la semana siguiente. Aquí puedes ver cómo sería ahora mismo o enviarlo ya.</p>
@@ -100,6 +105,7 @@ export function render(el) {
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
+  el.querySelector('#caja-voz').append(botonEscuchar('¡Compatriota! A la carga: la revolución empieza por el cuerpo.', 'Probar la voz'));
   const estS = el.querySelector('#estado-semanal');
   const salidaS = el.querySelector('#vista-semanal');
   const semanal = async (dryRun) => {
