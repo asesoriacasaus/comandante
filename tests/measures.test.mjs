@@ -41,3 +41,8 @@ test('fecha local y centímetros', () => {
   assert.equal(todayIsoLocal(new Date(2026, 10, 5, 0, 30)), '2026-11-05');
   assert.equal(formatCm(99.5), '99,5 cm');
 });
+
+test('la cintura se mide por la parte más ancha', () => {
+  assert.match(GUIDE.waist.where, /parte más ancha/);
+  assert.match(GUIDE.waist.tip, /mismo criterio/);
+});
