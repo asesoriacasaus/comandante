@@ -2,6 +2,7 @@
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
+import { botonEscuchar } from '../lib/voz.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
 const vigente = (el) => el.dataset.route === 'diario';
@@ -61,7 +62,7 @@ function dato(valor, etiqueta) { return h('div', { class: 'dato' }, h('span', { 
 
 function detalle(s) {
   const nodos = [];
-  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
+  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
   (s.painFlags || []).forEach((p) => nodos.push(h('p', { class: 'aviso peligro' }, 'Molestia anotada: ' + (p.text || 'sin detalle'))));
   (s.exercises || []).forEach((x) => {
     nodos.push(h('div', { class: 'bloque' }, h('h3', {}, x.name),
@@ -71,5 +72,5 @@ function detalle(s) {
         h('span', { class: 'carga' }, formatLoad(set.load)))))));
   });
   if (!nodos.length) nodos.push(h('p', { class: 'vacio' }, 'Sin detalle.'));
-  return nodos;
+  return nodos.filter(Boolean);
 }

@@ -12,7 +12,7 @@ function geminiKey_() {
 }
 
 function geminiModel_(tier) {
-  const name = tier === 'SMART' ? 'GEMINI_MODEL_SMART' : 'GEMINI_MODEL_FAST';
+  const name = tier === 'SMART' ? 'GEMINI_MODEL_SMART' : tier === 'TTS' ? 'GEMINI_MODEL_TTS' : 'GEMINI_MODEL_FAST';
   const m = cleanModelName_(PropertiesService.getScriptProperties().getProperty(name));
   if (!m) throw { code: 'AI_CONFIG', message: 'Falta ' + name + ' en las Propiedades del script' };
   return m;
@@ -139,4 +139,56 @@ function aiProbe(p) {
   try { result = JSON.parse(r.text); } catch (_) { /* se devuelve en bruto */ }
   return { kind: kind, bytes: base64Bytes_(p.data), usedMime: usedMime, model: r.model,
     ms: Date.now() - t0, result: result, raw: result ? null : r.text.slice(0, 500) };
+}
+
+// ---------- Voz del Comandante (síntesis de voz) ----------
+
+const TTS_VOICES_ = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede', 'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus',
+  'Umbriel', 'Algieba', 'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar', 'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima',
+  'Achird', 'Zubenelgenubi', 'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat'];
+const TTS_DEFAULT_VOICE_ = 'Orus';
+const TTS_MAX_CHARS_ = 600;
+// Voz original: se pide un acento y una manera de decir, nunca la voz de una persona concreta.
+const TTS_STYLE_ = 'Di con acento venezolano, como un orador apasionado y carismático: enérgico, con ritmo de arenga y pausas dramáticas, claro y sin gritar. El texto es: ';
+
+/** Voz de la Propiedad TTS_VOICE si está en la lista de voces; si no, la de por defecto. */
+function ttsVoice_(raw) {
+  const v = String(raw || '').trim();
+  return TTS_VOICES_.indexOf(v) >= 0 ? v : TTS_DEFAULT_VOICE_;
+}
+
+function buildTtsRequest_(text, voice) {
+  return { contents: [{ role: 'user', parts: [{ text: TTS_STYLE_ + '"' + text + '"' }] }],
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: ttsVoice_(voice) } } } } };
+}
+
+/** Audio de la respuesta: { mime, data(base64) }. */
+function parseGeminiAudio_(body) {
+  if (body && body.promptFeedback && body.promptFeedback.blockReason) {
+    throw { code: 'AI_BLOCKED', message: 'La IA ha bloqueado la petición (' + body.promptFeedback.blockReason + ')' };
+  }
+  const cand = body && body.candidates && body.candidates[0];
+  const parts = (cand && cand.content && cand.content.parts) || [];
+  const audio = parts.find((x) => x.inlineData && x.inlineData.data);
+  if (!audio) throw { code: 'AI_EMPTY', message: 'La IA no ha devuelto audio' };
+  return { mime: String(audio.inlineData.mimeType || 'audio/L16;codec=pcm;rate=24000'), data: audio.inlineData.data };
+}
+
+/** Lee en voz alta un texto corto (los mensajes del Comandante). */
+function ttsSpeak(p) {
+  const text = validateText_(p && p.text).trim();
+  if (!text) throw { code: 'VALIDATION', message: 'No hay texto que leer' };
+  if (text.length > TTS_MAX_CHARS_) throw { code: 'TOO_LARGE', message: 'Texto demasiado largo para leerlo (máx. ' + TTS_MAX_CHARS_ + ' caracteres)' };
+  const model = geminiModel_('TTS');
+  const voice = ttsVoice_(PropertiesService.getScriptProperties().getProperty('TTS_VOICE'));
+  const url = GEMINI_BASE_ + 'models/' + encodeURIComponent(model) + ':generateContent';
+  const res = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': geminiKey_() },
+    muteHttpExceptions: true, payload: JSON.stringify(buildTtsRequest_(text, voice)) });
+  const status = res.getResponseCode();
+  if (status >= 300) {
+    console.error('TTS HTTP ' + status + ' modelo=' + model);
+    throw { code: 'AI_HTTP', status: status, message: 'La IA ha devuelto el error HTTP ' + status + ' con el modelo "' + model + '"' };
+  }
+  const out = parseGeminiAudio_(JSON.parse(res.getContentText()));
+  return { mime: out.mime, data: out.data, voice: voice };
 }

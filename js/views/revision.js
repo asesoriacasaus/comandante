@@ -3,6 +3,7 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTranscript } from '../lib/format.js';
 import { ACTIVE_KEY, serieNodo, pendienteDetalle } from './sesion.js';
+import { botonEscuchar } from '../lib/voz.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -55,7 +56,7 @@ function vista(st, ctx) {
     h('p', { class: 'etiqueta' }, 'Revisión · ' + formatDateEs(s.date)),
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase()))
   ];
-  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
+  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
 
   const m = r.summary;
   nodes.push(h('div', { class: 'resumen' },

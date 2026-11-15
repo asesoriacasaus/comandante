@@ -53,7 +53,7 @@ Los datos personales (edad, altura, peso, medidas y cifras del objetivo) **no es
 | Nutrición | Comidas por voz; macros imprescindibles, también vitaminas y minerales |
 | Avisos | Por correo |
 | Historial previo | Ninguno |
-| Estilo visual | Claro, inspirado en Zara Home y Massimo Dutti |
+| Estilo visual | Cartel revolucionario y militar: papel crema, tinta negra, rojo y verde oliva (sección 9.3) |
 
 ---
 
@@ -73,7 +73,7 @@ Los datos personales (edad, altura, peso, medidas y cifras del objetivo) **no es
 | Plan | Rotación de sesiones, no días fijos de la semana | Entrena de forma ocasional, 3-4 días |
 | Progresión | La app decide (sección 8), dentro de límites deterministas | Entrenador personal real |
 | Avisos | Correo semanal con balance y plan, y aviso cuando toca entrenar | Decisión del usuario |
-| Interfaz | Español, estilo claro y editorial | Decisión del usuario |
+| Interfaz | Español, estilo de cartel revolucionario y militar | Decisión del usuario (15 de noviembre de 2026) |
 | Nombre | Comandante | Decisión del usuario |
 
 ---
@@ -269,6 +269,7 @@ Los identificadores de modelo **no van en el código**: se leen de Propiedades d
 
 - `GEMINI_MODEL_FAST`: el modelo Flash vigente. Transcripción, interpretación de clips, comidas, pantallazos.
 - `GEMINI_MODEL_SMART`: el modelo Pro vigente. Plan de la sesión, consolidación de la sesión, revisión semanal.
+- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`.
 
 En la Fase 0 se consultan los identificadores actuales en la documentación oficial y se fijan.
 
@@ -310,6 +311,7 @@ El usuario eligió una personalidad concreta y marcada para el entrenador. **La 
 - Las instrucciones piden hablar "al estilo de" la personalidad, no afirmar ser una persona real. Si Gemini bloquea o suaviza la respuesta, se muestra un texto neutro y se registra el código.
 - Seguridad física por encima del personaje: ante dolor o lesión, el mensaje recomienda parar o ajustar.
 - Si `PERSONA_PROMPT` está vacía, el entrenador habla en tono neutro y directo.
+- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Máximo 600 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
 
 ---
 
@@ -391,14 +393,16 @@ Navegación inferior con 5 entradas (Hoy, Diario, Cuerpo, Comida, Más). Carrera
 - Cada clip se guarda primero en IndexedDB con su marca de tiempo y después se sube. Sin conexión, se encolan y se procesan en orden al volver la red.
 - Feedback táctil y visual claro al empezar y parar. Nunca se pierde un clip: si la subida falla, sigue en la cola.
 
-### 9.3 Dirección visual (claro, editorial, tipo Zara Home / Massimo Dutti)
+### 9.3 Dirección visual (cartel revolucionario y militar)
 
-- Fondo lino muy claro, superficies blancas, líneas finas color piedra, texto casi negro, un acento sobrio (tabaco u oliva oscuro). Sin degradados ni sombras marcadas.
-- Titulares en una serifa refinada y fina; texto en una sans geométrica limpia; etiquetas en mayúsculas pequeñas con espaciado.
-- Mucho aire, alineación a la izquierda, rejilla sobria, números tabulares.
-- Icono de la app: boina roja con estrella dorada sobre fondo oscuro (`icons/icon.svg` y `icons/icon-maskable.svg` son las fuentes; los PNG de 180, 192, 512 y maskable se generan a partir de ellas). Son símbolos, sin retrato de ninguna persona.
+Cambiada el 15 de noviembre de 2026: sustituye a la dirección editorial clara (Zara Home / Massimo Dutti) para que la estética coincida con el entrenador.
+
+- Papel de cartel crema (`--lino`), tinta casi negra, rojo revolucionario (`--acento`) y verde oliva militar (`--oliva`). El ámbar quemado (`--error`) es distinto del rojo de marca para no confundir un fallo con un elemento de la interfaz.
+- Titulares y botones en tipografía condensada en mayúsculas (Avenir Next Condensed o DIN Condensed en iOS, con Impact y Arial Narrow de respaldo); texto en sans limpia, números tabulares.
+- Etiquetas con una estrella roja; botones rectangulares con borde negro y sombra dura; tarjetas con borde negro; franja roja superior; barra inferior negra con la pestaña activa en rojo.
+- Texto de la IA siempre legible: los mensajes del Comandante no se ponen en mayúsculas.
 - Contraste mínimo AA y objetivos táctiles de al menos 44 px; el botón de grabar, mucho mayor (se usa con las manos ocupadas).
-- Tokens de color definidos en `:root`. Solo tema claro, que es lo que pidió el usuario.
+- Tokens de color y tipografía definidos en `:root`. Solo tema claro (papel de cartel).
 
 ---
 
