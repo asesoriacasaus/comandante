@@ -533,3 +533,20 @@ Criterio: el domingo llega el correo con balance y plan; el plan de la semana si
 Mensaje sugerido para abrir la conversación nueva con Sonnet, con el repo `comandante` conectado:
 
 > Vamos a construir Comandante siguiendo `PLAN.md` del repositorio. Léelo entero. Mis datos personales y la personalidad del entrenador están en mi cuestionario privado: [enlace que te paso aparte]. No los escribas nunca en el repo. Empieza por la Fase 0 y guíame en los pasos de la sección 13 que me tocan. Termina cada respuesta con el porcentaje de avance del proyecto y el modelo recomendado.
+
+---
+
+## 15. Estado y pruebas pendientes en el iPhone (15 de noviembre de 2026)
+
+Todo el código de las fases 0 a 5 está escrito y probado en Node y en Chromium con servidores simulados. Lo que **no** se ha podido probar es lo que depende de Gemini, de Drive y del correo con datos reales. Orden sugerido de pruebas, de menor a mayor riesgo:
+
+1. **Despliegue:** fusionar la rama, aprobar `production` y comprobar en Más > Ajustes que la "Versión de la app" cambia. Ejecutar `setup` e `installTriggers` desde el editor de Apps Script y aceptar los permisos nuevos.
+2. **Cuerpo:** guía de medidas; medir por voz (lados y decimales); pantallazo de la báscula (los 10 campos); gráficas tras 2 o más registros.
+3. **Entrenar:** sesión corta con dictado en desorden; revisar los pendientes y "Lo que oí"; guardar; Diario; Progreso.
+4. **Comida:** dictar una comida con cantidades; comprobar el reescalado y los totales frente a objetivos.
+5. **Carreras:** pantallazo real del reloj; comprobar que una tirada larga reciente adelanta la sesión sin pierna.
+6. **Semana:** Ajustes > Correo semanal > Vista previa y Enviar ahora; revisar el correo; al día siguiente, el recordatorio.
+7. **Personalidad:** pegar `PERSONA_PROMPT` en las Propiedades del script y comprobar el tono en Hoy y en la revisión.
+
+Decisiones abiertas que tendrá que confirmar el usuario: bíceps relajado (no contraído), punto de la cintura por la parte más ancha, modelos `GEMINI_MODEL_FAST` y `GEMINI_MODEL_SMART` tras probar con audio real, y qué hacer con las sesiones de prueba.
+
