@@ -95,7 +95,7 @@ function clipProcess(p) {
 
 function previousSameKey_(session, settings) {
   const today = todayIso_(settings.profile.timezone);
-  const all = loadSessionsSince_(addDays_(today, -180), today).filter((s) => s.id !== session.id);
+  const all = loadSessionsSince_(addDays_(today, -120), today).filter((s) => s.id !== session.id);
   return lastSessionOfKey_(all, session.cycleKey);
 }
 

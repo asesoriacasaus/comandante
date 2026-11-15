@@ -12,15 +12,29 @@ export function backoffMs(attempts) { return Math.min(60000, 2000 * 2 ** Math.ma
  */
 export function createQueue({ store, send, onChange = () => {}, now = () => Date.now() }) {
   let running = false;
+  let rerun = false;   // llegó trabajo nuevo mientras se procesaba: hay que dar otra vuelta en cuanto termine
 
   async function flush({ force = false } = {}) {
-    if (running) return;
+    if (running) { rerun = true; return; }
     running = true;
     try {
+      let parado = false;
+      do {
+        rerun = false;
+        parado = await pasada(force);
+      } while (rerun && !parado);
+    } finally {
+      running = false;
+    }
+  }
+
+  /** Una pasada por la cola en orden. Devuelve true si tuvo que pararse (espera de reintento o acceso bloqueado). */
+  async function pasada(force) {
+    {
       const all = (await store.all()).sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
       for (const clip of all) {
         if (clip.status === 'error') continue;
-        if (clip.status === 'retry' && !force && clip.nextTry > now()) break; // respeta el orden: no se salta un clip en espera
+        if (clip.status === 'retry' && !force && clip.nextTry > now()) return true; // respeta el orden: no se salta un clip en espera
         try {
           const result = await send(clip);
           await store.remove(clip.id);
@@ -35,17 +49,16 @@ export function createQueue({ store, send, onChange = () => {}, now = () => Date
           }
           if (BLOCKING.includes(code)) {
             onChange({ type: 'blocked', clip, error: message });
-            break;
+            return true;
           }
           const attempts = (clip.attempts || 0) + 1;
           await store.update(clip.id, { status: 'retry', attempts, nextTry: now() + backoffMs(attempts), error: message });
           onChange({ type: 'retry', clip, error: message });
-          break;
+          return true;
         }
       }
-    } finally {
-      running = false;
     }
+    return false;
   }
 
   async function enqueue(clip) {

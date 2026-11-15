@@ -148,12 +148,14 @@ function withLock_(fn) {
   }
 }
 
+/**
+ * Contador de revisión. Antes se escribía en meta.json en cada cambio (una escritura de Drive de ~0,4 s por serie)
+ * y la app nunca lo leía; ahora vive en la caché del script.
+ */
 function bumpRevision_() {
-  const meta = readJson_('meta.json', { schemaVersion: 1, lastRevision: 0, updatedAt: null });
-  meta.lastRevision = (meta.lastRevision || 0) + 1;
-  meta.updatedAt = new Date().toISOString();
-  writeFile_('meta.json', meta);
-  return meta.lastRevision;
+  const n = (Number(cacheGet_('rev')) || 0) + 1;
+  cachePut_('rev', String(n));
+  return n;
 }
 
 // ---------- Utilidades puras ----------

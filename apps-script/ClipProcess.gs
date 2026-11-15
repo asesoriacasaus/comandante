@@ -165,6 +165,20 @@ function eventsToSets_(events, session, ctx) {
   return { exercises: exercises, pending: pending, pain: pain, warnings: warnings };
 }
 
+/** Traduce los errores de validación de una serie a frases para el usuario. */
+function friendlySetError_(msg) {
+  const m = String(msg || '').replace(/^serie:?\s*/, '');
+  if (/^reps es obligatorio/.test(m)) return 'Faltan las repeticiones.';
+  if (/^reps debe ser un entero/.test(m)) return 'Las repeticiones deben ser un número entero.';
+  if (/^reps (fuera de rango|debe ser un número)/.test(m)) return 'Las repeticiones deben estar entre 0 y 100.';
+  if (/^rir /.test(m)) return 'El RIR debe ser un número entero entre 0 y 10, o quedar vacío.';
+  if (/^restSec /.test(m)) return 'El descanso no es válido.';
+  if (/^order /.test(m)) return 'El orden de la serie no es válido.';
+  if (/^type inválido/.test(m)) return 'El tipo de serie no es válido.';
+  if (/^side inválido/.test(m)) return 'El lado no es válido.';
+  return m.charAt(0).toUpperCase() + m.slice(1) + (/[.!?]$/.test(m) ? '' : '.');
+}
+
 /** Operaciones de edición manual sobre una sesión. Devuelve una copia nueva o lanza VALIDATION. */
 function applyEditOp_(session, op, eq, library) {
   const s = JSON.parse(JSON.stringify(session));
@@ -172,7 +186,7 @@ function applyEditOp_(session, op, eq, library) {
   s.exercises = s.exercises || [];
   const findEx = () => s.exercises.find((x) => x.exerciseId === op.exerciseId) || fail('ejercicio no encontrado');
   const reindex = (x) => x.sets.forEach((st, i) => { st.order = i + 1; });
-  const checkSet = (st) => { const errs = validateSet_(st, 'serie', eq); if (errs.length) fail(errs.join('; ')); };
+  const checkSet = (st) => { const errs = validateSet_(st, 'serie', eq); if (errs.length) fail(errs.map(friendlySetError_).join(' ')); };
 
   if (op.op === 'update') {
     const x = findEx();

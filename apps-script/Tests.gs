@@ -1281,6 +1281,19 @@ function test_pure_caso_real_cruce_poleas() {
   return 'ok';
 }
 
+function test_pure_friendly_errors() {
+  assert_(friendlySetError_('serie reps debe ser un entero') === 'Las repeticiones deben ser un número entero.', 'repeticiones no enteras');
+  assert_(friendlySetError_('serie: reps es obligatorio') === 'Faltan las repeticiones.', 'faltan repeticiones');
+  assert_(friendlySetError_('serie reps fuera de rango (0-100)') === 'Las repeticiones deben estar entre 0 y 100.', 'repeticiones fuera de rango');
+  assert_(friendlySetError_('serie rir fuera de rango (0-10)').indexOf('El RIR') === 0, 'RIR');
+  assert_(friendlySetError_('serie: faltan los kilos de la pila') === 'Faltan los kilos de la pila.', 'errores de carga ya en español: solo se pulen');
+  const fails = (op) => { try { applyEditOp_(sess_({ exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] }), op, ctx_().equipment, ctx_().library); return null; } catch (e) { return e.message; } };
+  const msg = fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { reps: 2.5 } });
+  assert_(msg === 'Las repeticiones deben ser un número entero.', 'la edición devuelve el mensaje amable: ' + msg);
+  assert_(/serie|reps|rir/.test(fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { rir: 40 } })) === false, 'sin nombres internos');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1288,7 +1301,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

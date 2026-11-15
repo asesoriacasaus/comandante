@@ -96,3 +96,25 @@ test('backoff y ids', () => {
   assert.equal(newId('c', new Date(2026, 10, 16, 18, 32), () => 0.5), 'c_20261116_1832_i000');
   assert.match(newId('c'), /^c_\d{8}_\d{4}_[a-z0-9]{4}$/);
 });
+
+test('un clip grabado mientras se procesa otro se procesa al terminar, sin esperar al temporizador', async () => {
+  const store = memStore(); const hechos = [];
+  const q = createQueue({ store, send: async (c) => { await new Promise((r) => setTimeout(r, 60)); hechos.push(c.id); return {}; } });
+  const primero = q.enqueue(clip('c1', '1'));
+  await new Promise((r) => setTimeout(r, 10));
+  await q.enqueue(clip('c2', '2'));          // llega mientras c1 se envía
+  await primero;
+  assert.deepEqual(hechos, ['c1', 'c2']);
+  assert.equal(store.m.size, 0);
+});
+
+test('si la pasada se para por falta de red, no se queda dando vueltas', async () => {
+  const store = memStore(); let envios = 0;
+  const q = createQueue({ store, send: async () => { envios++; await new Promise((r) => setTimeout(r, 20)); throw err('NETWORK'); }, now: () => 0 });
+  const a = q.enqueue(clip('c1', '1'));
+  await new Promise((r) => setTimeout(r, 5));
+  await q.enqueue(clip('c2', '2'));
+  await a;
+  assert.equal(envios, 1, 'un solo intento; el resto espera al reintento');
+  assert.equal(store.m.size, 2);
+});
