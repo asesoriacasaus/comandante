@@ -398,7 +398,7 @@ function test_pure_settings() {
   return 'ok';
 }
 
-const LIB_ = exerciseSeed_();
+function lib_() { return exerciseSeed_(); }
 const EQ_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
 
 function test_pure_plan_from_history() {
@@ -407,18 +407,18 @@ function test_pure_plan_from_history() {
     exercises: [{ exerciseId: 'press_banca', sets: sets }] });
   const full = [wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 3, bb_(20))];
   const s1 = mk('2026-11-16', full);
-  let plan = planFromHistory_(s1, [s1], LIB_, EQ_);
+  let plan = planFromHistory_(s1, [s1], lib_(), EQ_);
   assert_(plan.length === 1 && plan[0].exerciseId === 'press_banca', 'mismos ejercicios que la última vez');
   assert_(plan[0].targetLoad.totalKg === 62.5 && plan[0].progression === 'increase', 'sube la carga tras llegar al máximo');
   assert_(plan[0].sets === 4 && plan[0].repsMax === 10 && plan[0].targetRir === 2, 'conserva series y rangos');
 
   const weak = mk('2026-11-16', [wset_(9, 2, bb_(20)), wset_(8, 2, bb_(20)), wset_(8, 2, bb_(20))]);
-  plan = planFromHistory_(weak, [weak], LIB_, EQ_);
+  plan = planFromHistory_(weak, [weak], lib_(), EQ_);
   assert_(plan[0].targetLoad.totalKg === 60 && plan[0].progression === 'hold', 'en rango: mantiene');
 
   // Sin plannedExercises: se reconstruye desde lo hecho
   const bare = { status: 'done', cycleKey: 'A', date: '2026-11-16', exercises: [{ exerciseId: 'curl_barra', sets: [wset_(12, 2, normalizeLoad_({ implement: 'ezbar', perSideKg: 10 }, EQ_).load)] }] };
-  plan = planFromHistory_(bare, [bare], LIB_, EQ_);
+  plan = planFromHistory_(bare, [bare], lib_(), EQ_);
   assert_(plan[0].repsMin === 10 && plan[0].repsMax === 15 && plan[0].targetLoad.totalKg === 30, 'reconstruye rangos de aislamiento');
 
   assert_(exerciseHistory_([s1], 'press_banca', 2).length === 1 && exerciseHistory_([s1], 'sentadilla', 2).length === 0, 'historial por ejercicio');
@@ -436,8 +436,8 @@ function test_pure_ai_plan() {
     { exerciseId: 'aperturas', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 30, restSec: 75 },
     { exerciseId: 'extension_polea', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 35, restSec: 75 }
   ] };
-  assert_(validateAiPlan_(good, groups, LIB_).length === 0, 'plan válido: ' + validateAiPlan_(good, groups, LIB_));
-  const bad = (mut) => { const c = JSON.parse(JSON.stringify(good)); mut(c); return validateAiPlan_(c, groups, LIB_).length > 0; };
+  assert_(validateAiPlan_(good, groups, lib_()).length === 0, 'plan válido: ' + validateAiPlan_(good, groups, lib_()));
+  const bad = (mut) => { const c = JSON.parse(JSON.stringify(good)); mut(c); return validateAiPlan_(c, groups, lib_()).length > 0; };
   assert_(bad((c) => { c.exercises[0].exerciseId = 'baile'; }), 'id inventado rechazado');
   assert_(bad((c) => { c.exercises[0].exerciseId = 'sentadilla'; }), 'ejercicio de otro grupo rechazado');
   assert_(bad((c) => { c.exercises[0].implement = 'machine'; }), 'implemento no válido rechazado');
@@ -446,9 +446,9 @@ function test_pure_ai_plan() {
   assert_(bad((c) => { c.exercises[0].repsMin = 12; }), 'rango invertido rechazado');
   assert_(bad((c) => { c.exercises[0].estimated10RmTotalKg = -5; }), 'estimación negativa rechazada');
   assert_(bad((c) => { c.exercises = c.exercises.slice(0, 2); }), 'muy pocos ejercicios rechazados');
-  assert_(validateAiPlan_({}, groups, LIB_).length > 0, 'sin ejercicios rechazado');
+  assert_(validateAiPlan_({}, groups, lib_()).length > 0, 'sin ejercicios rechazado');
 
-  const planned = buildPlannedFromAi_(good, LIB_, EQ_);
+  const planned = buildPlannedFromAi_(good, lib_(), EQ_);
   assert_(planned[0].targetLoad.totalKg <= 55.25 && planned[0].targetLoad.totalKg >= 50, 'barra: 85 % hacia abajo, obtenido ' + planned[0].targetLoad.totalKg);
   assert_(planned[1].targetLoad.implement === 'dumbbell' && planned[1].targetLoad.perHandKg === 18, 'mancuernas: 44 × 0,85 / 2 → 18 por mano');
   assert_(planned.every((p) => p.targetRir === 3), 'primera sesión: RIR 3');
@@ -459,8 +459,8 @@ function test_pure_ai_plan() {
 
 function test_pure_prompts() {
   const settings = deepMerge_(defaultSettings_(), { strength: { referenceTotalKg: 65 } });
-  const user = buildSessionUser_(['chest', 'triceps'], settings, LIB_);
-  assert_(user.ejerciciosPermitidos.length > 5 && user.ejerciciosPermitidos.every((x) => LIB_.find((e) => e.id === x.id).primary.some((g) => ['chest', 'triceps'].indexOf(g) >= 0)), 'solo ejercicios de los grupos de hoy');
+  const user = buildSessionUser_(['chest', 'triceps'], settings, lib_());
+  assert_(user.ejerciciosPermitidos.length > 5 && user.ejerciciosPermitidos.every((x) => lib_().find((e) => e.id === x.id).primary.some((g) => ['chest', 'triceps'].indexOf(g) >= 0)), 'solo ejercicios de los grupos de hoy');
   assert_(user.referenciaDeFuerza.pesoTotalKg === 65, 'la referencia viaja en el mensaje del usuario');
   assert_(SESSION_SYSTEM_.indexOf('65') < 0, 'las instrucciones no contienen datos del usuario');
   assert_(JSON.stringify(buildCycleUser_(settings)).indexOf('65') < 0, 'el ciclo no necesita la referencia');
@@ -486,68 +486,68 @@ const sess_ = (extra) => Object.assign({ id: 's_20261116_1800_ab12', date: '2026
     { exerciseId: 'press_banca', name: 'Press banca', sets: 4, targetLoad: bb_(15) },
     { exerciseId: 'press_inclinado', name: 'Press inclinado', sets: 3, targetLoad: normalizeLoad_({ implement: 'dumbbell', perHandKg: 20 }, {}).load }
   ] }, extra || {});
-const CTX_ = { library: exerciseSeed_(), equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 }, clipId: 'c_20261116_1832_x7k2' };
+function ctx_() { return { library: exerciseSeed_(), equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 }, clipId: 'c_20261116_1832_x7k2' }; }
 
 function test_pure_dictation() {
   // "press banca con barra y 20 a cada lado, 8 repeticiones, me quedaban dos"
-  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), CTX_);
+  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), ctx_());
   const set = r.exercises[0].sets[0];
   assert_(r.exercises[0].exerciseId === 'press_banca' && set.load.totalKg === 60 && set.reps === 8 && set.rir === 2, '"20 a cada lado" = 60 kg, 8 reps, RIR 2');
-  assert_(set.order === 1 && set.type === 'working' && set.clipId === CTX_.clipId, 'orden, tipo y clip de origen');
+  assert_(set.order === 1 && set.type === 'working' && set.clipId === ctx_().clipId, 'orden, tipo y clip de origen');
 
   // "otra igual"
   const s2 = sess_({ exercises: r.exercises });
-  r = eventsToSets_([ev_({ repeatLast: true })], s2, CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true })], s2, ctx_());
   assert_(r.exercises[0].sets.length === 2 && r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].reps === 8 && r.exercises[0].sets[1].rir === 2, '"otra igual" repite la última serie');
-  r = eventsToSets_([ev_({ repeatLast: true, reps: 7, rir: 1 })], s2, CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true, reps: 7, rir: 1 })], s2, ctx_());
   assert_(r.exercises[0].sets[1].reps === 7 && r.exercises[0].sets[1].rir === 1, '"otra igual pero 7" respeta lo nuevo');
 
   // Solo repeticiones: hereda la carga y lo marca
-  r = eventsToSets_([ev_({ reps: 6, rir: 1 })], s2, CTX_);
+  r = eventsToSets_([ev_({ reps: 6, rir: 1 })], s2, ctx_());
   assert_(r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].flags.indexOf('inherited_load') >= 0, 'sin carga: hereda la anterior y lo señala');
 
   // Mancuernas de 15 y "otra serie de 10"
-  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', implement: 'dumbbell', perHandKg: 15, reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', implement: 'dumbbell', perHandKg: 15, reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.totalKg === 30 && r.exercises[0].sets[0].load.count === 2 && r.exercises[0].sets[0].rir === null, '"mancuernas de 15" = 30 kg y RIR sin inventar (null)');
 
   // Cambio de ejercicio y orden de aparición
   r = eventsToSets_([ev_({ exerciseName: 'banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
     ev_({ exerciseName: 'elevaciones laterales', implement: 'dumbbell', perHandKg: 8, reps: 12, rir: 1 }),
-    ev_({ repeatLast: true })], sess_(), CTX_);
+    ev_({ repeatLast: true })], sess_(), ctx_());
   assert_(r.exercises.length === 2 && r.exercises[1].exerciseId === 'elevaciones_laterales' && r.exercises[1].sets.length === 2, 'varios ejercicios en un clip, la repetición va al último');
 
   // Total de la barra dictado ("barra con 60 kilos")
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 60, reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 60, reps: 5 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.perSideKg === 20, 'total 60 con barra de 20 = 20 por lado');
 
   // Sin ejercicio ni historial: el siguiente del plan, con aviso
-  r = eventsToSets_([ev_({ implement: 'barbell', perSideKg: 15, reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ implement: 'barbell', perSideKg: 15, reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].exerciseId === 'press_banca' && r.warnings[0] === 'assumed_exercise:press_banca', 'asume el siguiente del plan y avisa');
   // Sin carga dicha ni serie previa: usa el plan y lo señala
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.totalKg === 50 && r.exercises[0].sets[0].flags[0] === 'load_from_plan', 'carga del plan señalada');
   // Implemento por defecto del plan
-  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', perHandKg: 22, reps: 8 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', perHandKg: 22, reps: 8 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.implement === 'dumbbell', 'implemento tomado del plan');
 
   // Pendientes: nunca se inventa
-  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), ctx_());
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'unknown_exercise', 'ejercicio desconocido → pendiente');
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), ctx_());
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'missing_reps', 'sin repeticiones → pendiente');
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), ctx_());
   assert_(r.pending[0].reason === 'invalid_load', 'carga imposible → pendiente');
-  r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), ctx_());
   assert_(r.pending[0].reason === 'no_exercise', 'nada que repetir ni ejercicio');
-  r = eventsToSets_([ev_({ exerciseName: 'curl de biceps', repeatLast: true })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'curl de biceps', repeatLast: true })], sess_(), ctx_());
   assert_(r.pending[0].reason === 'nothing_to_repeat', 'repetir sin serie previa');
 
   // Dolor
   r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
-    ev_({ type: 'pain', text: 'me molesta el hombro derecho' })], sess_(), CTX_);
+    ev_({ type: 'pain', text: 'me molesta el hombro derecho' })], sess_(), ctx_());
   assert_(r.pain.length === 1 && r.pain[0].exerciseId === 'press_banca', 'dolor registrado para el entrenador');
   // Calentamiento y dropset
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, reps: 10, setType: 'warmup' })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, reps: 10, setType: 'warmup' })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].type === 'warmup', 'calentamiento');
   assert_(sess_().exercises.length === 0, 'no muta la sesión original');
   return 'ok';
@@ -564,15 +564,15 @@ function test_pure_clip_validation() {
   assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ rir: 14 })] }).length > 0, 'rir fuera de rango');
   assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ perSideKg: -5 })] }).length > 0, 'carga negativa');
   assert_(CLIP_SYSTEM_.indexOf('NO calcules kilos totales') >= 0, 'la IA no calcula totales');
-  assert_(JSON.stringify(buildClipUser_(sess_(), CTX_.library)).indexOf('press_banca') >= 0, 'contexto con el plan de hoy');
+  assert_(JSON.stringify(buildClipUser_(sess_(), ctx_().library)).indexOf('press_banca') >= 0, 'contexto con el plan de hoy');
   return 'ok';
 }
 
 function test_pure_edit_ops() {
   const base = sess_();
-  const r0 = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 }), ev_({ repeatLast: true })], base, CTX_);
+  const r0 = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 }), ev_({ repeatLast: true })], base, ctx_());
   const s = sess_({ exercises: r0.exercises, pending: [{ reason: 'missing_reps' }] });
-  const eq = CTX_.equipment; const lib = CTX_.library;
+  const eq = ctx_().equipment; const lib = ctx_().library;
   let n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 2, patch: { reps: 9, rir: 1 } }, eq, lib);
   assert_(n.exercises[0].sets[1].reps === 9 && n.exercises[0].sets[1].rir === 1, 'editar repeticiones y RIR');
   n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 1, patch: { load: { perSideKg: 22.5 } } }, eq, lib);
@@ -676,26 +676,26 @@ function test_pure_bar_inference() {
   assert_(r.load === null, 'barra deducida de 70 kg no es plausible');
 
   // En el dictado: se acepta, se avisa y se reutiliza en las series siguientes
-  let res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_);
+  let res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), ctx_());
   const set = res.exercises[0].sets[0];
   assert_(res.pending.length === 0 && set.load.totalKg === 30 && set.load.barKg === 10 && set.flags.indexOf('bar_inferred') >= 0 && set.load.barInferred === undefined, 'dictado: barra deducida y señalada');
   const s2 = sess_({ exercises: res.exercises });
-  res = eventsToSets_([ev_({ perSideKg: 12.5, reps: 8 })], s2, CTX_);
+  res = eventsToSets_([ev_({ perSideKg: 12.5, reps: 8 })], s2, ctx_());
   assert_(res.exercises[0].sets[1].load.totalKg === 35, 'las series siguientes reutilizan la barra deducida (10 + 2 × 12,5)');
 
   // Pendientes con lo entendido
-  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_());
   assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.totalKg === 60 && res.exercises[0].sets[0].flags.indexOf('total_ignored') >= 0,
     'total absurdo junto a "20 por lado": se fía de los kilos por lado (60 kg) y avisa');
-  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), ctx_());
   assert_(res.pending[0].reason === 'invalid_load' && res.pending[0].heard.totalKg === 10 && res.pending[0].heard.reps === 8, 'el pendiente guarda lo que la IA entendió');
-  const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_()).exercises }, null, ctx_().library, {});
   assert_(rv2.issues.some((i) => i.type === 'total_ignored'), 'la revisión avisa de que se ignoró el total');
-  res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), ctx_());
   assert_(res.pending[0].heard.reps === 5, 'también en ejercicio desconocido');
 
   // Aviso en la revisión
-  const rv = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  const rv = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), ctx_()).exercises }, null, ctx_().library, {});
   assert_(rv.issues.some((i) => i.type === 'bar_inferred' && i.barKg === 10), 'la revisión avisa de la barra deducida');
   assert_(CLIP_SYSTEM_.indexOf('nunca reps 20') >= 0 && CLIP_SYSTEM_.indexOf('no sumes la barra') >= 0, 'el prompt distingue reps de kilos y no suma la barra');
   return 'ok';
