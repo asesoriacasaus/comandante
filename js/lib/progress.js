@@ -18,11 +18,16 @@ export function bestE1rm(sets) {
   return best;
 }
 
+/** Mejor 1RM de un ejercicio de sesión: ya calculado en el resumen del servidor (e1rm) o a partir de sus series. */
+export function bestOf(x) {
+  return x && 'e1rm' in x ? (x.e1rm ?? null) : bestE1rm(x && x.sets);
+}
+
 /** Ejercicios con al menos un 1RM estimable, del más frecuente al menos. */
 export function exerciseList(sessions) {
   const m = {};
   for (const s of sessions) for (const x of s.exercises || []) {
-    if (bestE1rm(x.sets) === null) continue;
+    if (bestOf(x) === null) continue;
     m[x.exerciseId] = m[x.exerciseId] || { id: x.exerciseId, name: x.name, count: 0 };
     m[x.exerciseId].count++;
   }
@@ -36,7 +41,7 @@ export function e1rmSeries(sessions, exerciseId) {
     if (s.status !== 'done') continue;
     for (const x of s.exercises || []) {
       if (x.exerciseId !== exerciseId) continue;
-      const v = bestE1rm(x.sets);
+      const v = bestOf(x);
       if (v !== null) out.push({ date: s.date, value: v });
     }
   }

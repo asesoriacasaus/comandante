@@ -167,3 +167,34 @@ function sessionResume(id) {
     return s;
   }) };
 }
+
+// ---------- Resumen ligero para Diario y Progreso ----------
+
+/** 1RM estimado (Epley); por encima de 12 repeticiones no es fiable. Igual que js/lib/progress.js. */
+function epley_(kg, reps) {
+  if (!(kg > 0) || !(reps >= 1) || reps > 12) return null;
+  return Math.round(kg * (reps === 1 ? 1 : 1 + reps / 30) * 10) / 10;
+}
+
+/**
+ * Lo que necesitan las listas: unos cientos de bytes por sesión en vez de 10-15 KB (sin clips ni series).
+ * El detalle se pide aparte con session.get cuando el usuario abre una sesión.
+ */
+function sessionSummary_(s) {
+  const ex = (s.exercises || []).map((x) => {
+    let best = null;
+    (x.sets || []).forEach((set) => {
+      if (set.type === 'warmup' || !set.load || set.load.implement === 'bodyweight') return;
+      const v = epley_(set.load.totalKg, set.reps);
+      if (v !== null && (best === null || v > best)) best = v;
+    });
+    return { exerciseId: x.exerciseId, name: x.name, sets: (x.sets || []).length, e1rm: best };
+  });
+  return { id: s.id, date: s.date, status: s.status, startedAt: s.startedAt || null, groups: s.groups || [],
+    metrics: s.metrics || {}, pain: (s.painFlags || []).length, exercises: ex };
+}
+
+function sessionsSummary(p) {
+  const r = queryRecords({ entity: 'session', from: p.from, to: p.to, filters: { status: 'done' } });
+  return { items: r.items.map(sessionSummary_) };
+}

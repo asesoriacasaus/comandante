@@ -1,6 +1,5 @@
 // Progreso: 1RM estimado por ejercicio, volumen semanal y series por grupo y semana.
-import { call } from '../api.js';
-import { swr } from '../lib/cache.js';
+import { resumenSesiones } from '../lib/sesiones-datos.js';
 import { h } from '../lib/dom.js';
 import { todayIsoLocal } from '../lib/format.js';
 import { movingAverage, lineChart } from '../lib/charts.js';
@@ -20,9 +19,7 @@ export function render(el) {
 async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
-    const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    await swr('progreso', async () => (await call('query', { entity: 'session', from, to: hoy, filters: { status: 'done' } }, { timeoutMs: 60000 })).items || [],
-      (items) => { if (vigente(el)) pintar(el, items, hoy); });
+    await resumenSesiones((items) => { if (vigente(el)) pintar(el, items, hoy); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;

@@ -39,6 +39,7 @@ const SHELL = [
   './js/lib/chat.js',
   './js/views/chat.js',
   './js/lib/progress.js',
+  './js/lib/sesiones-datos.js',
   './js/views/progreso.js',
   './js/views/carreras.js',
   './js/lib/figure.js',

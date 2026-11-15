@@ -46,6 +46,7 @@ function doPost(e) {
     'session.reviewMessage': () => sessionReviewMessage(payload.id),
     'session.start': () => sessionStart(payload.id),
     'session.get': () => sessionGet(payload.id),
+    'sessions.summary': () => sessionsSummary(payload),
     'exercises.list': () => ({ exercises: exerciseListForClient_() }),
     'session.edit': () => sessionEdit(payload),
     'session.finish': () => sessionFinish(payload.id),

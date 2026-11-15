@@ -121,7 +121,7 @@ function vista(st, ctx) {
   nodes.push(h('div', { class: 'acciones fin' },
     h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: () => run(async () => {
       await call('session.save', { id: ctx.id }, { timeoutMs: 60000 });
-      ['hoy', 'diario', 'progreso'].forEach(borrar);
+      ['hoy', 'resumen-sesiones', 'sesion-' + ctx.id].forEach(borrar);
       try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
       location.hash = '#hoy';
     }) }, 'Guardar sesión'),
