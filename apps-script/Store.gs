@@ -7,9 +7,43 @@ const ROOT_NAME_ = 'ComandanteData';
 const LEGACY_ROOT_NAME_ = 'GymAppData';
 const BACKUP_KEEP_ = 7;
 
+// ---------- Caché (CacheService) ----------
+// Buscar carpetas y archivos por nombre en Drive cuesta 0,2 s o más cada vez. Se guardan en la caché del script:
+// los identificadores de carpetas y archivos y el contenido de los JSON pequeños. Toda escritura de esta capa
+// actualiza la caché, así que lo leído nunca es más antiguo que lo último guardado por la propia app.
+const CACHE_TTL_SEC_ = 21600;       // 6 h, el máximo de CacheService
+const CACHE_MAX_BYTES_ = 90000;     // el límite de CacheService es 100 KB por valor
+const CACHE_NONE_ = '\u0000none';   // el archivo no existe (se cachea para no volver a buscarlo)
+
+function cacheKey_(kind, path) { return kind + ':' + path; }
+function utf8Len_(s) { return unescape(encodeURIComponent(String(s))).length; }
+function cacheable_(payload) { return typeof payload === 'string' && utf8Len_(payload) <= CACHE_MAX_BYTES_; }
+
+function cacheGet_(key) {
+  try { return CacheService.getScriptCache().get(key); } catch (_) { return null; }
+}
+function cachePut_(key, value) {
+  try { CacheService.getScriptCache().put(key, value, CACHE_TTL_SEC_); } catch (_) { /* la caché es opcional */ }
+}
+function cacheRemove_(key) {
+  try { CacheService.getScriptCache().remove(key); } catch (_) { /* la caché es opcional */ }
+}
+
+/** Olvida lo que se sabe de un archivo (úsalo si lo editas a mano en Drive). */
+function invalidatePath_(path) {
+  ['c', 'id:file'].forEach((k) => cacheRemove_(cacheKey_(k, path)));
+}
+
+/** Ejecutar desde el editor si editas a mano algún archivo de ComandanteData. */
+function clearDataCache() {
+  CacheService.getScriptCache().removeAll(['id:root', 'id:dir:', 'id:dir:sessions', 'id:dir:runs', 'id:dir:meals', 'id:dir:plan', 'id:dir:plan/history', 'id:dir:media', 'id:dir:backups',
+    'c:settings.json', 'c:meta.json', 'c:body.json', 'c:plan/current.json', 'c:exercises.json']);
+  Logger.log('Caché de datos limpiada para los archivos principales. Los de cada mes caducan solos a las 6 h.');
+}
+
 // ---------- Drive: lectura y escritura de bajo nivel ----------
 
-function rootFolder_() {
+function findRootFolder_() {
   const it = DriveApp.getFoldersByName(ROOT_NAME_);
   if (it.hasNext()) return it.next();
   // Migración de nombre: la carpeta antigua se renombra, no se copia ni se borra nada.
@@ -22,33 +56,68 @@ function rootFolder_() {
   return DriveApp.createFolder(ROOT_NAME_);
 }
 
+function rootFolder_() {
+  const key = cacheKey_('id', 'root');
+  const id = cacheGet_(key);
+  if (id) { try { return DriveApp.getFolderById(id); } catch (_) { cacheRemove_(key); } }
+  const f = findRootFolder_();
+  cachePut_(key, f.getId());
+  return f;
+}
+
 function folder_(sub) {
+  if (!sub) return rootFolder_();
+  const key = cacheKey_('id:dir', sub);
+  const id = cacheGet_(key);
+  if (id) { try { return DriveApp.getFolderById(id); } catch (_) { cacheRemove_(key); } }
   let cur = rootFolder_();
-  if (!sub) return cur;
   sub.split('/').forEach((p) => {
     const it = cur.getFoldersByName(p);
     cur = it.hasNext() ? it.next() : cur.createFolder(p);
   });
+  cachePut_(key, cur.getId());
   return cur;
 }
 
-function fileExists_(path) {
-  const parts = path.split('/');
-  const name = parts.pop();
-  return folder_(parts.join('/')).getFilesByName(name).hasNext();
-}
-
-function readJson_(path, fallback) {
+/** Archivo por ruta, o null. Usa el identificador cacheado cuando lo hay. */
+function findFile_(path) {
+  const key = cacheKey_('id:file', path);
+  const id = cacheGet_(key);
+  if (id) { try { return DriveApp.getFileById(id); } catch (_) { cacheRemove_(key); } }
   const parts = path.split('/');
   const name = parts.pop();
   const it = folder_(parts.join('/')).getFilesByName(name);
-  if (!it.hasNext()) return fallback;
+  if (!it.hasNext()) return null;
+  const f = it.next();
+  cachePut_(key, f.getId());
+  return f;
+}
+
+function fileExists_(path) {
+  const hit = cacheGet_(cacheKey_('c', path));
+  if (hit !== null) return hit !== CACHE_NONE_;
+  return findFile_(path) !== null;
+}
+
+function readJson_(path, fallback) {
+  const ckey = cacheKey_('c', path);
+  const hit = cacheGet_(ckey);
+  if (hit === CACHE_NONE_) return fallback;
+  if (hit !== null) {
+    try { return JSON.parse(hit); } catch (_) { cacheRemove_(ckey); }
+  }
+  const file = findFile_(path);
+  if (!file) { cachePut_(ckey, CACHE_NONE_); return fallback; }
+  const text = file.getBlob().getDataAsString();
+  let parsed;
   try {
-    return JSON.parse(it.next().getBlob().getDataAsString());
+    parsed = JSON.parse(text);
   } catch (_) {
     // No devolver fallback: sobrescribir un archivo corrupto borraría datos.
     throw { code: 'STORAGE', message: 'Archivo corrupto, revisar en Drive: ' + path };
   }
+  if (cacheable_(text)) cachePut_(ckey, text);
+  return parsed;
 }
 
 /** Escritura sin lock. Usar siempre dentro de withLock_. */
@@ -56,12 +125,17 @@ function writeFile_(path, obj) {
   const payload = JSON.stringify(obj);
   if (payload === undefined) throw { code: 'INTERNAL', message: 'No se puede serializar ' + path };
   JSON.parse(payload); // validación de round-trip antes de escribir
-  const parts = path.split('/');
-  const name = parts.pop();
-  const dir = folder_(parts.join('/'));
-  const it = dir.getFilesByName(name);
-  if (it.hasNext()) it.next().setContent(payload);
-  else dir.createFile(name, payload, 'application/json');
+  const file = findFile_(path);
+  if (file) {
+    file.setContent(payload);
+  } else {
+    const parts = path.split('/');
+    const name = parts.pop();
+    const created = folder_(parts.join('/')).createFile(name, payload, 'application/json');
+    cachePut_(cacheKey_('id:file', path), created.getId());
+  }
+  if (cacheable_(payload)) cachePut_(cacheKey_('c', path), payload);
+  else cacheRemove_(cacheKey_('c', path));
 }
 
 function withLock_(fn) {
@@ -393,6 +467,7 @@ function ensureFile_(path, obj) {
 
 /** Ejecutar una vez desde el editor. Crea la estructura de ComandanteData. */
 function setup() {
+  clearDataCache();
   withLock_(() => {
     ['sessions', 'runs', 'meals', 'plan', 'plan/history', 'media', 'backups'].forEach(folder_);
     ensureFile_('settings.json', defaultSettings_());
