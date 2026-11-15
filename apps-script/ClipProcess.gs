@@ -27,6 +27,9 @@ const CLIP_SYSTEM_ = 'Eres el asistente de un diario de entrenamiento de pesas. 
   'en el orden en que se dicen, cada serie realizada ("type":"set"), cada molestia o dolor ("type":"pain", con "text") y cada ' +
   'comentario útil ("type":"comment", con "text"). Reglas: ' +
   '1) Solo extrae lo que se dice. NO calcules kilos totales ni inventes números: lo que falta va a null. ' +
+  'Rellena totalKg solo si el usuario dice el peso total; si dice "20 a cada lado", perSideKg es 20 y totalKg es null (no sumes la barra). ' +
+  'Un número seguido de "repeticiones", "reps" o "veces" son reps; un número con "kilos", "kg" o "a cada lado" es peso. ' +
+  'Ejemplo: "press banca, 20 a cada lado, 8 repeticiones" es perSideKg 20 y reps 8, nunca reps 20. ' +
   '2) Barra: "20 a cada lado" es perSideKg 20; "barra sola" es perSideKg 0; si dice el peso total de la barra, ponlo en totalKg. ' +
   'Mancuernas: "de 15" son 15 kg por mano (perHandKg 15) y count 2; una sola mancuerna es count 1. ' +
   'Máquina o polea: stackKg con lo que marque la pila. Peso corporal: addedKg solo si hay lastre. ' +
@@ -69,6 +72,14 @@ function buildClipUser_(session, library) {
   return { planDeHoy: planned, ejercicioEnCurso: cur ? cur.name : null, ultimasSeries: recent.slice(-3) };
 }
 
+/** Los números que la IA entendió, para enseñárselos al usuario junto al aviso. */
+function heardOf_(ev) {
+  if (!ev) return null;
+  const out = {};
+  ['reps', 'rir', 'perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg'].forEach((k) => { if (isNum_(ev[k])) out[k] = ev[k]; });
+  return out;
+}
+
 function hasLoadInfo_(ev) {
   return ['perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg'].some((k) => isNum_(ev[k]));
 }
@@ -88,7 +99,7 @@ function eventsToSets_(events, session, ctx) {
   let currentId = exercises.length ? exercises[exercises.length - 1].exerciseId : null;
 
   const nextPlanned = () => planned.find((p) => !exercises.some((x) => x.exerciseId === p.exerciseId && x.sets.length));
-  const addPending = (reason, text, extra) => pending.push(Object.assign({ clipId: clipId, reason: reason, text: String(text || '').slice(0, 200) }, extra || {}));
+  const addPending = (reason, text, extra, ev) => pending.push(Object.assign({ clipId: clipId, reason: reason, text: String(text || '').slice(0, 200), heard: heardOf_(ev) }, extra || {}));
 
   events.forEach((ev) => {
     if (ev.type === 'pain') { pain.push({ clipId: clipId, text: String(ev.text || '').slice(0, 200), exerciseId: currentId }); return; }
@@ -97,14 +108,14 @@ function eventsToSets_(events, session, ctx) {
     let def = null;
     if (ev.exerciseName) {
       def = findExercise_(ev.exerciseName, lib);
-      if (!def) { addPending('unknown_exercise', ev.exerciseName); return; }
+      if (!def) { addPending('unknown_exercise', ev.exerciseName, null, ev); return; }
     } else if (currentId) {
       def = exerciseById_(currentId, lib);
     } else {
       const np = nextPlanned();
       if (np) { def = exerciseById_(np.exerciseId, lib); warnings.push('assumed_exercise:' + np.exerciseId); }
     }
-    if (!def) { addPending('no_exercise', ev.text || ''); return; }
+    if (!def) { addPending('no_exercise', ev.text || '', null, ev); return; }
 
     const entry = exercises.find((x) => x.exerciseId === def.id) || null;
     const last = entry && entry.sets.length ? entry.sets[entry.sets.length - 1] : null;
@@ -116,7 +127,7 @@ function eventsToSets_(events, session, ctx) {
     let type = ev.setType || 'working';
 
     if (ev.repeatLast && !hasLoadInfo_(ev)) {
-      if (!last) { addPending('nothing_to_repeat', def.name); return; }
+      if (!last) { addPending('nothing_to_repeat', def.name, null, ev); return; }
       load = last.load;
       if (reps === null) reps = last.reps;
       if (ev.rir === null || ev.rir === undefined) rir = last.rir;
@@ -126,17 +137,24 @@ function eventsToSets_(events, session, ctx) {
       const raw = { implement: implement };
       ['perSideKg', 'perHandKg', 'totalKg', 'stackKg', 'addedKg', 'count'].forEach((k) => { if (isNum_(ev[k])) raw[k] = ev[k]; });
       if (last && last.load.implement === implement && isNum_(last.load.barKg)) raw.barKg = last.load.barKg;
-      const n = normalizeLoad_(raw, eq);
-      if (!n.load) { addPending('invalid_load', def.name + ': ' + n.errors.join(', ')); return; }
+      let n = normalizeLoad_(raw, eq, { inferBar: true });
+      if (!n.load && isNum_(raw.perSideKg) && isNum_(raw.totalKg) && ['barbell', 'ezbar', 'smith'].indexOf(implement) >= 0) {
+        // Los dos números no cuadran ni deduciendo la barra: se fía de "a cada lado" y se avisa.
+        const raw2 = Object.assign({}, raw); delete raw2.totalKg;
+        n = normalizeLoad_(raw2, eq);
+        if (n.load) flags.push('total_ignored');
+      }
+      if (!n.load) { addPending('invalid_load', def.name + ': ' + n.errors.join(', '), null, ev); return; }
       load = n.load;
+      if (load.barInferred) { flags.push('bar_inferred'); delete load.barInferred; }
     } else {
       const implement = ev.implement || (last && last.load.implement);
       if (last && (!implement || implement === last.load.implement)) { load = last.load; flags.push('inherited_load'); }
       else if (plan && plan.targetLoad && (!implement || implement === plan.targetLoad.implement)) { load = plan.targetLoad; flags.push('load_from_plan'); }
       else if ((implement || def.implements[0]) === 'bodyweight') load = normalizeLoad_({ implement: 'bodyweight' }, eq).load;
-      else { addPending('missing_load', def.name); return; }
+      else { addPending('missing_load', def.name, null, ev); return; }
     }
-    if (reps === null) { addPending('missing_reps', def.name); return; }
+    if (reps === null) { addPending('missing_reps', def.name, null, ev); return; }
 
     let target = exercises.find((x) => x.exerciseId === def.id);
     if (!target) { target = { exerciseId: def.id, name: def.name, sets: [] }; exercises.push(target); }

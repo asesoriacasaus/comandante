@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupsEs, formatLoad, formatReps, formatRest, parseNum, formatDateEs, formatClock, loadField, formatDelta, describeIssue } from '../js/lib/format.js';
+import { groupsEs, formatLoad, formatReps, formatRest, parseNum, formatDateEs, formatClock, loadField, formatDelta, describeIssue, describeHeard, quoteTranscript } from '../js/lib/format.js';
 
 test('grupos en español', () => {
   assert.equal(groupsEs(['chest', 'triceps']), 'pecho y tríceps');
@@ -51,4 +51,15 @@ test('diferencias y avisos de revisión', () => {
   assert.match(describeIssue({ type: 'rir_unknown', n: 3 }), /3 series sin RIR/);
   assert.match(describeIssue({ type: 'pain', text: 'hombro' }), /hombro.*baja la carga/);
   assert.equal(describeIssue({ type: 'pending' }), '');
+});
+
+test('lo que entendió la IA y citas', () => {
+  assert.equal(describeHeard({ perSideKg: 20, reps: 8, rir: 2 }), 'Entendí: 20 kg por lado, 8 repeticiones, RIR 2.');
+  assert.equal(describeHeard({ reps: 1 }), 'Entendí: 1 repetición.');
+  assert.equal(describeHeard({}), ''); assert.equal(describeHeard(null), '');
+  assert.equal(quoteTranscript('hola'), '«hola»');
+  assert.equal(quoteTranscript('x'.repeat(300), 10), '«xxxxxxxxxx…»');
+  assert.equal(quoteTranscript(''), '');
+  assert.match(describeIssue({ type: 'total_ignored', names: ['Press banca'] }), /kilos por lado/);
+  assert.match(describeIssue({ type: 'bar_inferred', name: 'Press banca', barKg: 10 }), /barra pesa 10 kg/);
 });

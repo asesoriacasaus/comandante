@@ -81,9 +81,32 @@ export function describeIssue(i) {
     case 'fewer_sets': return i.name + ': hiciste ' + i.done + ' de ' + i.planned + ' series previstas.';
     case 'unplanned': return i.name + ' no estaba en el plan de hoy.';
     case 'inherited_load': return 'Carga heredada de la serie anterior en ' + i.names.join(', ') + '. Revisa que sea la que usaste.';
+    case 'total_ignored': return 'En ' + i.names.join(', ') + ' dijiste un total que no cuadra con los kilos por lado. He usado los kilos por lado; revísalo.';
+    case 'bar_inferred': return 'Por lo que dijiste en ' + i.name + ', he deducido que la barra pesa ' + num(i.barKg) + ' kg. Si no es así, corrige la serie.';
     case 'load_from_plan': return 'Carga tomada del plan en ' + i.names.join(', ') + ', porque no la dijiste. Revísala.';
     case 'rir_unknown': return i.n + (i.n === 1 ? ' serie sin RIR' : ' series sin RIR') + ': sin él, la próxima subida de carga se decide solo por repeticiones.';
     case 'pain': return 'Molestia anotada: ' + (i.text || 'sin detalle') + '. Si persiste, baja la carga o consúltalo antes de seguir.';
     default: return '';
   }
+}
+
+/** "Entendí: 20 kg por lado, 8 repeticiones, RIR 2". Vacío si la IA no entendió ningún número. */
+export function describeHeard(h) {
+  if (!h) return '';
+  const p = [];
+  if (h.perSideKg !== undefined) p.push(num(h.perSideKg) + ' kg por lado');
+  if (h.perHandKg !== undefined) p.push(num(h.perHandKg) + ' kg por mano');
+  if (h.totalKg !== undefined) p.push(num(h.totalKg) + ' kg en total');
+  if (h.stackKg !== undefined) p.push('pila ' + num(h.stackKg) + ' kg');
+  if (h.addedKg !== undefined) p.push(num(h.addedKg) + ' kg de lastre');
+  if (h.reps !== undefined) p.push(h.reps + (h.reps === 1 ? ' repetición' : ' repeticiones'));
+  if (h.rir !== undefined) p.push('RIR ' + h.rir);
+  return p.length ? 'Entendí: ' + p.join(', ') + '.' : '';
+}
+
+/** Cita corta de lo que se dijo en un clip. */
+export function quoteTranscript(text, max = 180) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  return '«' + (t.length > max ? t.slice(0, max).trimEnd() + '…' : t) + '»';
 }

@@ -81,3 +81,5 @@ select { background: var(--lino); }
 .dato .valor { display: block; font: 400 28px var(--serif); font-variant-numeric: tabular-nums; }
 .avisos { margin: 8px 0 0; padding-left: 18px; font-size: 15px; color: var(--tinta-2); }
 .avisos li { margin: 0 0 6px; }
+
+details.bloque summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font: 600 13px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--acento); }
