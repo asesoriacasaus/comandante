@@ -61,8 +61,23 @@ function sessionEdit(p) {
   const library = exerciseSeed_();
   return { session: mutateSession_(p.id, (s) => {
     if (s.status === 'done') throw { code: 'VALIDATION', message: 'La sesión ya está cerrada' };
-    return applyEditOp_(s, p.op || {}, settings.equipment, library);
+    return applyOpOnce_(s, p.op || {}, settings.equipment, library);
   }) };
+}
+
+const OP_ID_RE_ = /^o_[A-Za-z0-9_]{6,40}$/;
+
+/**
+ * Aplica una edición una sola vez. Las ediciones hechas sin conexión se reenvían al volver la red y un
+ * reintento tras un tiempo de espera podría llegar dos veces: con opId, la segunda no hace nada.
+ */
+function applyOpOnce_(s, op, equipment, library) {
+  const id = op.opId;
+  if (id !== undefined && !OP_ID_RE_.test(String(id))) throw { code: 'VALIDATION', message: 'id de edición inválido' };
+  if (id && (s.appliedOps || []).indexOf(id) >= 0) return s;
+  const out = applyEditOp_(s, op, equipment, library);
+  if (id) out.appliedOps = (out.appliedOps || []).concat([id]).slice(-200);
+  return out;
 }
 
 /** Procesa un clip de audio. Idempotente: reenviar el mismo clipId no duplica series. */

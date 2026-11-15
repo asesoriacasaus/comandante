@@ -5,6 +5,7 @@ import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
 import { borrar, leer, guardar } from '../lib/cache.js';
 import { descanso, objetivo, seriesHechas } from '../lib/sesion-viva.js';
+import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
@@ -37,7 +38,7 @@ const recorder = createRecorder({
   },
   onAutoStop: () => { if (cur && cur.st.recording) cur.toggle(); }
 });
-window.addEventListener('online', () => { if (cur) cur.queue.flush({ force: true }); });
+window.addEventListener('online', () => { if (cur) { cur.queue.flush({ force: true }); if (cur.enviar) cur.enviar(); } });
 
 const vigente = (el) => el.dataset.route === 'sesion';
 
@@ -69,9 +70,39 @@ export function render(el) {
   function paint() {
     if (!vigente(el)) { stopTimer(); return; }
     if (st.session) { const j = JSON.stringify(st.session); if (j !== guardada) { guardada = j; guardar(CLAVE_VIVA, st.session); } }
-    el.replaceChildren(view(st, { queue, el, paint, id }));
+    const nombres = Object.fromEntries((st.ejercicios || []).map((e) => [e.id, e.name]));
+    st.sinEnviar = ediciones.pendientes(id).length;
+    st.vista = st.session ? vistaLocal(st.session, ediciones.pendientes(id), nombres) : null;
+    el.replaceChildren(view(st, { queue, el, paint, id, editar, enviar }));
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   }
+  // Envía las ediciones hechas sin conexión, en orden. Una que el servidor rechace se quita y se explica.
+  let enviando = false;
+  async function enviar() {
+    if (enviando || !ediciones.pendientes(id).length) return;
+    enviando = true;
+    try {
+      const r = await ediciones.enviar(id, async (op) => (await call('session.edit', { id, op }, { timeoutMs: 60000, silent: true })).session,
+        (op, err) => { st.msg = 'Un cambio hecho sin conexión no se pudo guardar: ' + err.message; st.msgType = 'error'; });
+      if (r.sesion) st.session = r.sesion;
+      if (!r.parado && st.msgType !== 'error') st.msg = '';
+    } finally { enviando = false; }
+    paint();
+  }
+
+  /** Una edición: al servidor si hay red; si no (o si ya hay otras esperando, para no desordenarlas), a la cola local. */
+  async function editar(op) {
+    op.opId = newId('o');
+    if (!ediciones.pendientes(id).length) {
+      try { st.session = (await call('session.edit', { id, op }, { timeoutMs: 60000 })).session; return 'enviado'; }
+      catch (err) { if (!esFalloDeRed(err)) throw err; }
+    }
+    ediciones.poner(id, op);
+    st.msg = 'Sin conexión: el cambio se ve aquí y se enviará solo al volver la red.'; st.msgType = '';
+    enviar();
+    return 'en cola';
+  }
+
   function stopTimer() { if (st.timer) { clearInterval(st.timer); st.timer = null; } }
 
   const local = leer(CLAVE_VIVA);
@@ -93,6 +124,7 @@ export function render(el) {
       }
     }
     paint();
+    enviar();
     cargarEjercicios().then((l) => { st.ejercicios = l; }).catch(() => { /* se pedirá al abrir el formulario */ });
     requestWake();
     queue.flush({ force: true });
@@ -100,12 +132,12 @@ export function render(el) {
     st.timer = setInterval(() => {
       if (!vigente(el)) { stopTimer(); recorder.releaseMic(); releaseWake(); cur = null; return; }
       tick(el);
-      if (++n % 15 === 0) queue.flush();   // reintentos con backoff
+      if (++n % 15 === 0) { queue.flush(); enviar(); }   // reintentos con backoff
     }, 1000);
   })();
 
   el._sesion = st;
-  cur = { st, queue, toggle: () => {} };
+  cur = { st, queue, enviar, toggle: () => {} };
 }
 
 async function blobToPayload(clip) {
@@ -129,13 +161,13 @@ function tick(el) {
   const rest = el.querySelector('#descanso');
   const st = el._sesion;
   if (!rest || !st || !st.session) return;
-  const d = descanso(st.session, Date.now());
+  const d = descanso(st.vista || st.session, Date.now());
   if (rest.textContent !== d.texto) rest.textContent = d.texto;
   rest.classList.toggle('listo', d.listo);
 }
 
 function view(st, ctx) {
-  const s = st.session;
+  const s = st.vista || st.session;
   const { queue, el, paint } = ctx;
   const setMsg = (m, t = '') => { st.msg = m; st.msgType = t; paint(); };
 
@@ -169,11 +201,11 @@ function view(st, ctx) {
   const guardarSerie = async (payload, pendiente) => {
     const op = Object.assign({ op: 'add', at: new Date().toISOString() }, payload);
     if (Number.isInteger(pendiente)) op.dismissPending = pendiente;
-    st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session;   // si falla, el formulario muestra el error y conserva lo escrito
+    await ctx.editar(op);   // si el servidor la rechaza, el formulario muestra el error y conserva lo escrito
     st.formulario = null; paint();
   };
   const edit = async (op) => {
-    try { st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session; st.editing = null; paint(); }
+    try { await ctx.editar(op); st.editing = null; paint(); }
     catch (err) { setMsg(err.message, 'error'); }
   };
 
@@ -185,6 +217,8 @@ function view(st, ctx) {
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
+    st.sinEnviar ? h('p', { class: 'aviso' }, st.sinEnviar === 1 ? '1 cambio sin enviar: se enviará solo al volver la conexión.'
+      : st.sinEnviar + ' cambios sin enviar: se enviarán solos al volver la conexión.') : null,
     enCola ? h('p', { class: 'procesando', role: 'status' }, enCola === 1 ? 'Procesando 1 clip… sigue entrenando, la serie aparecerá sola.'
       : 'Procesando ' + enCola + ' clips… se guardan en este móvil hasta que el servidor los confirme.') : null,
     h('p', { class: 'descanso' + (d.listo ? ' listo' : ''), id: 'descanso' }, d.texto),
@@ -217,7 +251,9 @@ function view(st, ctx) {
       h('div', { class: 'acciones compactas' },
         h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
-          edit({ op: 'add', at: new Date().toISOString(), exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
+          const load = Object.assign({}, l.load);
+          if (l.local) delete load.totalKg;   // el total de una serie sin enviar es aproximado: que lo calcule el servidor
+          edit({ op: 'add', at: new Date().toISOString(), exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load } });
         } }, 'Otra serie igual'),
         h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
@@ -237,6 +273,7 @@ function view(st, ctx) {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
+    if (st.sinEnviar) { await ctx.enviar(); if (ediciones.pendientes(ctx.id).length) { setMsg('Hay cambios sin enviar. Cuando vuelva la conexión se enviarán y podrás terminar.', 'error'); return; } }
     try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
@@ -257,6 +294,7 @@ export function serieNodo(st, x, set, edit, paint) {
   const fila = h('li', { class: 'serie' },
     h('button', { type: 'button', class: 'serie-btn', onClick: () => { st.editing = editing ? null : { exerciseId: x.exerciseId, order: set.order }; paint(); } },
       h('span', { class: 'n' }, set.order), h('span', {}, resumen), h('span', { class: 'carga' }, formatLoad(set.load))),
+    set.local ? h('p', { class: 'nota' }, 'Sin enviar todavía: se guardará al volver la conexión.') : null,
     ...(set.flags || []).filter((f) => FLAGS[f]).map((f) => h('p', { class: 'nota' }, FLAGS[f] + ': revísala.')));
   if (!editing) return fila;
   const [key, label] = loadField(set.load.implement);

@@ -1294,6 +1294,19 @@ function test_pure_friendly_errors() {
   return 'ok';
 }
 
+function test_pure_op_once() {
+  const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
+  let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
+  s = applyOpOnce_(s, JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
+  assert_(s.exercises[0].sets.length === 1, 'la misma edición dos veces añade una sola serie');
+  assert_(s.appliedOps.length === 1, 'se anota');
+  s = applyOpOnce_(s, { op: 'add', exerciseId: 'press_banca', set: op.set }, ctx_().equipment, ctx_().library);
+  assert_(s.exercises[0].sets.length === 2, 'sin opId se aplica siempre (compatibilidad)');
+  let err = null; try { applyOpOnce_(s, Object.assign({}, op, { opId: '../x' }), ctx_().equipment, ctx_().library); } catch (e) { err = e; }
+  assert_(err && err.code === 'VALIDATION', 'id raro rechazado');
+  return 'ok';
+}
+
 function test_pure_set_time() {
   const now = Date.parse('2026-11-16T18:00:00Z');
   assert_(setTime_('2026-11-16T17:58:30.000Z', now) === '2026-11-16T17:58:30.000Z', 'hora del móvil');
@@ -1330,7 +1343,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
