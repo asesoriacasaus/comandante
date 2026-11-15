@@ -15,6 +15,10 @@ const CACHE_TTL_SEC_ = 21600;       // 6 h, el máximo de CacheService
 const CACHE_MAX_BYTES_ = 90000;     // el límite de CacheService es 100 KB por valor
 const CACHE_NONE_ = '\u0000none';   // el archivo no existe (se cachea para no volver a buscarlo)
 
+const CACHE_CHUNK_ = 90000;         // caracteres por trozo (base64 es ASCII: un carácter = un byte)
+const CACHE_MAX_CHUNKS_ = 12;       // ~1 MB comprimido como máximo por archivo
+const CACHE_ZIP_ = '\u0001z:';      // cabecera de un contenido comprimido y troceado: '\u0001z:<n.º de trozos>'
+
 function cacheKey_(kind, path) { return kind + ':' + path; }
 function utf8Len_(s) { return unescape(encodeURIComponent(String(s))).length; }
 function cacheable_(payload) { return typeof payload === 'string' && utf8Len_(payload) <= CACHE_MAX_BYTES_; }
@@ -27,6 +31,41 @@ function cachePut_(key, value) {
 }
 function cacheRemove_(key) {
   try { CacheService.getScriptCache().remove(key); } catch (_) { /* la caché es opcional */ }
+}
+
+/**
+ * Guarda el contenido de un archivo en la caché. Lo pequeño, tal cual; lo grande, comprimido y en trozos
+ * (los archivos de sesiones de un mes superan el límite de 100 KB en unas dos semanas).
+ */
+function cacheWriteContent_(path, payload) {
+  const key = cacheKey_('c', path);
+  if (cacheable_(payload)) { cachePut_(key, payload); return; }
+  try {
+    const b64 = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(payload, 'application/json')).getBytes());
+    const n = Math.ceil(b64.length / CACHE_CHUNK_);
+    if (n > CACHE_MAX_CHUNKS_) { cacheRemove_(key); return; }
+    const vals = {};
+    for (let i = 0; i < n; i++) vals[key + '#' + i] = b64.slice(i * CACHE_CHUNK_, (i + 1) * CACHE_CHUNK_);
+    vals[key] = CACHE_ZIP_ + n;
+    CacheService.getScriptCache().putAll(vals, CACHE_TTL_SEC_);
+  } catch (_) { cacheRemove_(key); }
+}
+
+/** Contenido cacheado (texto), CACHE_NONE_ si se sabe que no existe, o null si hay que ir a Drive. */
+function cacheReadContent_(path) {
+  const key = cacheKey_('c', path);
+  const hit = cacheGet_(key);
+  if (hit === null || hit.indexOf(CACHE_ZIP_) !== 0) return hit;
+  try {
+    const n = Number(hit.slice(CACHE_ZIP_.length));
+    if (!(n > 0 && n <= CACHE_MAX_CHUNKS_)) return null;
+    const keys = [];
+    for (let i = 0; i < n; i++) keys.push(key + '#' + i);
+    const parts = CacheService.getScriptCache().getAll(keys);
+    let b64 = '';
+    for (let i = 0; i < n; i++) { if (parts[keys[i]] == null) return null; b64 += parts[keys[i]]; }   // un trozo caducado: a Drive
+    return Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString('UTF-8');
+  } catch (_) { return null; }
 }
 
 /** Olvida lo que se sabe de un archivo (úsalo si lo editas a mano en Drive). */
@@ -94,14 +133,14 @@ function findFile_(path) {
 }
 
 function fileExists_(path) {
-  const hit = cacheGet_(cacheKey_('c', path));
+  const hit = cacheGet_(cacheKey_('c', path));   // basta la cabecera: no hace falta descomprimir
   if (hit !== null) return hit !== CACHE_NONE_;
   return findFile_(path) !== null;
 }
 
 function readJson_(path, fallback) {
   const ckey = cacheKey_('c', path);
-  const hit = cacheGet_(ckey);
+  const hit = cacheReadContent_(path);
   if (hit === CACHE_NONE_) return fallback;
   if (hit !== null) {
     try { return JSON.parse(hit); } catch (_) { cacheRemove_(ckey); }
@@ -116,7 +155,7 @@ function readJson_(path, fallback) {
     // No devolver fallback: sobrescribir un archivo corrupto borraría datos.
     throw { code: 'STORAGE', message: 'Archivo corrupto, revisar en Drive: ' + path };
   }
-  if (cacheable_(text)) cachePut_(ckey, text);
+  cacheWriteContent_(path, text);
   return parsed;
 }
 
@@ -134,8 +173,7 @@ function writeFile_(path, obj) {
     const created = folder_(parts.join('/')).createFile(name, payload, 'application/json');
     cachePut_(cacheKey_('id:file', path), created.getId());
   }
-  if (cacheable_(payload)) cachePut_(cacheKey_('c', path), payload);
-  else cacheRemove_(cacheKey_('c', path));
+  cacheWriteContent_(path, payload);
 }
 
 function withLock_(fn) {
