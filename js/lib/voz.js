@@ -3,7 +3,7 @@ import { call } from '../api.js';
 import { h } from './dom.js';
 import { wavBlobFromBase64, silentWavBlob } from './audio.js';
 
-export const MAX_CHARS = 600;
+export const MAX_CHARS = 1200;   // igual que TTS_MAX_CHARS_ del servidor
 const cache = new Map();   // texto → URL del audio (para no pagar dos veces por lo mismo)
 let current = null;        // { audio, reset }
 let silentUrl = null;

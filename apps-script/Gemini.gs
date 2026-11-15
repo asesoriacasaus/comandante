@@ -57,13 +57,18 @@ function parseGeminiResponse_(body) {
 
 /** tier: 'FAST' | 'SMART'. Un reintento ante 429/5xx. Los errores no incluyen el cuerpo de la respuesta. */
 function callGemini_(tier, system, parts, opts) {
+  return callGeminiBody_(tier, buildGeminiRequest_(system, parts, opts));
+}
+
+/** Llamada a generateContent con un cuerpo ya construido (por ejemplo, una conversación de varios turnos). */
+function callGeminiBody_(tier, body) {
   const model = geminiModel_(tier);
   const req = {
     method: 'post',
     contentType: 'application/json',
     headers: { 'x-goog-api-key': geminiKey_() },
     muteHttpExceptions: true,
-    payload: JSON.stringify(buildGeminiRequest_(system, parts, opts))
+    payload: JSON.stringify(body)
   };
   const url = GEMINI_BASE_ + 'models/' + encodeURIComponent(model) + ':generateContent';
   let res = UrlFetchApp.fetch(url, req);
@@ -147,7 +152,7 @@ const TTS_VOICES_ = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus
   'Umbriel', 'Algieba', 'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar', 'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima',
   'Achird', 'Zubenelgenubi', 'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat'];
 const TTS_DEFAULT_VOICE_ = 'Orus';
-const TTS_MAX_CHARS_ = 600;
+const TTS_MAX_CHARS_ = 1200;
 // Voz original: se pide un acento y una manera de decir, nunca la voz de una persona concreta.
 const TTS_STYLE_ = 'Di con acento venezolano, como un orador apasionado y carismático: enérgico, con ritmo de arenga y pausas dramáticas, claro y sin gritar. El texto es: ';
 
