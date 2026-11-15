@@ -269,7 +269,7 @@ Los identificadores de modelo **no van en el código**: se leen de Propiedades d
 
 - `GEMINI_MODEL_FAST`: el modelo Flash vigente. Transcripción, interpretación de clips, comidas, pantallazos.
 - `GEMINI_MODEL_SMART`: el modelo Pro vigente. Plan de la sesión, consolidación de la sesión, revisión semanal.
-- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`.
+- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`. `TTS_STYLE` (opcional): `director` (por defecto: notas de estilo separadas de la transcripción), `prefix` (una frase corta de estilo delante) o `none` (solo el texto, sin estilo).
 
 En la Fase 0 se consultan los identificadores actuales en la documentación oficial y se fijan.
 
@@ -312,7 +312,7 @@ El usuario eligió una personalidad concreta y marcada para el entrenador. **La 
 - Las instrucciones piden hablar "al estilo de" la personalidad, no afirmar ser una persona real. Si Gemini bloquea o suaviza la respuesta, se muestra un texto neutro y se registra el código.
 - Seguridad física por encima del personaje: ante dolor o lesión, el mensaje recomienda parar o ajustar.
 - Si `PERSONA_PROMPT` está vacía, el entrenador habla en tono neutro y directo.
-- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Máximo 600 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
+- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Los modelos de voz leen todo lo que reciben, así que el estilo va separado de la transcripción y, si el audio dura demasiado para el texto (señal de que ha leído también las indicaciones), el servidor lo repite automáticamente sin estilo. Máximo 1.200 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
 
 ---
 
@@ -394,6 +394,17 @@ Navegación inferior con 5 entradas (Hoy, Diario, Cuerpo, Comida, Más). Carrera
 - La cola procesa los clips en orden, con reintentos y espera creciente; un error permanente (validación, tamaño) se marca y se conserva. Un clip solo se borra del móvil cuando el servidor confirma que lo procesó. El corte automático es a los 75 s.
 - Cada clip se guarda primero en IndexedDB con su marca de tiempo y después se sube. Sin conexión, se encolan y se procesan en orden al volver la red.
 - Feedback táctil y visual claro al empezar y parar. Nunca se pierde un clip: si la subida falla, sigue en la cola.
+
+### 9.2 Fluidez y rendimiento
+
+Regla general: **nada que dependa de la IA puede bloquear una pantalla**, y el usuario siempre debe saber si la app está trabajando y poder moverse mientras tanto.
+
+- **Causa real de la lentitud (medida leyendo el código, no adivinada):** Apps Script tarda unos 0,2 s por operación de Drive, y cada lectura de un archivo hacía de 3 a 5 (buscar la carpeta raíz por nombre en todo Drive, la subcarpeta, el archivo y leerlo). Abrir Hoy leía unos 12 archivos y, cada día nuevo, esperaba además a una llamada a Gemini para el mensaje de arenga. El audio, la voz y el chat **no** influyen: solo se ejecutan al pulsarlos.
+- **Servidor:** caché de identificadores de carpetas y archivos y del contenido de los JSON pequeños en `CacheService` (invalidada en cada escritura de la propia app; `clearDataCache()` e `invalidatePath_()` si se edita un archivo a mano en Drive). `hoy.load` devuelve el estado y la sesión en **una** llamada. Los mensajes con la personalidad (inicio de sesión y cierre) se generan **después**, con `session.message` y `session.reviewMessage`; la pantalla se pinta con un texto neutro al instante.
+- **Cliente:** indicador global de actividad (barra superior; a los 3 s avisa de que se puede seguir navegando); las pantallas de lectura se abren al instante con lo último visto y se actualizan en silencio (`stale-while-revalidate`, sin repintar si nada cambió ni pisar lo que el usuario esté tecleando); las pantallas se cargan solo al abrirlas; la app "despierta" al servidor al arrancar; Ajustes > Velocidad mide cuánto tarda cada paso (total y dentro del servidor).
+- **Voz y chat:** se pueden ocultar desde Ajustes (preferencia del dispositivo).
+- **Series a mano:** durante la sesión y en la revisión se puede añadir una serie pulsando el ejercicio, completar un pendiente con lo que la IA entendió, o añadir un ejercicio de la biblioteca. El formulario conserva lo escrito aunque la pantalla se repinte.
+- **Cargas dictadas:** el mismo número se acepta dicho como "por lado", "por mano", "total" o "de la pila" según el implemento; "barra con 15 kilos" con una barra de 20 se entiende como barra de 15 y se avisa en la revisión.
 
 ### 9.3 Dirección visual (cartel revolucionario y militar)
 
@@ -518,6 +529,7 @@ Criterio: el domingo llega el correo con balance y plan; el plan de la semana si
 | Formatos de los pantallazos de Huawei | El usuario aporta ejemplos reales en la Fase 0 |
 | Caducidad de las credenciales de clasp en Actions | Instrucciones para renovarlas; el workflow avisa si fallan |
 | Coste de Gemini | Flash para lo frecuente, Pro solo para planificar y revisar; registro de uso en `meta.json` |
+| Latencia de Apps Script y Drive (0,2 s por operación, arranque en frío) | Caché del servidor, una sola llamada por pantalla, IA fuera del camino crítico y diagnóstico en Ajustes > Velocidad (sección 9.2) |
 | Límite de 6 minutos de Apps Script | Operaciones cortas; la revisión semanal trocea si hace falta |
 
 ---

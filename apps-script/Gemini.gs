@@ -154,7 +154,43 @@ const TTS_VOICES_ = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus
 const TTS_DEFAULT_VOICE_ = 'Orus';
 const TTS_MAX_CHARS_ = 1200;
 // Voz original: se pide un acento y una manera de decir, nunca la voz de una persona concreta.
-const TTS_STYLE_ = 'Di con acento venezolano, como un orador apasionado y carismático: enérgico, con ritmo de arenga y pausas dramáticas, claro y sin gritar. El texto es: ';
+// Los modelos de voz leen TODO lo que reciben: las indicaciones de estilo van separadas de la transcripción
+// con la estructura que documenta Google ("notas del director" y "transcripción"), y existe un modo sin estilo de respaldo.
+const TTS_STYLES_ = ['director', 'prefix', 'none'];
+const TTS_DIRECTOR_ = '# AUDIO PROFILE: The Orator\n' +
+  'A charismatic, passionate public speaker, speaking directly to one listener.\n\n' +
+  "### DIRECTOR'S NOTES\n" +
+  'Style: passionate, warm and combative orator. Energetic, with rhythmic phrasing and dramatic pauses. Clear, never shouting.\n' +
+  'Accent: Venezuelan Spanish (Caribbean).\n' +
+  'Pace: lively, with emphasis on exclamations.\n' +
+  'Read only the transcript below, exactly as written. Do not read these notes aloud.\n\n' +
+  '#### TRANSCRIPT\n';
+const TTS_PREFIX_ = 'Say in a passionate, charismatic orator voice with a Venezuelan accent, energetic and rhythmic: ';
+
+function ttsStyle_(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  return TTS_STYLES_.indexOf(v) >= 0 ? v : 'director';
+}
+
+/** Texto que se envía al modelo de voz según el modo de estilo. */
+function ttsPrompt_(text, style) {
+  const s = ttsStyle_(style);
+  return s === 'none' ? text : s === 'prefix' ? TTS_PREFIX_ + text : TTS_DIRECTOR_ + text;
+}
+
+/**
+ * ¿Dura demasiado para lo que dice el texto? Señal de que el modelo ha leído también las indicaciones.
+ * Un orador lento llega a ~2 palabras por segundo; por debajo de 1,3 más 4 s de margen algo sobra.
+ */
+function ttsLooksWrong_(seconds, text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+  return words > 0 && seconds > words / 1.3 + 4;
+}
+
+function ttsSeconds_(audio) {
+  const m = /rate=(\d{4,6})/.exec(audio.mime);
+  return base64Bytes_(audio.data) / ((m ? Number(m[1]) : 24000) * 2);
+}
 
 /** Voz de la Propiedad TTS_VOICE si está en la lista de voces; si no, la de por defecto. */
 function ttsVoice_(raw) {
@@ -162,8 +198,8 @@ function ttsVoice_(raw) {
   return TTS_VOICES_.indexOf(v) >= 0 ? v : TTS_DEFAULT_VOICE_;
 }
 
-function buildTtsRequest_(text, voice) {
-  return { contents: [{ role: 'user', parts: [{ text: TTS_STYLE_ + '"' + text + '"' }] }],
+function buildTtsRequest_(text, voice, style) {
+  return { contents: [{ role: 'user', parts: [{ text: ttsPrompt_(text, style) }] }],
     generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: ttsVoice_(voice) } } } } };
 }
 
@@ -179,21 +215,33 @@ function parseGeminiAudio_(body) {
   return { mime: String(audio.inlineData.mimeType || 'audio/L16;codec=pcm;rate=24000'), data: audio.inlineData.data };
 }
 
-/** Lee en voz alta un texto corto (los mensajes del Comandante). */
-function ttsSpeak(p) {
-  const text = validateText_(p && p.text).trim();
-  if (!text) throw { code: 'VALIDATION', message: 'No hay texto que leer' };
-  if (text.length > TTS_MAX_CHARS_) throw { code: 'TOO_LARGE', message: 'Texto demasiado largo para leerlo (máx. ' + TTS_MAX_CHARS_ + ' caracteres)' };
+/** Una llamada al modelo de voz. Devuelve { mime, data }. */
+function ttsCall_(text, voice, style) {
   const model = geminiModel_('TTS');
-  const voice = ttsVoice_(PropertiesService.getScriptProperties().getProperty('TTS_VOICE'));
   const url = GEMINI_BASE_ + 'models/' + encodeURIComponent(model) + ':generateContent';
   const res = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': geminiKey_() },
-    muteHttpExceptions: true, payload: JSON.stringify(buildTtsRequest_(text, voice)) });
+    muteHttpExceptions: true, payload: JSON.stringify(buildTtsRequest_(text, voice, style)) });
   const status = res.getResponseCode();
   if (status >= 300) {
     console.error('TTS HTTP ' + status + ' modelo=' + model);
     throw { code: 'AI_HTTP', status: status, message: 'La IA ha devuelto el error HTTP ' + status + ' con el modelo "' + model + '"' };
   }
-  const out = parseGeminiAudio_(JSON.parse(res.getContentText()));
-  return { mime: out.mime, data: out.data, voice: voice };
+  return parseGeminiAudio_(JSON.parse(res.getContentText()));
+}
+
+/** Lee en voz alta un texto corto (los mensajes del Comandante). Si el audio sale demasiado largo, repite sin indicaciones de estilo. */
+function ttsSpeak(p) {
+  const text = validateText_(p && p.text).trim();
+  if (!text) throw { code: 'VALIDATION', message: 'No hay texto que leer' };
+  if (text.length > TTS_MAX_CHARS_) throw { code: 'TOO_LARGE', message: 'Texto demasiado largo para leerlo (máx. ' + TTS_MAX_CHARS_ + ' caracteres)' };
+  const props = PropertiesService.getScriptProperties();
+  const voice = ttsVoice_(props.getProperty('TTS_VOICE'));
+  let style = ttsStyle_(props.getProperty('TTS_STYLE'));
+  let out = ttsCall_(text, voice, style);
+  if (style !== 'none' && ttsLooksWrong_(ttsSeconds_(out), text)) {
+    console.error('TTS: audio demasiado largo con estilo ' + style + '; se repite sin estilo');
+    style = 'none';
+    out = ttsCall_(text, voice, style);
+  }
+  return { mime: out.mime, data: out.data, voice: voice, style: style };
 }

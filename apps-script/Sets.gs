@@ -32,6 +32,19 @@ function normalizeLoad_(load, equipment, opts) {
     if (!isNum_(v) || v < min || v > max) errors.push(LABELS[name] + ' está fuera de rango (' + min + '-' + max + ' kg)');
   };
 
+  // Interpretación generosa de lo dictado: el mismo número se puede decir "por lado", "por mano", "total" o "de la pila".
+  if ((imp === 'machine' || imp === 'cable') && !isNum_(out.stackKg)) {
+    const alt = [out.totalKg, out.perHandKg, out.perSideKg].find(isNum_);
+    if (alt !== undefined) out.stackKg = alt;
+  }
+  if ((imp === 'dumbbell' || imp === 'kettlebell') && !isNum_(out.perHandKg)) {
+    const count = isNum_(out.count) ? out.count : (imp === 'kettlebell' ? 1 : 2);
+    if (isNum_(out.perSideKg)) out.perHandKg = out.perSideKg;            // "10 a cada lado" con mancuernas = 10 por mano
+    else if (isNum_(out.totalKg)) out.perHandKg = round2_(out.totalKg / count);
+  }
+  if ((imp === 'barbell' || imp === 'ezbar' || imp === 'smith') && !isNum_(out.perSideKg) && !isNum_(out.totalKg) && isNum_(out.perHandKg)) out.perSideKg = out.perHandKg;
+  if (imp === 'bodyweight' && !isNum_(out.addedKg) && isNum_(out.totalKg) && out.totalKg > 0) out.addedKg = out.totalKg;   // "dominadas con 10 kilos"
+
   if (imp === 'barbell' || imp === 'ezbar' || imp === 'smith') {
     const defBar = imp === 'ezbar' ? eq.ezBarKg : eq.barbellKg;
     if (!isNum_(out.barKg)) out.barKg = defBar;
@@ -48,6 +61,10 @@ function normalizeLoad_(load, equipment, opts) {
       }
       out.totalKg = total;
     } else if (isNum_(out.totalKg)) {
+      if (out.totalKg < out.barKg && opts.inferBar && out.totalKg >= 5) {
+        // "Barra con 15 kilos" y barra de 20: se entiende barra sola de 15 kg y se avisa.
+        out.barKg = out.totalKg; out.barInferred = true;
+      }
       out.perSideKg = round2_((out.totalKg - out.barKg) / 2);
       if (out.perSideKg < 0) errors.push('el total es menor que el peso de la barra');
     } else {

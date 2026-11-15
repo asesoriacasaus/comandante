@@ -123,10 +123,22 @@ function planToday() {
 
   const rec = { id: makeId_('s', today, tz), date: today, status: 'planned', cycleKey: pick.key, groups: pick.groups,
     plannedExercises: ruled.exercises, clips: [], exercises: [], notes: notes,
-    coachMessage: coachMessage_(pick.groups, notes, settings, { ejercicios: ruled.exercises.length }) };
+    // El mensaje con la personalidad llega después (session.message): la IA no bloquea la pantalla.
+    coachMessage: neutralCoachMessage_(pick.groups, notes), coachMessageSource: 'neutral' };
   commitSession_(rec, tz, today);
   if (lastDeloadDate !== plan.lastDeloadDate) {
     withLock_(() => { writeFile_('plan/current.json', Object.assign({}, plan, { lastDeloadDate: lastDeloadDate })); bumpRevision_(); });
   }
   return { session: rec, source: 'generated', pick: { reason: pick.reason, skippedKey: pick.skippedKey } };
+}
+
+/** Estado y sesión de hoy en UNA sola llamada. Si la sesión falla, el estado se devuelve igualmente. */
+function hoyLoad() {
+  const state = planState();
+  let today = null;
+  let todayError = null;
+  if (state.onboarded && state.cycle) {
+    try { today = planToday(); } catch (err) { todayError = { code: (err && err.code) || 'INTERNAL', message: err && err.code ? String(err.message) : 'Error interno' }; }
+  }
+  return { onboarded: state.onboarded, hasCycle: !!state.cycle, today: today, todayError: todayError };
 }

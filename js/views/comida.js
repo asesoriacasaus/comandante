@@ -4,11 +4,13 @@ import { h } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
 import { blobToBase64 } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
+import { swr, borrar } from '../lib/cache.js';
 import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
 let fecha = null;
+let pantalla = 'inicio';   // si el usuario está capturando una comida, un dato nuevo no la pisa
 
 function sumarDias(iso, n) {
   const d = new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)) + n));
@@ -16,15 +18,17 @@ function sumarDias(iso, n) {
 }
 
 export function render(el) {
+  pantalla = 'inicio';
   fecha = fecha || todayIsoLocal();
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), h('p', { class: 'vacio' }, 'Cargando…')));
   cargar(el);
 }
 
 async function cargar(el) {
+  const dia = fecha;
   try {
-    const st = await call('nutrition.state', { date: fecha }, { timeoutMs: 60000 });
-    if (vigente(el)) inicio(el, st);
+    await swr('comida:' + dia, () => call('nutrition.state', { date: dia }, { timeoutMs: 60000 }),
+      (st) => { if (vigente(el) && pantalla === 'inicio' && fecha === dia) inicio(el, st); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;
@@ -41,6 +45,7 @@ function barra(etiqueta, valor, objetivo, unidad) {
 }
 
 function inicio(el, st) {
+  pantalla = 'inicio';
   const esHoy = st.date === st.today;
   const t = st.targets;
   const nav = h('div', { class: 'dia-nav' },
@@ -87,7 +92,7 @@ function comidaNodo(el, st, m) {
       h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Borrar esta comida', onClick: async (e) => {
         if (!confirm('¿Borrar esta comida?')) return;
         e.currentTarget.disabled = true;
-        try { await call('meal.delete', { id: m.id, date: m.date }, { timeoutMs: 60000 }); render(el); }
+        try { await call('meal.delete', { id: m.id, date: m.date }, { timeoutMs: 60000 }); borrar('comida:' + m.date); render(el); }
         catch (err) { console.error(err); e.currentTarget.disabled = false; e.currentTarget.after(h('p', { class: 'estado error' }, err.message)); }
       } }, 'Borrar')),
     h('ul', { class: 'lista' }, m.items.map((it) => h('li', { class: 'fila medida' }, h('span', {}, it.name + ' · ' + fmtDec(it.quantity) + ' ' + it.unit), h('span', { class: 'valor-medida' }, fmtInt(it.kcal) + ' kcal')))),
@@ -97,6 +102,7 @@ function comidaNodo(el, st, m) {
 // ---------- Capturar ----------
 
 function pantallaTexto(el, st) {
+  pantalla = 'otra';
   const area = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Qué has comido', placeholder: 'Ej.: dos huevos revueltos con una tostada de pan integral y un café con leche' });
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const enviar = h('button', { type: 'button', class: 'btn' }, 'Calcular');
@@ -114,6 +120,7 @@ function pantallaTexto(el, st) {
 }
 
 function pantallaVoz(el, st) {
+  pantalla = 'otra';
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const boton = h('button', { type: 'button', class: 'btn btn-grabar' }, 'Grabar');
   let grabando = false;
@@ -152,6 +159,7 @@ function pantallaVoz(el, st) {
 // ---------- Revisar y guardar ----------
 
 function pantallaRevision(el, st, r, source) {
+  pantalla = 'otra';
   let items = r.items.map((i) => Object.assign({}, i));
   const filas = h('div', {});
   const totalNodo = h('p', { class: 'detalle' });
@@ -194,7 +202,7 @@ function pantallaRevision(el, st, r, source) {
     if (!items.length) { estado.className = 'estado error'; estado.textContent = 'No queda ningún alimento.'; return; }
     const record = { date: st.date, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); if (vigente(el)) render(el); }
+    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + st.date); if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 

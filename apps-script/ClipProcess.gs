@@ -127,7 +127,7 @@ function eventsToSets_(events, session, ctx) {
     let type = ev.setType || 'working';
 
     if (ev.repeatLast && !hasLoadInfo_(ev)) {
-      if (!last) { addPending('nothing_to_repeat', def.name, null, ev); return; }
+      if (!last) { addPending('nothing_to_repeat', def.name, { exerciseId: def.id }, ev); return; }
       load = last.load;
       if (reps === null) reps = last.reps;
       if (ev.rir === null || ev.rir === undefined) rir = last.rir;
@@ -144,7 +144,7 @@ function eventsToSets_(events, session, ctx) {
         n = normalizeLoad_(raw2, eq);
         if (n.load) flags.push('total_ignored');
       }
-      if (!n.load) { addPending('invalid_load', def.name + ': ' + n.errors.join(', '), null, ev); return; }
+      if (!n.load) { addPending('invalid_load', def.name + ': ' + n.errors.join(', '), { exerciseId: def.id }, ev); return; }
       load = n.load;
       if (load.barInferred) { flags.push('bar_inferred'); delete load.barInferred; }
     } else {
@@ -152,9 +152,9 @@ function eventsToSets_(events, session, ctx) {
       if (last && (!implement || implement === last.load.implement)) { load = last.load; flags.push('inherited_load'); }
       else if (plan && plan.targetLoad && (!implement || implement === plan.targetLoad.implement)) { load = plan.targetLoad; flags.push('load_from_plan'); }
       else if ((implement || def.implements[0]) === 'bodyweight') load = normalizeLoad_({ implement: 'bodyweight' }, eq).load;
-      else { addPending('missing_load', def.name, null, ev); return; }
+      else { addPending('missing_load', def.name, { exerciseId: def.id }, ev); return; }
     }
-    if (reps === null) { addPending('missing_reps', def.name, null, ev); return; }
+    if (reps === null) { addPending('missing_reps', def.name, { exerciseId: def.id }, ev); return; }
 
     let target = exercises.find((x) => x.exerciseId === def.id);
     if (!target) { target = { exerciseId: def.id, name: def.name, sets: [] }; exercises.push(target); }
@@ -207,6 +207,12 @@ function applyEditOp_(session, op, eq, library) {
       rir: op.set && op.set.rir !== undefined ? op.set.rir : null, load: n.load, restSec: null, side: null, clipId: null, notes: '', flags: [] };
     checkSet(st);
     x.sets.push(st);
+    // Al completar un pendiente a mano, se resuelve en el mismo paso.
+    if (Number.isInteger(op.dismissPending)) {
+      s.pending = s.pending || [];
+      if (op.dismissPending < 0 || op.dismissPending >= s.pending.length) fail('pendiente no encontrado');
+      s.pending.splice(op.dismissPending, 1);
+    }
   } else if (op.op === 'dismiss_pending') {
     s.pending = s.pending || [];
     if (!Number.isInteger(op.index) || op.index < 0 || op.index >= s.pending.length) fail('pendiente no encontrado');

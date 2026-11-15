@@ -2,13 +2,16 @@
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
+import { swr, borrar } from '../lib/cache.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { formatDuration, formatPace, parseDuration, parsePace, paceFrom, isoWithOffset, weekKm, isLongRun, warningText } from '../lib/runs.js';
 
 const vigente = (el) => el.dataset.route === 'carreras';
+let pantalla = 'inicio';   // si el usuario está revisando una carrera, un dato nuevo no la pisa
 const dec = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
 
 export function render(el) {
+  pantalla = 'inicio';
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Carreras'), h('h2', {}, 'Carreras'), h('p', { class: 'vacio' }, 'Cargando…')));
   cargar(el);
 }
@@ -17,8 +20,8 @@ async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
     const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    const r = await call('query', { entity: 'run', from, to: hoy }, { timeoutMs: 60000 });
-    if (vigente(el)) inicio(el, [...(r.items || [])].sort((a, b) => (a.date < b.date ? 1 : -1)));
+    await swr('carreras', async () => (await call('query', { entity: 'run', from, to: hoy }, { timeoutMs: 60000 })).items || [],
+      (items) => { if (vigente(el) && pantalla === 'inicio') inicio(el, [...items].sort((a, b) => (a.date < b.date ? 1 : -1))); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;
@@ -28,6 +31,7 @@ async function cargar(el) {
 }
 
 function inicio(el, runs) {
+  pantalla = 'inicio';
   const hoy = todayIsoLocal();
   const fila = (r) => {
     const detalle = h('div', { class: 'detalle-sesion', hidden: true },
@@ -37,7 +41,7 @@ function inicio(el, runs) {
       h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: async (e) => {
         if (!confirm('¿Borrar esta carrera?')) return;
         e.currentTarget.disabled = true;
-        try { await call('run.delete', { id: r.id, date: r.date }, { timeoutMs: 60000 }); render(el); }
+        try { await call('run.delete', { id: r.id, date: r.date }, { timeoutMs: 60000 }); borrar('carreras'); render(el); }
         catch (err) { console.error(err); e.currentTarget.disabled = false; e.currentTarget.after(h('p', { class: 'estado error' }, err.message)); }
       } }, 'Borrar')));
     const btn = h('button', { type: 'button', class: 'diario-fila', 'aria-expanded': 'false' },
@@ -56,6 +60,7 @@ function inicio(el, runs) {
 }
 
 function pantallaPantallazo(el, runs) {
+  pantalla = 'otra';
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const input = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'Captura del reloj' });
   input.addEventListener('change', async () => {
@@ -76,6 +81,7 @@ function pantallaPantallazo(el, runs) {
 }
 
 function pantallaRevision(el, runs, r, source) {
+  pantalla = 'otra';
   const f = r.fields;
   const inp = (id, etiqueta, valor, extra = {}) => h('label', {}, etiqueta, h('input', Object.assign({ id, autocomplete: 'off', inputmode: 'decimal', value: valor === undefined || valor === null ? '' : String(valor) }, extra)));
   const hora = r.startedAt ? r.startedAt.slice(11, 16) : '';
@@ -105,7 +111,7 @@ function pantallaRevision(el, runs, r, source) {
     if (f.trainingLoad !== undefined) rec.trainingLoad = f.trainingLoad;
     if (f.trainingEffect !== undefined) rec.trainingEffect = f.trainingEffect;
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'run', record: rec }, { timeoutMs: 60000 }); if (vigente(el)) render(el); }
+    try { await call('commit', { entity: 'run', record: rec }, { timeoutMs: 60000 }); borrar('carreras'); if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 

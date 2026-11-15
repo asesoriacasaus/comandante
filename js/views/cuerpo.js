@@ -5,6 +5,7 @@ import { formatCm, formatDateEs, todayIsoLocal, parseNum, formatDelta } from '..
 import { MEASURES, measureLabel, summarize, latestWeight, SCALE_FIELDS, latestScale } from '../lib/measures.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
+import { swr, borrar } from '../lib/cache.js';
 import { seriesOf, movingAverage, goalProgress, timeline, lineChart } from '../lib/charts.js';
 
 const vigente = (el) => el.dataset.route === 'cuerpo';
@@ -19,8 +20,10 @@ const MOTIVOS = {
 
 let recorder = null;
 let ajustes = null;   // settings.json (objetivo), para el progreso
+let pantalla = 'inicio';   // si el usuario está en una subpantalla, un dato nuevo no la pisa
 
 export function render(el) {
+  pantalla = 'inicio';
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Cuerpo'), h('p', { class: 'vacio' }, 'Cargando…')));
   cargar(el);
 }
@@ -29,10 +32,11 @@ async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
     const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    const [r, s] = await Promise.all([call('query', { entity: 'body', from, to: hoy }, { timeoutMs: 60000 }),
-      call('settings.get', {}, { timeoutMs: 60000 }).catch(() => null)]);
-    ajustes = s;
-    if (vigente(el)) inicio(el, r.items || []);
+    await swr('cuerpo', async () => {
+      const [r, s] = await Promise.all([call('query', { entity: 'body', from, to: hoy }, { timeoutMs: 60000 }),
+        call('settings.get', {}, { timeoutMs: 60000 }).catch(() => null)]);
+      return { items: r.items || [], ajustes: s };
+    }, (d) => { ajustes = d.ajustes; if (vigente(el) && pantalla === 'inicio') inicio(el, d.items); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;
@@ -43,6 +47,7 @@ async function cargar(el) {
 }
 
 function inicio(el, records) {
+  pantalla = 'inicio';
   const sum = summarize(records);
   const peso = latestWeight(records);
   const filas = MEASURES.filter((m) => sum[m.key]).map((m) => {
@@ -105,6 +110,7 @@ function bascula(records) {
 }
 
 function pantallaPantallazo(el, records) {
+  pantalla = 'otra';
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const input = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'Captura de la báscula' });
   input.addEventListener('change', async () => {
@@ -126,6 +132,7 @@ function pantallaPantallazo(el, records) {
 }
 
 function pantallaVoz(el, records) {
+  pantalla = 'otra';
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const boton = h('button', { type: 'button', class: 'btn btn-grabar' }, 'Grabar');
   let grabando = false;
@@ -166,6 +173,7 @@ function pantallaVoz(el, records) {
 }
 
 function pantallaRevision(el, records, ext) {
+  pantalla = 'otra';
   const prev = summarize(records);
   const sospechosas = Object.fromEntries((ext.suspicious || []).map((s) => [s.key, s]));
   const inputs = {};
@@ -199,7 +207,7 @@ function pantallaRevision(el, records, ext) {
     if (!Object.keys(measurementsCm).length && !hayBascula) { estado.className = 'estado error'; estado.textContent = 'Anota al menos una medida o un dato de la báscula.'; return; }
     if (Object.keys(measurementsCm).length) record.measurementsCm = measurementsCm;
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'body', record }, { timeoutMs: 60000 }); if (vigente(el)) cargar(el); }
+    try { await call('commit', { entity: 'body', record }, { timeoutMs: 60000 }); borrar('cuerpo'); if (vigente(el)) cargar(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 

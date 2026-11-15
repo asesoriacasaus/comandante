@@ -3,6 +3,7 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { botonEscuchar } from '../lib/voz.js';
+import { swr } from '../lib/cache.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
 const vigente = (el) => el.dataset.route === 'diario';
@@ -17,8 +18,8 @@ async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
     const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    const r = await call('query', { entity: 'session', from, to: hoy, filters: { status: 'done' } }, { timeoutMs: 60000 });
-    if (vigente(el)) pintar(el, sortSessions(r.items || []), hoy);
+    await swr('diario', async () => (await call('query', { entity: 'session', from, to: hoy, filters: { status: 'done' } }, { timeoutMs: 60000 })).items || [],
+      (items) => { if (vigente(el)) pintar(el, sortSessions(items), hoy); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;

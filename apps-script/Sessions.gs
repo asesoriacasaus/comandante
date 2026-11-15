@@ -99,22 +99,41 @@ function previousSameKey_(session, settings) {
   return lastSessionOfKey_(all, session.cycleKey);
 }
 
-/** Revisión de la sesión: cálculo determinista + mensaje de cierre (se genera una vez y se guarda). */
+/**
+ * Revisión de la sesión: cálculo determinista y mensaje de cierre NEUTRO al instante.
+ * El mensaje con la personalidad llega después (sessionReviewMessage) para no bloquear la pantalla.
+ */
 function sessionReview(id) {
   let s = readSession_(id);
   if (['review', 'done'].indexOf(s.status) < 0) throw { code: 'VALIDATION', message: 'La sesión aún no está en revisión' };
   const settings = getSettings();
-  const library = exerciseSeed_();
-  const bw = latestBodyweight_(settings);
-  let review = buildReview_(s, previousSameKey_(s, settings), library, { bodyweightKg: bw });
+  const review = buildReview_(s, previousSameKey_(s, settings), exerciseSeed_(), { bodyweightKg: latestBodyweight_(settings) });
   if (!s.reviewMessage) {
-    const msg = coachMessage_(s.groups, review.issues.map((i) => i.type),
-      settings, { series: review.summary.workingSets, volumenKg: Math.round(review.summary.totalVolumeKg), sinHacer: review.missing.map((m) => m.name),
-        molestias: (s.painFlags || []).length }, 'Mensaje de cierre de la sesión (2 o 3 frases): reconoce el trabajo y di qué mirar la próxima vez',
-      neutralReviewMessage_(review));
-    s = mutateSession_(id, (q) => { if (!q.reviewMessage) q.reviewMessage = msg; return q; });
+    const neutral = neutralReviewMessage_(review);
+    s = mutateSession_(id, (q) => { if (!q.reviewMessage) { q.reviewMessage = neutral; q.reviewMessageSource = 'neutral'; } return q; });
   }
   return { session: s, review: review };
+}
+
+/** Mensaje de cierre con la personalidad. Se intenta una sola vez; si la IA falla se queda el neutro. */
+function sessionReviewMessage(id) {
+  const s = readSession_(id);
+  if (s.reviewMessageSource === 'ai') return { session: s };
+  const settings = getSettings();
+  const review = buildReview_(s, previousSameKey_(s, settings), exerciseSeed_(), { bodyweightKg: latestBodyweight_(settings) });
+  const msg = coachMessage_(s.groups, review.issues.map((i) => i.type), settings,
+    { series: review.summary.workingSets, volumenKg: Math.round(review.summary.totalVolumeKg), sinHacer: review.missing.map((m) => m.name), molestias: (s.painFlags || []).length },
+    'Mensaje de cierre de la sesión (2 o 3 frases): reconoce el trabajo y di qué mirar la próxima vez', neutralReviewMessage_(review));
+  return { session: mutateSession_(id, (q) => { q.reviewMessage = msg; q.reviewMessageSource = 'ai'; return q; }) };
+}
+
+/** Mensaje de arranque con la personalidad para la sesión de hoy. Se intenta una sola vez. */
+function sessionMessage(id) {
+  const s = readSession_(id);
+  if (s.coachMessageSource === 'ai') return { session: s };
+  const settings = getSettings();
+  const msg = coachMessage_(s.groups, s.notes || [], settings, { ejercicios: (s.plannedExercises || []).length });
+  return { session: mutateSession_(id, (q) => { q.coachMessage = msg; q.coachMessageSource = 'ai'; return q; }) };
 }
 
 function sessionSave(id) {

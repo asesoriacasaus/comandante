@@ -171,6 +171,7 @@ function test_commit_roundtrip() {
   } finally {
     const it = folder_('sessions').getFilesByName('1999-01.json');
     while (it.hasNext()) it.next().setTrashed(true);
+    invalidatePath_('sessions/1999-01.json');
   }
   return 'ok';
 }
@@ -535,7 +536,7 @@ function test_pure_dictation() {
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'unknown_exercise', 'ejercicio desconocido → pendiente');
   r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), ctx_());
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'missing_reps', 'sin repeticiones → pendiente');
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), ctx_());
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 4, reps: 5 })], sess_(), ctx_());
   assert_(r.pending[0].reason === 'invalid_load', 'carga imposible → pendiente');
   r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), ctx_());
   assert_(r.pending[0].reason === 'no_exercise', 'nada que repetir ni ejercicio');
@@ -687,8 +688,8 @@ function test_pure_bar_inference() {
   res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_());
   assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.totalKg === 60 && res.exercises[0].sets[0].flags.indexOf('total_ignored') >= 0,
     'total absurdo junto a "20 por lado": se fía de los kilos por lado (60 kg) y avisa');
-  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), ctx_());
-  assert_(res.pending[0].reason === 'invalid_load' && res.pending[0].heard.totalKg === 10 && res.pending[0].heard.reps === 8, 'el pendiente guarda lo que la IA entendió');
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 4, reps: 8 })], sess_(), ctx_());
+  assert_(res.pending[0].reason === 'invalid_load' && res.pending[0].heard.totalKg === 4 && res.pending[0].heard.reps === 8, 'el pendiente guarda lo que la IA entendió');
   const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_()).exercises }, null, ctx_().library, {});
   assert_(rv2.issues.some((i) => i.type === 'total_ignored'), 'la revisión avisa de que se ignoró el total');
   res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), ctx_());
@@ -1077,10 +1078,22 @@ function test_pure_tts() {
   assert_(TTS_VOICES_.length === 30 && TTS_VOICES_.indexOf('Orus') >= 0, 'catálogo de voces');
   assert_(ttsVoice_('Fenrir') === 'Fenrir' && ttsVoice_('  Kore ') === 'Kore' && ttsVoice_('') === 'Orus' && ttsVoice_('voz inventada') === 'Orus' && ttsVoice_(null) === 'Orus', 'voz válida, o la de por defecto');
   assert_(ttsVoice_('Orus"}],"x":[{') === 'Orus', 'una voz con comillas no se cuela en la petición');
-  const r = buildTtsRequest_('¡A la carga, compatriota!', 'Charon');
+  const r = buildTtsRequest_('¡A la carga, compatriota!', 'Charon', 'director');
   assert_(r.generationConfig.responseModalities[0] === 'AUDIO' && r.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Charon', 'petición de audio con la voz elegida');
-  assert_(r.contents[0].parts[0].text.indexOf('"¡A la carga, compatriota!"') >= 0 && r.contents[0].parts[0].text.indexOf('acento venezolano') >= 0, 'el estilo y el texto van en el mensaje del usuario');
-  assert_(/Chávez|Chavez|Hugo|presidente/i.test(TTS_STYLE_) === false, 'el estilo pide un acento y una manera de decir, no la voz de una persona concreta');
+  const dir = r.contents[0].parts[0].text;
+  assert_(dir.indexOf("DIRECTOR'S NOTES") >= 0 && dir.indexOf('Venezuelan') >= 0 && dir.indexOf('Do not read these notes') >= 0, 'las notas de estilo piden no leerse');
+  assert_(dir.endsWith('#### TRANSCRIPT\n¡A la carga, compatriota!') && dir.split('#### TRANSCRIPT\n')[1] === '¡A la carga, compatriota!', 'el mensaje va al final, tras la etiqueta de transcripción y sin comillas');
+  assert_(ttsPrompt_('Hola', 'none') === 'Hola', 'modo sin estilo: solo el texto');
+  assert_(ttsPrompt_('Hola', 'prefix').endsWith(': Hola') && ttsPrompt_('Hola', 'prefix').indexOf('Venezuelan') >= 0, 'modo prefijo');
+  assert_(ttsPrompt_('Hola', 'inventado') === ttsPrompt_('Hola', 'director') && ttsPrompt_('Hola') === ttsPrompt_('Hola', 'director'), 'estilo desconocido o ausente: director');
+  assert_(ttsStyle_(' NONE ') === 'none' && ttsStyle_('director"') === 'director' && ttsStyle_(null) === 'director', 'normalización del estilo');
+  assert_(/Chávez|Chavez|Hugo|presidente/i.test(TTS_DIRECTOR_ + TTS_PREFIX_) === false, 'el estilo pide un acento y una manera de decir, no la voz de una persona concreta');
+  // Detección de "ha leído también las indicaciones": un texto corto no puede durar medio minuto
+  assert_(ttsLooksWrong_(30, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === true, 'texto de 10 palabras que dura 30 s: sospechoso');
+  assert_(ttsLooksWrong_(5, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === false, 'el mismo texto en 5 s: normal');
+  assert_(ttsLooksWrong_(9, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === false, 'un orador lento (9 s) no se considera error');
+  assert_(ttsLooksWrong_(60, 'x ' .repeat(100)) === false && ttsLooksWrong_(5, '') === false, 'textos largos y vacíos');
+  assert_(Math.abs(ttsSeconds_({ mime: 'audio/L16;codec=pcm;rate=24000', data: 'A'.repeat(64000) }) - 1) < 0.01, 'duración de un PCM de 24 kHz: 48.000 bytes = 1 s');
   const a = parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: 'AAAA' } }] } }] });
   assert_(a.data === 'AAAA' && a.mime.indexOf('rate=24000') >= 0, 'extrae el audio');
   assert_(parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { data: 'AAAA' } }] } }] }).mime.indexOf('L16') >= 0, 'mime por defecto');
@@ -1177,6 +1190,97 @@ function test_pure_chat_reply() {
   return 'ok';
 }
 
+function test_pure_lenient_loads() {
+  const eq = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
+  // Polea o máquina: el mismo número dicho como total, por mano o por lado
+  assert_(normalizeLoad_({ implement: 'cable', totalKg: 30 }, eq).load.stackKg === 30, '"polea con 30 kilos" dicho como total');
+  assert_(normalizeLoad_({ implement: 'machine', perSideKg: 40 }, eq).load.totalKg === 40, 'máquina con "40 a cada lado": 40 de pila');
+  assert_(normalizeLoad_({ implement: 'machine', stackKg: 70, totalKg: 99 }, eq).load.stackKg === 70, 'si hay pila, manda la pila');
+  // Mancuernas: "10 a cada lado" = 10 por mano; un total se reparte entre las dos
+  let r = normalizeLoad_({ implement: 'dumbbell', perSideKg: 10 }, eq);
+  assert_(r.load.perHandKg === 10 && r.load.totalKg === 20, 'mancuernas con "10 a cada lado"');
+  r = normalizeLoad_({ implement: 'dumbbell', totalKg: 30 }, eq);
+  assert_(r.load.perHandKg === 15 && r.load.count === 2, 'mancuernas con total 30: 15 por mano');
+  r = normalizeLoad_({ implement: 'dumbbell', totalKg: 24, count: 1 }, eq);
+  assert_(r.load.perHandKg === 24, 'una sola mancuerna con total 24');
+  assert_(normalizeLoad_({ implement: 'dumbbell', perHandKg: 15, perSideKg: 99 }, eq).load.perHandKg === 15, 'si hay kilos por mano, manda');
+  assert_(normalizeLoad_({ implement: 'kettlebell', totalKg: 16 }, eq).load.perHandKg === 16, 'pesa rusa: una sola');
+  // Peso corporal con lastre dicho como total
+  assert_(normalizeLoad_({ implement: 'bodyweight', totalKg: 10 }, eq).load.addedKg === 10, 'dominadas con 10 kilos de lastre');
+  assert_(normalizeLoad_({ implement: 'bodyweight' }, eq).load.addedKg === 0, 'sin lastre sigue siendo 0');
+  // Barra con kilos por mano
+  assert_(normalizeLoad_({ implement: 'barbell', perHandKg: 15 }, eq).load.totalKg === 50, 'barra con "15" dicho por mano: 15 por lado');
+  // Barra más ligera que la configurada: solo al dictar, y avisando
+  assert_(normalizeLoad_({ implement: 'barbell', totalKg: 15 }, eq).load === null, 'estricto por defecto: 15 kg con barra de 20 no cuadra');
+  r = normalizeLoad_({ implement: 'barbell', totalKg: 15 }, eq, { inferBar: true });
+  assert_(r.load.barKg === 15 && r.load.perSideKg === 0 && r.load.totalKg === 15 && r.load.barInferred === true, 'al dictar, "barra con 15 kilos" = barra sola de 15 kg, avisando');
+  assert_(normalizeLoad_({ implement: 'barbell', totalKg: 4 }, eq, { inferBar: true }).load === null, 'por debajo de 5 kg sigue siendo imposible');
+  // En el dictado completo
+  const sess = { exercises: [], plannedExercises: [] };
+  let res = eventsToSets_([{ type: 'set', exerciseName: 'jalón al pecho', implement: 'cable', totalKg: 45, reps: 12, repeatLast: false }], sess, ctx_());
+  assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.stackKg === 45, 'jalón con 45 kilos ya no queda pendiente');
+  res = eventsToSets_([{ type: 'set', exerciseName: 'curl de bíceps con mancuernas', implement: 'dumbbell', perSideKg: 12, reps: 10, repeatLast: false }], sess, ctx_());
+  assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.totalKg === 24, 'curl con "12 a cada lado" ya no queda pendiente');
+  return 'ok';
+}
+
+function test_pure_manual_entry() {
+  // Los pendientes recuerdan de qué ejercicio eran
+  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'missing_reps' && r.pending[0].exerciseId === 'press_banca', 'falta de repeticiones: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 4, reps: 5 })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'invalid_load' && r.pending[0].exerciseId === 'press_banca', 'carga imposible: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'curl de bíceps', repeatLast: true })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'nothing_to_repeat' && r.pending[0].exerciseId === 'curl_mancuernas', 'nada que repetir: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), ctx_());
+  assert_(r.pending[0].exerciseId === undefined, 'ejercicio desconocido: no hay id');
+
+  // Añadir una serie a mano y resolver el pendiente de una vez
+  const lib = ctx_().library; const eq = ctx_().equipment;
+  const base = sess_({ pending: [{ reason: 'missing_reps', exerciseId: 'press_banca', text: 'Press banca' }, { reason: 'unknown_exercise', text: 'x' }] });
+  let n = applyEditOp_(base, { op: 'add', exerciseId: 'press_banca', dismissPending: 0, set: { type: 'working', reps: 8, rir: null, load: { implement: 'barbell', perSideKg: 20 } } }, eq, lib);
+  assert_(n.exercises[0].sets[0].load.totalKg === 60 && n.pending.length === 1 && n.pending[0].reason === 'unknown_exercise', 'añadir + resolver el pendiente indicado');
+  assert_(base.pending.length === 2, 'no muta la sesión original');
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'press_banca', set: { type: 'warmup', reps: 12, load: { implement: 'barbell', perSideKg: 10 } } }, eq, lib);
+  assert_(n.pending.length === 2 && n.exercises[0].sets[0].type === 'warmup', 'sin dismissPending no se toca la lista');
+  const fails = (op) => { try { applyEditOp_(base, op, eq, lib); return false; } catch (e) { return e.code === 'VALIDATION'; } };
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', dismissPending: 9, set: { reps: 8, load: { implement: 'barbell', perSideKg: 20 } } }), 'pendiente inexistente');
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', set: { reps: 0, load: { implement: 'barbell', perSideKg: 20 } } }) === false, 'cero repeticiones es válido para el servidor (0-100)');
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', set: { reps: 8, load: { implement: 'barbell' } } }), 'barra sin kilos');
+  // Serie de peso corporal y de máquina introducidas a mano
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'dominadas', set: { type: 'working', reps: 6, load: { implement: 'bodyweight', addedKg: 0 } } }, eq, lib);
+  assert_(n.exercises[n.exercises.length - 1].exerciseId === 'dominadas', 'ejercicio nuevo a mano');
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'jalon_pecho', set: { type: 'working', reps: 12, rir: 2, load: { implement: 'cable', stackKg: 45 } } }, eq, lib);
+  assert_(n.exercises[n.exercises.length - 1].sets[0].load.stackKg === 45, 'jalón con pila a mano');
+
+  // Lista para el selector
+  const list = exerciseListForClient_();
+  assert_(list.length >= 90 && list.every((x) => x.id && x.name && x.implements.length > 0 && Object.keys(x).length === 3), 'lista con id, nombre e implementos');
+  const names = list.map((x) => normalizeText_(x.name));
+  assert_(names.join('|') === names.slice().sort().join('|'), 'ordenada por nombre sin acentos');
+  assert_(list.find((x) => x.id === 'press_banca').implements.indexOf('barbell') >= 0, 'implementos posibles');
+  return 'ok';
+}
+
+function test_pure_caso_real_cruce_poleas() {
+  // Caso real: «Primera serie de cruce en poleas con 10 kg a cada lado y 10 repeticiones en total.»
+  // La IA devolvió: "Entendí: 10 kg por lado, 10 repeticiones" y la app rechazó la serie con "faltan los kilos de la pila".
+  const sess = { exercises: [], plannedExercises: [] };
+  let r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', perSideKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0, 'ya no queda pendiente: ' + JSON.stringify(r.pending));
+  const set = r.exercises[0].sets[0];
+  assert_(r.exercises[0].exerciseId === 'cruce_poleas' && set.reps === 10 && set.load.implement === 'cable' && set.load.stackKg === 10 && set.load.totalKg === 10, 'serie guardada con pila de 10 kg y 10 repeticiones');
+  // Si la IA no indica el implemento, se toma el habitual del ejercicio (polea)
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', perSideKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.implement === 'cable' && r.exercises[0].sets[0].load.stackKg === 10, 'sin implemento dicho: polea');
+  // Y con las demás formas de decirlo
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', totalKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.stackKg === 10, 'dicho como total');
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', perHandKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.stackKg === 10, 'dicho por mano');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1184,7 +1288,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

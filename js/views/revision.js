@@ -2,8 +2,11 @@
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTranscript } from '../lib/format.js';
-import { ACTIVE_KEY, serieNodo, pendienteDetalle } from './sesion.js';
+import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.js';
+import { abrirFormulario, nodoFormulario } from './serie-form.js';
+import { valorDeCarga } from '../lib/serie.js';
 import { botonEscuchar } from '../lib/voz.js';
+import { borrar } from '../lib/cache.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -17,13 +20,17 @@ export function render(el) {
     return;
   }
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Revisión'), h('h2', {}, 'Preparando la revisión…'), h('p', { class: 'vacio' }, 'Puede tardar unos segundos.')));
-  const st = { id, session: null, review: null, editing: null, msg: '', msgType: '', busy: false };
+  const st = { id, session: null, review: null, editing: null, msg: '', msgType: '', busy: false, formulario: null, ejercicios: null, scrollForm: false };
 
   const load = async () => {
     const r = await call('session.review', { id }, { timeoutMs: 150000 });
     st.session = r.session; st.review = r.review;
   };
-  const paint = () => { if (vigente(el)) el.replaceChildren(vista(st, { el, paint, load, id })); };
+  const paint = () => {
+    if (!vigente(el)) return;
+    el.replaceChildren(vista(st, { el, paint, load, id }));
+    if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
+  };
 
   load().then(paint).catch((err) => {
     console.error(err);
@@ -63,11 +70,24 @@ function vista(st, ctx) {
     dato(String(m.workingSets), 'series'), dato(String(Math.round(m.totalVolumeKg)), 'kg de volumen'),
     dato(m.durationMin === null ? '–' : String(m.durationMin), 'minutos')));
 
+  const abrir = (cfg) => abrirFormulario(st, cfg, ctx.paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
+  const guardarSerie = async (payload, pendiente) => {
+    const op = Object.assign({ op: 'add' }, payload);
+    if (Number.isInteger(pendiente)) op.dismissPending = pendiente;
+    const e = await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 });   // si falla, el formulario muestra el error y conserva lo escrito
+    st.session = e.session; st.formulario = null;
+    try { await ctx.load(); } catch (err) { console.error(err); st.msg = err.message; st.msgType = 'error'; }
+    ctx.paint();
+  };
+  nodes.push(nodoFormulario(st, { paint: ctx.paint, guardar: guardarSerie }));
+
   // Pendientes: lo único que impide guardar.
   (s.pending || []).forEach((p, i) => nodes.push(h('div', { class: 'aviso peligro' },
     (MOTIVOS[p.reason] || 'Pendiente') + (p.text ? ': ' + p.text : '') + '. Añade la serie en el ejercicio correspondiente o descártala.',
     ...pendienteDetalle(p, s),
-    h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
+    h('div', { class: 'acciones' },
+      h('button', { type: 'button', class: 'btn', onClick: () => abrir(cfgPendiente(p, i)) }, 'Completar a mano'),
+      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
   const avisos = r.issues.map(describeIssue).filter(Boolean);
   if (avisos.length) nodes.push(h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Lo que no cuadra'),
@@ -86,7 +106,11 @@ function vista(st, ctx) {
       h('p', { class: 'detalle' }, ex.doneSets + (ex.plannedSets ? ' de ' + ex.plannedSets : '') + ' series · ' + (ex.repsMin === ex.repsMax ? ex.repsMin : ex.repsMin + '-' + ex.repsMax) + ' rep' +
         (ex.avgRir !== null ? ' · RIR medio ' + String(ex.avgRir).replace('.', ',') : '')),
       ...cmp.map((t) => h('p', { class: 'detalle' }, t)),
-      full ? h('ul', { class: 'series' }, full.sets.map((set) => serieNodo(st, full, set, edit, ctx.paint))) : null));
+      full ? h('ul', { class: 'series' }, full.sets.map((set) => serieNodo(st, full, set, edit, ctx.paint))) : null,
+      full ? h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+        const l = full.sets[full.sets.length - 1];
+        abrir({ titulo: 'Serie a mano: ' + full.name, exerciseId: full.exerciseId, implement: l.load.implement, valor: valorDeCarga(l.load), reps: l.reps, rir: l.rir === null ? '' : l.rir });
+      } }, 'Añadir serie a mano')) : null));
   });
 
   const clips = (s.clips || []).filter((c) => c.transcript);
@@ -97,15 +121,17 @@ function vista(st, ctx) {
   nodes.push(h('div', { class: 'acciones fin' },
     h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: () => run(async () => {
       await call('session.save', { id: ctx.id }, { timeoutMs: 60000 });
+      ['hoy', 'diario', 'progreso'].forEach(borrar);
       try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
       location.hash = '#hoy';
     }) }, 'Guardar sesión'),
     h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
-      await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); location.hash = '#sesion';
+      await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); location.hash = '#sesion';
     }) }, 'Seguir grabando'),
     h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
       if (!confirm('¿Descartar esta sesión? No se podrá recuperar.')) return;
       await call('session.discard', { id: ctx.id }, { timeoutMs: 60000 });
+      borrar('hoy');
       try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
       location.hash = '#hoy';
     }) }, 'Descartar sesión')));

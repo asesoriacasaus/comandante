@@ -173,3 +173,9 @@ function findExercise_(query, library) {
   });
   return best;
 }
+
+/** Lista ligera para el selector de ejercicios del cliente. */
+function exerciseListForClient_() {
+  return exerciseSeed_().map((x) => ({ id: x.id, name: x.name, implements: x.implements }))
+    .sort((a, b) => (normalizeText_(a.name) < normalizeText_(b.name) ? -1 : 1));
+}

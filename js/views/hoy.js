@@ -1,9 +1,11 @@
 // Pantalla Hoy: bienvenida, primer ciclo y sesión del día.
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
-import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs } from '../lib/format.js';
+import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { ACTIVE_KEY } from './sesion.js';
 import { botonEscuchar } from '../lib/voz.js';
+import { swr, borrar, leer, guardar } from '../lib/cache.js';
+import { vozYChatActivos } from '../lib/prefs.js';
 import { renderOnboarding } from './bienvenida.js';
 
 const SLOW = { timeoutMs: 150000 };
@@ -20,7 +22,9 @@ const vigente = (el) => el.dataset.route === 'hoy';
 const cabecera = (et, titulo) => [h('p', { class: 'etiqueta' }, et), h('h2', {}, titulo)];
 
 export function render(el) {
-  el.replaceChildren(h('section', {}, ...cabecera('Hoy', 'Tu sesión'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, ...cabecera('Hoy', 'Tu sesión'),
+    h('p', { class: 'vacio' }, 'Preparando tu sesión de hoy…'),
+    h('p', { class: 'nota' }, 'Si es la primera vez que toca este tipo de sesión, el Comandante la diseña y puede tardar hasta un minuto. Puedes cambiar de sección: seguirá preparándose.')));
   cargar(el);
 }
 
@@ -32,17 +36,46 @@ function errorVista(el, err) {
 }
 
 async function cargar(el) {
+  const dia = todayIsoLocal();
   try {
-    const st = await call('plan.state', {}, { timeoutMs: 60000 });
-    if (!vigente(el)) return;
-    if (!st.onboarded) return renderOnboarding(el, () => render(el));
-    if (!st.cycle) return renderCiclo(el);
-    const r = await call('plan.today', {}, SLOW);
-    if (!vigente(el)) return;
-    renderSesion(el, r.session);
+    await swr('hoy', async () => Object.assign(await call('hoy.load', {}, SLOW), { _dia: dia }),
+      (d, deCache) => { if (vigente(el)) pintar(el, d, deCache); },
+      { valido: (d) => d._dia === dia, onSinRed: () => { if (vigente(el)) avisoSinRed(el); } });
   } catch (err) {
     if (vigente(el)) errorVista(el, err);
   }
+}
+
+function pintar(el, d, deCache) {
+  if (!d.onboarded) return renderOnboarding(el, () => { borrar('hoy'); render(el); });
+  if (!d.hasCycle) return renderCiclo(el);
+  if (d.todayError) return errorVista(el, Object.assign(new Error(d.todayError.message), { code: d.todayError.code }));
+  renderSesion(el, d.today.session, deCache);
+}
+
+function avisoSinRed(el) {
+  const s = el.querySelector('section');
+  if (s && !s.querySelector('.sin-red')) s.prepend(h('p', { class: 'aviso sin-red' }, 'Sin conexión con el servidor: esto es lo último que había guardado.'));
+}
+
+const pidiendoMensaje = new Set();
+/** El mensaje con la personalidad llega después de pintar la pantalla: la IA nunca bloquea Hoy. */
+function pedirMensaje(el, s) {
+  if (s.coachMessageSource !== 'neutral' || pidiendoMensaje.has(s.id) || s.status === 'done') return;
+  pidiendoMensaje.add(s.id);
+  call('session.message', { id: s.id }, { silent: true, timeoutMs: 120000 }).then((r) => {
+    const m = r.session && r.session.coachMessage;
+    const hit = leer('hoy');
+    if (hit && hit.data.today && hit.data.today.session.id === s.id && m) {
+      hit.data.today.session.coachMessage = m; hit.data.today.session.coachMessageSource = 'ai'; guardar('hoy', hit.data);
+    }
+    if (!vigente(el) || !m) return;
+    const q = el.querySelector('.mensaje');
+    if (q) q.textContent = m;
+    const v = el.querySelector('.voz');
+    const nuevo = botonEscuchar(m);
+    if (v && nuevo) v.replaceWith(nuevo);
+  }).catch(() => { /* se queda el mensaje neutro */ }).finally(() => pidiendoMensaje.delete(s.id));
 }
 
 function renderCiclo(el, propuesta = null) {
@@ -76,7 +109,7 @@ function renderCiclo(el, propuesta = null) {
   el.replaceChildren(h('section', {}, nodos));
 }
 
-function renderSesion(el, s) {
+function renderSesion(el, s, deCache = false) {
   const ejercicios = s.status === 'done' ? (s.exercises || []) : (s.plannedExercises || []);
   const avisos = (s.notes || []).filter((n) => AVISOS[n]).map((n) => h('p', { class: 'aviso' }, AVISOS[n]));
   const lista = s.status === 'done'
@@ -92,7 +125,8 @@ function renderSesion(el, s) {
     s.coachMessage ? botonEscuchar(s.coachMessage) : null,
     ...avisos, lista,
     accion(el, s),
-    h('div', { class: 'acciones fin' }, h('a', { class: 'btn btn-sec', href: '#chat' }, 'Habla con el Comandante'))));
+    vozYChatActivos() ? h('div', { class: 'acciones fin' }, h('a', { class: 'btn btn-sec', href: '#chat' }, 'Habla con el Comandante')) : null));
+  pedirMensaje(el, s);
 }
 
 async function empezar(el, s, btn, destino = '#sesion') {
@@ -100,6 +134,7 @@ async function empezar(el, s, btn, destino = '#sesion') {
   try {
     if (s.status === 'planned') await call('session.start', { id: s.id }, { timeoutMs: 60000 });
     try { localStorage.setItem(ACTIVE_KEY, s.id); } catch (_) { /* sin almacenamiento */ }
+    borrar('hoy');
     location.hash = destino;
   } catch (err) { btn.disabled = false; btn.after(h('p', { class: 'estado error' }, err.message)); }
 }
