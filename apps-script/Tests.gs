@@ -748,13 +748,35 @@ function test_pure_body_extraction() {
   return 'ok';
 }
 
+function test_pure_scale() {
+  const full = { kind: 'scale', date: null, weightKg: 87.5, bmi: 28.8, bodyFatPct: 23.3, muscleMassKg: 36, visceralFat: 13, bmrKcal: 1818,
+    waterPct: 56.1, boneKg: 3.46, proteinPct: 16.6, fatFreeMassKg: 67.1 };
+  assert_(validateScaleExtraction_(full).length === 0, 'extracción válida');
+  const r = sanitizeScale_(full, '2026-11-15');
+  assert_(Object.keys(r.fields).length === 10 && r.fields.boneKg === 3.46 && r.fields.bmrKcal === 1818 && r.rejected.length === 0, 'los 10 campos de una captura real');
+  assert_(validateBody_(Object.assign({ date: '2026-11-15' }, r.fields), '2026-11-15').length === 0, 'el registro con esos campos es válido');
+  const part = sanitizeScale_({ kind: 'scale', weightKg: 87.5, bodyFatPct: null }, '2026-11-15');
+  assert_(Object.keys(part.fields).length === 1, 'lo que no se ve se omite');
+  const bad = sanitizeScale_({ kind: 'scale', weightKg: 875, bodyFatPct: 233 }, '2026-11-15');
+  assert_(bad.rejected.length === 2 && Object.keys(bad.fields).length === 0, 'valores imposibles rechazados (coma mal leída)');
+  let c = null; try { sanitizeScale_({ kind: 'other' }, '2026-11-15'); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'una imagen que no es báscula se rechaza');
+  assert_(sanitizeScale_({ kind: 'scale', date: '2026-11-10', weightKg: 80 }, '2026-11-15').date === '2026-11-10', 'fecha visible aceptada');
+  assert_(sanitizeScale_({ kind: 'scale', date: '2027-03-01', weightKg: 80 }, '2026-11-15').date === null, 'fecha futura descartada');
+  assert_(sanitizeScale_({ kind: 'scale', date: 'ayer', weightKg: 80 }, '2026-11-15').date === null, 'fecha mal formada descartada');
+  assert_(validateScaleExtraction_({ kind: 'scale', weightKg: '87' }).length > 0 && validateScaleExtraction_({ kind: 'foto' }).length > 0, 'validación del formato');
+  assert_(SCALE_SYSTEM_.indexOf('nunca inventes ni calcules') >= 0, 'el prompt prohíbe inventar');
+  assert_(validateBody_({ date: '2026-11-15', visceralFat: 99 }, '2026-11-15').length > 0, 'grasa visceral fuera de rango');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

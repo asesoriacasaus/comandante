@@ -125,6 +125,7 @@ function sanitizeExtraction_(ai) {
 
 /** Dictado de medidas: audio → medidas propuestas. No guarda nada: el usuario revisa y confirma. */
 function bodyExtract(p) {
+  if (p && p.kind === 'image') return bodyExtractImage(p);
   const mime = validateMedia_('audio', p.mime, p.data);
   const ai = callJson_('FAST', BODY_SYSTEM_, { tarea: 'Extrae las medidas dictadas en el audio' }, BODY_SCHEMA_, validateBodyExtraction_,
     [{ inlineData: { mimeType: mime, data: p.data } }]);
@@ -133,3 +134,60 @@ function bodyExtract(p) {
   return { transcript: ai.transcript.slice(0, 2000), measurements: res.measurements, weightKg: res.weightKg, rejected: res.rejected,
     previous: latest, suspicious: measurementChanges_(latest, res.measurements) };
 }
+
+// ---------- Pantallazo de la báscula inteligente ----------
+
+const SCALE_FIELDS_ = [
+  { key: 'weightKg', min: 20, max: 400 }, { key: 'bmi', min: 10, max: 80 }, { key: 'bodyFatPct', min: 1, max: 70 },
+  { key: 'muscleMassKg', min: 5, max: 150 }, { key: 'visceralFat', min: 1, max: 60 }, { key: 'bmrKcal', min: 500, max: 5000 },
+  { key: 'waterPct', min: 20, max: 80 }, { key: 'boneKg', min: 0.5, max: 10 }, { key: 'proteinPct', min: 5, max: 40 },
+  { key: 'fatFreeMassKg', min: 20, max: 200 }
+];
+
+const SCALE_SCHEMA_ = { type: 'OBJECT', properties: Object.assign({ kind: { type: 'STRING' }, date: { type: 'STRING', nullable: true } },
+  SCALE_FIELDS_.reduce((o, f) => { o[f.key] = { type: 'NUMBER', nullable: true }; return o; }, {})), required: ['kind'] };
+
+const SCALE_SYSTEM_ = 'Recibes un pantallazo de una app de báscula inteligente (composición corporal). Si es de una báscula, "kind" es "scale"; ' +
+  'si es otra cosa, "other" y el resto null. Extrae solo lo que aparezca escrito, con el valor numérico tal cual (la coma decimal es un punto): ' +
+  'weightKg (peso, kg), bmi (IMC), bodyFatPct (grasa corporal, %), muscleMassKg (masa musculoesquelética o masa muscular, kg), ' +
+  'visceralFat (grasa visceral, nivel), bmrKcal (tasa metabólica basal, kcal), waterPct (agua en el cuerpo, %), ' +
+  'boneKg (contenido de minerales óseos o masa ósea, kg), proteinPct (proteínas, %), fatFreeMassKg (masa libre de grasa, kg). ' +
+  'No extraigas índices en kg/m², frecuencia cardíaca ni puntuaciones. "date" solo si se ve una fecha completa, en formato YYYY-MM-DD. ' +
+  'Lo que no se vea va a null: nunca inventes ni calcules valores. Responde solo con el JSON pedido.';
+
+function validateScaleExtraction_(o) {
+  const e = [];
+  if (!o || ['scale', 'other'].indexOf(o.kind) < 0) return ['kind inválido'];
+  SCALE_FIELDS_.forEach((f) => {
+    const v = o[f.key];
+    if (v !== null && v !== undefined && !isNum_(v)) e.push(f.key + ' debe ser un número o null');
+  });
+  return e;
+}
+
+/** Campos válidos de la báscula; lo imposible va a `rejected`. Lanza VALIDATION si no es una báscula. */
+function sanitizeScale_(ai, today) {
+  if (ai.kind !== 'scale') throw { code: 'VALIDATION', message: 'La imagen no parece una pantalla de báscula' };
+  const fields = {};
+  const rejected = [];
+  SCALE_FIELDS_.forEach((f) => {
+    const v = ai[f.key];
+    if (v === null || v === undefined) return;
+    if (v < f.min || v > f.max) rejected.push({ part: f.key, valueCm: v, reason: 'out_of_range' });
+    else fields[f.key] = Math.round(v * 100) / 100;
+  });
+  let date = null;
+  if (typeof ai.date === 'string' && isIsoDate_(ai.date) && validateDate_(ai.date, today).length === 0) date = ai.date;
+  return { fields: fields, rejected: rejected, date: date };
+}
+
+function bodyExtractImage(p) {
+  const mime = validateMedia_('image', p.mime, p.data);
+  const ai = callJson_('FAST', SCALE_SYSTEM_, { tarea: 'Extrae los datos de la báscula del pantallazo' }, SCALE_SCHEMA_, validateScaleExtraction_,
+    [{ inlineData: { mimeType: mime, data: p.data } }]);
+  const today = todayIsoLocalServer_();
+  const res = sanitizeScale_(ai, today);
+  return { kind: 'scale', fields: res.fields, rejected: res.rejected, date: res.date };
+}
+
+function todayIsoLocalServer_() { return todayIso_(getSettings().profile.timezone); }

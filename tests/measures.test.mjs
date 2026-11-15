@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { MEASURES, GUIDE, TAPE, PART_ORDER, measureLabel, summarize, latestWeight } from '../js/lib/measures.js';
+import { MEASURES, GUIDE, TAPE, PART_ORDER, measureLabel, summarize, latestWeight, SCALE_FIELDS, latestScale } from '../js/lib/measures.js';
 import { todayIsoLocal, formatCm } from '../js/lib/format.js';
 
 test('las claves del cliente coinciden con las del servidor', () => {
@@ -10,6 +10,7 @@ test('las claves del cliente coinciden con las del servidor', () => {
   for (const f of ['Sets.gs', 'Body.gs']) vm.runInContext(fs.readFileSync('apps-script/' + f, 'utf8'), ctx);
   const server = vm.runInContext('MEASURE_KEYS_.slice().sort()', ctx);
   assert.deepEqual(MEASURES.map((m) => m.key).sort(), [...server]);
+  assert.deepEqual(SCALE_FIELDS.map((f) => f.key).sort(), [...vm.runInContext('SCALE_FIELDS_.map((f) => f.key).sort()', ctx)]);
   const serverParts = vm.runInContext('MEASURE_PARTS_.slice().sort()', ctx);
   assert.deepEqual([...PART_ORDER].sort(), [...serverParts]);
 });
@@ -45,4 +46,11 @@ test('fecha local y centímetros', () => {
 test('la cintura se mide por la parte más ancha', () => {
   assert.match(GUIDE.waist.where, /parte más ancha/);
   assert.match(GUIDE.waist.tip, /mismo criterio/);
+});
+
+test('última báscula por campo', () => {
+  const s = latestScale([{ date: '2026-11-03', weightKg: 88, bodyFatPct: 24 }, { date: '2026-11-10', weightKg: 87.5 }, { date: '2026-11-17', muscleMassKg: 36 }]);
+  assert.deepEqual(s.weightKg, { value: 87.5, date: '2026-11-10', prev: 88 });
+  assert.deepEqual(s.bodyFatPct, { value: 24, date: '2026-11-03', prev: null });
+  assert.equal(s.muscleMassKg.value, 36); assert.equal(s.bmi, undefined);
 });

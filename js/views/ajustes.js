@@ -23,6 +23,18 @@ export function render(el) {
         </div>
         <p id="estado" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h2>Entrenador</h2>
+      <form id="form-coach" class="card" novalidate>
+        <label>Intensidad del Comandante
+          <select id="c-intensidad">
+            <option value="baja">Baja: serena, poca arenga</option>
+            <option value="media">Media: firme</option>
+            <option value="alta">Alta: enérgica y combativa</option>
+          </select>
+        </label>
+        <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
+        <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
+      </form>
       <h2>Material</h2>
       <form id="form-material" class="card" novalidate>
         <label>Peso de la barra olímpica (kg)<input id="m-barra" inputmode="decimal" autocomplete="off"></label>
@@ -68,8 +80,16 @@ export function render(el) {
     call('settings.get', {}, { timeoutMs: 60000 }).then((s) => {
       if (el.dataset.route !== 'ajustes') return;
       for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
+      if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
+  el.querySelector('#form-coach').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const e = el.querySelector('#estado-coach');
+    e.textContent = 'Guardando…'; e.className = 'estado';
+    try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
+    catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
+  });
   el.querySelector('#form-material').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const equipment = {};

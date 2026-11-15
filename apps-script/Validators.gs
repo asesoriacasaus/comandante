@@ -120,9 +120,7 @@ function validateMeal_(m, today) {
 function validateBody_(b, today) {
   const e = [];
   e.push(...validateDate_(b.date, today));
-  pushIf_(e, checkNum_(b.weightKg, 'weightKg', 20, 400, false));
-  pushIf_(e, checkNum_(b.bodyFatPct, 'bodyFatPct', 1, 70, false));
-  pushIf_(e, checkNum_(b.muscleMassKg, 'muscleMassKg', 1, 200, false));
+  SCALE_FIELDS_.forEach((f) => pushIf_(e, checkNum_(b[f.key], f.key, f.min, f.max, false)));
   e.push(...validateMeasurements_(b.measurementsCm));
   return e;
 }

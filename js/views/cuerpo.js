@@ -2,17 +2,18 @@
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { formatCm, formatDateEs, todayIsoLocal, parseNum, formatDelta } from '../lib/format.js';
-import { MEASURES, measureLabel, summarize, latestWeight } from '../lib/measures.js';
-import { blobToBase64 } from '../lib/media.js';
+import { MEASURES, measureLabel, summarize, latestWeight, SCALE_FIELDS, latestScale } from '../lib/measures.js';
+import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 
 const vigente = (el) => el.dataset.route === 'cuerpo';
 const num = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
+const num2 = (n) => String(Math.round(n * 100) / 100).replace('.', ',');   // báscula: conserva dos decimales
 const PARTE_ES = { neck: 'cuello', shoulders: 'hombros', chest: 'pecho', waist: 'cintura', hip: 'cadera', arm: 'bíceps', forearm: 'antebrazo', thigh: 'muslo', calf: 'gemelo', weightKg: 'peso' };
-const nombre = (k) => (PARTE_ES[k] || measureLabel(k)).toLowerCase();
+const nombre = (k) => (PARTE_ES[k] || (SCALE_FIELDS.find((f) => f.key === k) || {}).label || measureLabel(k)).toLowerCase();
 const MOTIVOS = {
   missing_side: (r) => 'Dijiste «' + nombre(r.part) + ' ' + num(r.valueCm) + '» sin lado: indica derecho o izquierdo.',
-  out_of_range: (r) => num(r.valueCm) + ' no es posible para ' + nombre(r.part) + ': ¿centímetros o milímetros?'
+  out_of_range: (r) => num(r.valueCm) + ' no es posible para ' + nombre(r.part) + (SCALE_FIELDS.some((f) => f.key === r.part) ? ': ¿se ha leído mal la coma decimal?' : ': ¿centímetros o milímetros?')
 };
 
 let recorder = null;
@@ -52,10 +53,44 @@ function inicio(el, records) {
     h('div', { class: 'acciones' },
       h('button', { type: 'button', class: 'btn', onClick: () => pantallaVoz(el, records) }, 'Medir por voz'),
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => pantallaRevision(el, records, { measurements: {}, source: 'manual' }) }, 'Anotar a mano'),
+      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => pantallaPantallazo(el, records) }, 'Subir pantallazo de la báscula'),
       h('a', { class: 'btn btn-sec', href: '#guia' }, 'Guía para medirte')),
     peso ? h('p', { class: 'nota' }, 'Peso: ' + num(peso.value) + ' kg · ' + formatDateEs(peso.date)) : null,
+    bascula(records),
     filas.length ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Última medida de cada parte'), h('ul', { class: 'lista' }, filas))
       : h('p', { class: 'vacio' }, 'Aún no hay medidas. Mídete con la cinta y dicta los números; la guía te enseña dónde colocarla.')));
+}
+
+function bascula(records) {
+  const sc = latestScale(records);
+  const filas = SCALE_FIELDS.filter((f) => f.key !== 'weightKg' && sc[f.key]).map((f) => {
+    const s = sc[f.key];
+    const d = s.prev !== null ? Math.round((s.value - s.prev) * 100) / 100 : null;
+    return h('li', { class: 'fila medida' }, h('span', {}, f.label),
+      h('span', { class: 'valor-medida' }, num2(s.value) + (f.unit ? ' ' + f.unit : ''), d !== null && d !== 0 ? h('small', {}, ' ' + (d > 0 ? '+' : '−') + num2(Math.abs(d))) : null));
+  });
+  return filas.length ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Última lectura de la báscula'), h('ul', { class: 'lista' }, filas)) : null;
+}
+
+function pantallaPantallazo(el, records) {
+  const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
+  const input = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'Captura de la báscula' });
+  input.addEventListener('change', async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    estado.className = 'estado'; estado.textContent = 'Leyendo el pantallazo…';
+    try {
+      const blob = await shrinkImage(f);
+      const data = await blobToBase64(blob);
+      const r = await call('body.extract', { kind: 'image', mime: 'image/jpeg', data }, { timeoutMs: 150000 });
+      if (vigente(el)) pantallaRevision(el, records, { source: 'scale', measurements: {}, scale: r.fields, rejected: r.rejected, date: r.date });
+    } catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = err.message; }
+  });
+  el.replaceChildren(h('section', {},
+    h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Pantallazo de la báscula'),
+    h('p', { class: 'nota' }, 'Haz una captura de la pantalla de resultados de tu báscula y elígela aquí. Podrás revisar los números antes de guardarlos.'),
+    h('label', {}, 'Captura', input), estado,
+    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, records) }, 'Cancelar'))));
 }
 
 function pantallaVoz(el, records) {
@@ -110,19 +145,27 @@ function pantallaRevision(el, records, ext) {
     return h('label', { class: s ? 'sospechosa' : '' }, m.label + (prev[m.key] ? ' · antes ' + num(prev[m.key].value) : ''), input,
       s ? h('small', { class: 'aviso-medida' }, 'Cambio de ' + (s.pct > 0 ? '+' : '−') + String(Math.abs(s.pct)).replace('.', ',') + ' % respecto a la última vez: revisa que sea correcto.') : null);
   });
-  const peso = h('input', { inputmode: 'decimal', autocomplete: 'off', 'aria-label': 'Peso en kilos', value: ext.weightKg ? num(ext.weightKg) : '' });
-  const fecha = h('input', { type: 'date', value: todayIsoLocal(), 'aria-label': 'Fecha' });
+  const scale = Object.assign({}, ext.scale || {});
+  if (ext.weightKg) scale.weightKg = ext.weightKg;
+  const camposBascula = (ext.source === 'scale' ? SCALE_FIELDS : SCALE_FIELDS.filter((f) => f.key === 'weightKg'));
+  const scaleInputs = {};
+  const filasBascula = camposBascula.map((f) => {
+    const input = h('input', { inputmode: 'decimal', autocomplete: 'off', 'aria-label': f.label, value: scale[f.key] === undefined ? '' : num2(scale[f.key]) });
+    scaleInputs[f.key] = input;
+    return h('label', {}, f.label + (f.unit ? ' (' + f.unit + ')' : ''), input);
+  });
+  const fecha = h('input', { type: 'date', value: ext.date || todayIsoLocal(), 'aria-label': 'Fecha' });
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const rechazadas = (ext.rejected || []).map((r) => MOTIVOS[r.reason] ? h('p', { class: 'aviso peligro' }, MOTIVOS[r.reason](r)) : null);
 
   const guardar = async (btn) => {
     const measurementsCm = {};
     for (const m of MEASURES) { const n = parseNum(inputs[m.key].value); if (n !== null) measurementsCm[m.key] = n; }
-    const w = parseNum(peso.value);
-    if (!Object.keys(measurementsCm).length && w === null) { estado.className = 'estado error'; estado.textContent = 'Anota al menos una medida o el peso.'; return; }
     const record = { date: fecha.value, source: ext.source };
+    let hayBascula = false;
+    for (const f of camposBascula) { const n = parseNum(scaleInputs[f.key].value); if (n !== null) { record[f.key] = n; hayBascula = true; } }
+    if (!Object.keys(measurementsCm).length && !hayBascula) { estado.className = 'estado error'; estado.textContent = 'Anota al menos una medida o un dato de la báscula.'; return; }
     if (Object.keys(measurementsCm).length) record.measurementsCm = measurementsCm;
-    if (w !== null) record.weightKg = w;
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
     try { await call('commit', { entity: 'body', record }, { timeoutMs: 60000 }); if (vigente(el)) cargar(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
@@ -130,11 +173,12 @@ function pantallaRevision(el, records, ext) {
 
   el.replaceChildren(h('section', {},
     h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Revisa las medidas'),
+    ext.source === 'scale' ? null : null,
     ext.transcript ? h('p', { class: 'nota' }, 'Oí: «' + ext.transcript + '»') : null,
     ...rechazadas,
     h('form', { class: 'card', novalidate: true, onSubmit: (e) => e.preventDefault() },
-      h('label', {}, 'Fecha', fecha), h('label', {}, 'Peso (kg), opcional', peso), ...filas,
-      h('p', { class: 'nota' }, 'Deja en blanco lo que no hayas medido. Las medidas son en centímetros.')),
+      h('label', {}, 'Fecha', fecha), ...filasBascula, ...(ext.source === 'scale' ? [] : filas),
+      h('p', { class: 'nota' }, ext.source === 'scale' ? 'Corrige lo que la IA haya leído mal. Deja en blanco lo que no quieras guardar.' : 'Deja en blanco lo que no hayas medido. Las medidas son en centímetros.')),
     estado,
     h('div', { class: 'acciones fin' },
       h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar medidas'),
