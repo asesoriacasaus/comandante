@@ -7,10 +7,11 @@ import * as mas from './views/mas.js';
 import * as ajustes from './views/ajustes.js';
 import * as prueba from './views/prueba.js';
 import * as sesion from './views/sesion.js';
+import * as revision from './views/revision.js';
 
-const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion };
+const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision };
 // Ajustes y prueba cuelgan de "Más".
-const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy' };
+const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy' };
 const view = document.getElementById('view');
 
 function currentRoute() {

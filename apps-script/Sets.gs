@@ -5,7 +5,7 @@
 
 const IMPLEMENTS_ = ['barbell', 'ezbar', 'dumbbell', 'kettlebell', 'machine', 'cable', 'bodyweight', 'smith'];
 const SET_TYPES_ = ['warmup', 'working', 'drop', 'failure'];
-const SESSION_STATUS_ = ['planned', 'in_progress', 'review', 'done'];
+const SESSION_STATUS_ = ['planned', 'in_progress', 'review', 'done', 'discarded'];
 
 const DEFAULT_EQUIPMENT_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
 

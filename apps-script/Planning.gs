@@ -34,18 +34,18 @@ function callJson_(tier, system, userObj, schema, validate, extraParts) {
   throw { code: 'VALIDATION', message: 'La IA no ha devuelto un resultado válido' };
 }
 
-function coachMessage_(groups, notes, settings, facts) {
+function coachMessage_(groups, notes, settings, facts, task, fallback) {
   const persona = PropertiesService.getScriptProperties().getProperty('PERSONA_PROMPT') || '';
   try {
     const r = callGemini_('FAST', buildCoachSystem_(persona, settings.coach.intensity),
-      [{ text: JSON.stringify({ tarea: 'Mensaje breve para el inicio de la sesión de hoy', gruposDeHoy: groupsEs_(groups), avisos: notes, datos: facts }) }],
+      [{ text: JSON.stringify({ tarea: task || 'Mensaje breve para el inicio de la sesión de hoy', gruposDeHoy: groupsEs_(groups), avisos: notes, datos: facts }) }],
       { schema: MESSAGE_SCHEMA_, temperature: 0.8 });
     const m = JSON.parse(r.text).message;
     if (typeof m === 'string' && m.trim()) return m.trim().slice(0, 400);
   } catch (err) {
     console.error('coachMessage_ ' + (err && err.code ? err.code : 'error')); // solo el código
   }
-  return neutralCoachMessage_(groups, notes);
+  return fallback || neutralCoachMessage_(groups, notes);
 }
 
 // ---------- Acciones ----------

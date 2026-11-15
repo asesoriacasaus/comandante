@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupsEs, formatLoad, formatReps, formatRest, parseNum, formatDateEs, formatClock, loadField } from '../js/lib/format.js';
+import { groupsEs, formatLoad, formatReps, formatRest, parseNum, formatDateEs, formatClock, loadField, formatDelta, describeIssue } from '../js/lib/format.js';
 
 test('grupos en español', () => {
   assert.equal(groupsEs(['chest', 'triceps']), 'pecho y tríceps');
@@ -42,4 +42,13 @@ test('reloj y campo de carga', () => {
   assert.equal(loadField('dumbbell')[0], 'perHandKg');
   assert.equal(loadField('machine')[0], 'stackKg');
   assert.equal(loadField('bodyweight')[0], 'addedKg');
+});
+
+test('diferencias y avisos de revisión', () => {
+  assert.equal(formatDelta(5), '+5 kg'); assert.equal(formatDelta(-2.5), '−2,5 kg'); assert.equal(formatDelta(0), 'igual'); assert.equal(formatDelta(null), '');
+  assert.match(describeIssue({ type: 'fewer_sets', name: 'Press banca', done: 2, planned: 4 }), /2 de 4/);
+  assert.match(describeIssue({ type: 'rir_unknown', n: 1 }), /1 serie sin RIR/);
+  assert.match(describeIssue({ type: 'rir_unknown', n: 3 }), /3 series sin RIR/);
+  assert.match(describeIssue({ type: 'pain', text: 'hombro' }), /hombro.*baja la carga/);
+  assert.equal(describeIssue({ type: 'pending' }), '');
 });

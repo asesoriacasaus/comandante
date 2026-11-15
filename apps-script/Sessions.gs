@@ -90,3 +90,61 @@ function clipProcess(p) {
   });
   return { session: updated };
 }
+
+// ---------- Revisión y cierre ----------
+
+function previousSameKey_(session, settings) {
+  const today = todayIso_(settings.profile.timezone);
+  const all = loadSessionsSince_(addDays_(today, -180), today).filter((s) => s.id !== session.id);
+  return lastSessionOfKey_(all, session.cycleKey);
+}
+
+/** Revisión de la sesión: cálculo determinista + mensaje de cierre (se genera una vez y se guarda). */
+function sessionReview(id) {
+  let s = readSession_(id);
+  if (['review', 'done'].indexOf(s.status) < 0) throw { code: 'VALIDATION', message: 'La sesión aún no está en revisión' };
+  const settings = getSettings();
+  const library = exerciseSeed_();
+  const bw = latestBodyweight_(settings);
+  let review = buildReview_(s, previousSameKey_(s, settings), library, { bodyweightKg: bw });
+  if (!s.reviewMessage) {
+    const msg = coachMessage_(s.groups, review.issues.map((i) => i.type),
+      settings, { series: review.summary.workingSets, volumenKg: Math.round(review.summary.totalVolumeKg), sinHacer: review.missing.map((m) => m.name),
+        molestias: (s.painFlags || []).length }, 'Mensaje de cierre de la sesión (2 o 3 frases): reconoce el trabajo y di qué mirar la próxima vez',
+      neutralReviewMessage_(review));
+    s = mutateSession_(id, (q) => { if (!q.reviewMessage) q.reviewMessage = msg; return q; });
+  }
+  return { session: s, review: review };
+}
+
+function sessionSave(id) {
+  const settings = getSettings();
+  const today = todayIso_(settings.profile.timezone);
+  return { session: mutateSession_(id, (s) => {
+    if (s.status === 'done') throw { code: 'VALIDATION', message: 'La sesión ya está guardada' };
+    if (s.status !== 'review') throw { code: 'VALIDATION', message: 'Termina la sesión antes de guardarla' };
+    const errors = validateForSave_(s, today, settings.equipment);
+    if (errors.length) throw { code: 'VALIDATION', message: errors.join(' ') };
+    s.status = 'done';
+    s.savedAt = new Date().toISOString();
+    return s;
+  }) };
+}
+
+function sessionDiscard(id) {
+  return { session: mutateSession_(id, (s) => {
+    if (s.status === 'done') throw { code: 'VALIDATION', message: 'Una sesión guardada no se descarta' };
+    s.status = 'discarded';
+    return s;
+  }) };
+}
+
+/** Vuelve a la grabación desde la revisión (por ejemplo, si terminaste sin querer). */
+function sessionResume(id) {
+  return { session: mutateSession_(id, (s) => {
+    if (s.status !== 'review') throw { code: 'VALIDATION', message: 'Solo se puede retomar una sesión en revisión' };
+    s.status = 'in_progress';
+    delete s.endedAt;
+    return s;
+  }) };
+}

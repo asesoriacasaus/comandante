@@ -605,13 +605,70 @@ function test_pure_ids() {
   return 'ok';
 }
 
+// ---------- Revisión ----------
+
+function test_pure_review() {
+  const lib = exerciseSeed_();
+  const mkSet = (order, reps, rir, ps, extra) => Object.assign({ order: order, type: 'working', reps: reps, rir: rir, load: bb_(ps), clipId: 'c_1', flags: [] }, extra || {});
+  const planned = [
+    { exerciseId: 'press_banca', name: 'Press banca', sets: 4, repsMin: 6, repsMax: 10, targetRir: 3, targetLoad: bb_(15) },
+    { exerciseId: 'press_inclinado', name: 'Press inclinado', sets: 3, repsMin: 8, repsMax: 12, targetRir: 3, targetLoad: normalizeLoad_({ implement: 'dumbbell', perHandKg: 20 }, {}).load },
+    { exerciseId: 'extension_polea', name: 'Extensión de tríceps en polea', sets: 3, repsMin: 10, repsMax: 15, targetRir: 3, targetLoad: normalizeLoad_({ implement: 'cable', stackKg: 30 }, {}).load }
+  ];
+  const session = { id: 's_20261116_1800_ab12', cycleKey: 'A', groups: ['chest', 'triceps'], plannedExercises: planned,
+    exercises: [
+      { exerciseId: 'press_banca', name: 'Press banca', sets: [mkSet(1, 10, 2, 10, { type: 'warmup' }), mkSet(2, 8, 2, 20), mkSet(3, 8, null, 20, { flags: ['inherited_load'] })] },
+      { exerciseId: 'curl_barra', name: 'Curl con barra', sets: [mkSet(1, 12, 2, 10)] }
+    ],
+    pending: [{ reason: 'unknown_exercise', text: 'baile' }], painFlags: [{ text: 'hombro' }] };
+  const prev = { exercises: [{ exerciseId: 'press_banca', sets: [mkSet(1, 10, 2, 17.5), mkSet(2, 10, 2, 17.5)] }] };
+
+  const r = buildReview_(session, prev, lib, { bodyweightKg: 80 });
+  const pb = r.exercises[0];
+  assert_(pb.doneSets === 2 && pb.plannedSets === 4, 'el calentamiento no cuenta: 2 series de 4 previstas');
+  assert_(pb.topLoad.totalKg === 60 && pb.vsPlanKg === 10, 'frente al plan: 60 kg frente a 50');
+  assert_(pb.vsLast.deltaKg === 5 && pb.vsLast.topKg === 55, 'frente a la última vez: +5 kg');
+  assert_(pb.volumeKg === 960 && pb.vsLast.volumeKg === 1100 && pb.vsLast.volumePct === -13, 'volumen 960 frente a 1100 (−13 %)');
+  assert_(pb.rirUnknown === 1 && pb.avgRir === 2, 'RIR sin dato contado aparte');
+  assert_(r.exercises[1].inPlan === false && r.exercises[1].vsLast === null, 'ejercicio fuera del plan y sin historial');
+  const types = r.issues.map((i) => i.type);
+  ['fewer_sets', 'unplanned', 'missing', 'pending', 'inherited_load', 'rir_unknown', 'pain'].forEach((t) => assert_(types.indexOf(t) >= 0, 'falta el aviso ' + t));
+  assert_(r.missing.length === 2 && r.missing[0].name === 'Press inclinado', 'ejercicios del plan sin hacer');
+  assert_(r.summary.workingSets === 3 && r.hasPrevious, 'resumen y existencia de sesión previa');
+  assert_(JSON.stringify(session).indexOf('vsLast') < 0, 'no muta la sesión');
+
+  const clean = buildReview_({ plannedExercises: [planned[0]], exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [mkSet(1, 8, 2, 15), mkSet(2, 8, 2, 15), mkSet(3, 8, 2, 15), mkSet(4, 8, 2, 15)] }] }, null, lib, {});
+  assert_(clean.issues.length === 0 && clean.hasPrevious === false && clean.exercises[0].vsPlanKg === 0, 'sesión limpia: sin avisos');
+
+  const msg = neutralReviewMessage_(r);
+  assert_(msg.indexOf('2 series') < 0 && msg.indexOf('3 series') >= 0 && msg.indexOf('Press inclinado') >= 0 && msg.indexOf('molestia') >= 0, 'mensaje neutro con datos reales');
+  return 'ok';
+}
+
+function test_pure_save_validation() {
+  const eq = { barbellKg: 20, ezBarKg: 10 };
+  const ok = { id: 's_20261116_1800_ab12', date: '2026-11-16', status: 'review', groups: ['chest'], pending: [], startedAt: '2026-11-16T17:00:00Z', endedAt: '2026-11-16T18:10:00Z',
+    exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] };
+  assert_(validateForSave_(ok, '2026-11-16', eq).length === 0, 'sesión correcta: ' + validateForSave_(ok, '2026-11-16', eq));
+  assert_(validateForSave_(Object.assign({}, ok, { pending: [{ reason: 'x' }] }), '2026-11-16', eq).some((m) => m.indexOf('pendientes') >= 0), 'con pendientes no se guarda');
+  assert_(validateForSave_(Object.assign({}, ok, { exercises: [] }), '2026-11-16', eq).length > 0, 'sin series no se guarda');
+  const onlyWarm = JSON.parse(JSON.stringify(ok)); onlyWarm.exercises[0].sets[0].type = 'warmup';
+  assert_(validateForSave_(onlyWarm, '2026-11-16', eq).some((m) => m.indexOf('serie de trabajo') >= 0), 'solo calentamiento no cuenta');
+  const bad = JSON.parse(JSON.stringify(ok)); bad.exercises[0].sets[0].reps = null;
+  assert_(validateForSave_(bad, '2026-11-16', eq).length > 0, 'serie sin repeticiones no se guarda');
+  assert_(SESSION_STATUS_.indexOf('discarded') >= 0, 'existe el estado descartada');
+  assert_(validateSession_({ id: 'x', date: '2026-11-16', status: 'discarded' }, '2026-11-16').length === 0, 'una sesión descartada es válida');
+  assert_(pendingKeys_(CYCLE_, [{ status: 'discarded', cycleKey: 'A', date: '2026-11-16' }])[0] === 'A', 'una sesión descartada no cuenta para la rotación');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

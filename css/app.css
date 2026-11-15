@@ -74,3 +74,10 @@ select { background: var(--lino); }
 .serie-btn .carga { margin: 0; font-size: 13px; text-align: right; }
 .editor { padding: 8px 0 16px; }
 .acciones.fin { margin-top: 24px; }
+
+/* Revisión */
+.resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 20px; }
+.dato { padding: 14px 12px; background: var(--blanco); border: 1px solid var(--piedra); }
+.dato .valor { display: block; font: 400 28px var(--serif); font-variant-numeric: tabular-nums; }
+.avisos { margin: 8px 0 0; padding-left: 18px; font-size: 15px; color: var(--tinta-2); }
+.avisos li { margin: 0 0 6px; }

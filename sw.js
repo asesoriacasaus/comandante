@@ -20,6 +20,7 @@ const SHELL = [
   './js/lib/queue.js',
   './js/recorder.js',
   './js/views/sesion.js',
+  './js/views/revision.js',
   './js/lib/format.js',
   './js/views/bienvenida.js',
   './js/views/hoy.js',
