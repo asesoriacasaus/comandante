@@ -27,6 +27,8 @@ const SHELL = [
   './js/lib/diary.js',
   './js/lib/charts.js',
   './js/lib/nutrition.js',
+  './js/lib/runs.js',
+  './js/views/carreras.js',
   './js/lib/figure.js',
   './js/lib/format.js',
   './js/views/bienvenida.js',

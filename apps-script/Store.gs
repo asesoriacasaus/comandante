@@ -238,6 +238,7 @@ function commitRecord(entity, record) {
     case 'session': return commitSession_(record, tz, today);
     case 'meal': return commitMeal_(record, tz, today);
     case 'body': return commitBody_(record, today);
+    case 'run': return commitRun_(record, tz, today);
     default: throw { code: 'VALIDATION', message: 'entidad desconocida: ' + entity };
   }
 }
@@ -325,8 +326,8 @@ function queryRecords(p) {
   let items;
   if (entity === 'body') {
     items = readJson_('body.json', []).filter(inRange);
-  } else if (entity === 'session' || entity === 'meal') {
-    const dir = entity === 'session' ? 'sessions' : 'meals';
+  } else if (entity === 'session' || entity === 'meal' || entity === 'run') {
+    const dir = entity === 'session' ? 'sessions' : entity === 'meal' ? 'meals' : 'runs';
     items = [];
     monthsBetween_(from, to).forEach((ym) => {
       readJson_(dir + '/' + ym + '.json', []).forEach((x) => items.push(x));

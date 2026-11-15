@@ -859,6 +859,56 @@ function commitMealTotalsCheck_() {
   return totals.vitCMg === 10 && totals.kcal === 500;
 }
 
+// ---------- Carreras ----------
+
+const OFF_ = () => '+01:00';
+const rawRun_ = (o) => Object.assign({ kind: 'run', date: '2026-10-31', time: '11:17', durationText: '00:14:51', paceText: '7\'35"', distanceKm: 1.96,
+  avgHr: 155, cadence: 130, kcal: 125, elevationM: 5, trainingLoad: 31 }, o || {});
+
+function test_pure_runs() {
+  assert_(parseDuration_('00:14:51') === 891 && parseDuration_('1:05:03') === 3903 && parseDuration_('14:51') === 891, 'duraciones hh:mm:ss, h:mm:ss y mm:ss');
+  assert_(parseDuration_('00:75:00') === null && parseDuration_('12:99') === null && parseDuration_('abc') === null && parseDuration_('') === null, 'duraciones inválidas');
+  assert_(parsePace_('7\'35"') === 455 && parsePace_("5'05\"") === 305 && parsePace_('6:10') === 370 && parsePace_('7\'35" /km') === 455, 'ritmos con formatos de reloj');
+  assert_(parsePace_('7\'75"') === null && parsePace_('rápido') === null && parsePace_(null) === null, 'ritmos inválidos');
+
+  assert_(validateRunExtraction_(rawRun_()).length === 0, 'extracción válida');
+  const r = sanitizeRun_(rawRun_(), '2026-11-15', OFF_);
+  assert_(r.fields.distanceKm === 1.96 && r.fields.durationSec === 891 && r.fields.avgPaceSecPerKm === 455 && r.fields.avgHr === 155, 'campos convertidos por el código');
+  assert_(r.warnings.length === 0 && r.date === '2026-10-31' && r.startedAt === '2026-10-31T11:17:00+01:00', 'ritmo coherente y hora de inicio con offset');
+  assert_(validateRun_(Object.assign({ date: '2026-10-31', startedAt: r.startedAt }, r.fields), '2026-11-15').length === 0, 'el registro resultante es válido');
+
+  // Ritmo ausente: se calcula; ritmo incoherente: se avisa
+  let x = sanitizeRun_(rawRun_({ paceText: null }), '2026-11-15', OFF_);
+  assert_(x.fields.avgPaceSecPerKm === 455 && x.warnings[0] === 'pace_from_data', 'sin ritmo se calcula de distancia y duración');
+  x = sanitizeRun_(rawRun_({ paceText: '4\'00"' }), '2026-11-15', OFF_);
+  assert_(x.warnings[0] === 'pace_mismatch', 'ritmo que no cuadra con distancia y duración: aviso');
+  x = sanitizeRun_(rawRun_({ avgHr: 150, maxHr: 120 }), '2026-11-15', OFF_);
+  assert_(x.fields.maxHr === undefined && x.warnings.indexOf('maxhr_below_avg') >= 0, 'pulso máximo menor que el medio se descarta');
+
+  // Rechazos
+  x = sanitizeRun_(rawRun_({ distanceKm: 196, kcal: 99999 }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.part === 'kcal') && x.fields.distanceKm === 196, 'kcal absurdas rechazadas');
+  x = sanitizeRun_(rawRun_({ distanceKm: 1960 }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.part === 'distanceKm'), 'distancia imposible (coma mal leída) rechazada');
+  x = sanitizeRun_(rawRun_({ durationText: 'mucho' }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.reason === 'unreadable') && x.fields.durationSec === undefined, 'duración ilegible');
+  x = sanitizeRun_(rawRun_({ date: '2027-02-01' }), '2026-11-15', OFF_);
+  assert_(x.date === null && x.startedAt === null, 'fecha futura descartada: sin hora de inicio');
+  x = sanitizeRun_(rawRun_({ time: null }), '2026-11-15', OFF_);
+  assert_(x.date === '2026-10-31' && x.startedAt === null, 'sin hora no se inventa startedAt');
+  let c = null; try { sanitizeRun_({ kind: 'other' }, '2026-11-15', OFF_); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'imagen que no es una carrera');
+  assert_(validateRun_({ date: '2026-10-31', distanceKm: 5 }, '2026-11-15').length > 0, 'falta la duración');
+  assert_(validateRun_({ date: '2026-10-31', distanceKm: 5, durationSec: 20 }, '2026-11-15').length > 0, 'duración de 20 s imposible');
+  assert_(RUN_SYSTEM_.indexOf('nunca inventes ni calcules') >= 0 && RUN_SYSTEM_.indexOf('No extraigas zancada') >= 0, 'prompt prudente');
+
+  // Conexión con la regla de carrera del planificador: una carrera guardada con este formato cuenta como tirada larga
+  const run = Object.assign({ date: '2026-10-31', startedAt: r.startedAt }, r.fields);
+  assert_(isLongRun_({ durationSec: 4000, distanceKm: 8 }) && !isLongRun_(run), 'una salida corta de 15 min no es tirada larga');
+  assert_(recentLongRun_([{ date: '2026-11-14', startedAt: '2026-11-14T08:00:00+01:00', durationSec: 4000, distanceKm: 9 }], '2026-11-15T09:00:00+01:00'), 'tirada larga de ayer a las 8:00 cuenta a las 9:00 de hoy (25 h)');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -866,7 +916,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_commit_roundtrip].forEach((fn) => {
+    test_pure_runs, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

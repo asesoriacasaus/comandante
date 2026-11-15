@@ -466,9 +466,9 @@ Criterio: un pantallazo real de la báscula Huawei rellena bien todos los campos
 
 Criterio: una comida dictada genera ítems coherentes con macros y micronutrientes y suma bien los totales del día.
 
-### Fase 4. Carreras (8 %)
+### Fase 4. Carreras (8 %). Código completo el 15 de noviembre; falta la prueba con un pantallazo real del reloj
 
-`run.extract`, pantalla **Carreras**, regla de carrera del planificador conectada a datos reales.
+`run.extract`, pantalla **Carreras**, regla de carrera del planificador conectada a datos reales. El modelo solo transcribe los textos del reloj ("00:14:51", "7'35\""); el código convierte y comprueba que ritmo, distancia y duración sean coherentes. La hora de inicio de la carrera alimenta la regla de las 36 horas.
 
 Criterio: un pantallazo real del Huawei Watch Fit 4 rellena los campos; una tirada larga reciente adelanta la sesión sin pierna.
 
