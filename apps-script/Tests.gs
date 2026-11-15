@@ -1077,10 +1077,22 @@ function test_pure_tts() {
   assert_(TTS_VOICES_.length === 30 && TTS_VOICES_.indexOf('Orus') >= 0, 'catálogo de voces');
   assert_(ttsVoice_('Fenrir') === 'Fenrir' && ttsVoice_('  Kore ') === 'Kore' && ttsVoice_('') === 'Orus' && ttsVoice_('voz inventada') === 'Orus' && ttsVoice_(null) === 'Orus', 'voz válida, o la de por defecto');
   assert_(ttsVoice_('Orus"}],"x":[{') === 'Orus', 'una voz con comillas no se cuela en la petición');
-  const r = buildTtsRequest_('¡A la carga, compatriota!', 'Charon');
+  const r = buildTtsRequest_('¡A la carga, compatriota!', 'Charon', 'director');
   assert_(r.generationConfig.responseModalities[0] === 'AUDIO' && r.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName === 'Charon', 'petición de audio con la voz elegida');
-  assert_(r.contents[0].parts[0].text.indexOf('"¡A la carga, compatriota!"') >= 0 && r.contents[0].parts[0].text.indexOf('acento venezolano') >= 0, 'el estilo y el texto van en el mensaje del usuario');
-  assert_(/Chávez|Chavez|Hugo|presidente/i.test(TTS_STYLE_) === false, 'el estilo pide un acento y una manera de decir, no la voz de una persona concreta');
+  const dir = r.contents[0].parts[0].text;
+  assert_(dir.indexOf("DIRECTOR'S NOTES") >= 0 && dir.indexOf('Venezuelan') >= 0 && dir.indexOf('Do not read these notes') >= 0, 'las notas de estilo piden no leerse');
+  assert_(dir.endsWith('#### TRANSCRIPT\n¡A la carga, compatriota!') && dir.split('#### TRANSCRIPT\n')[1] === '¡A la carga, compatriota!', 'el mensaje va al final, tras la etiqueta de transcripción y sin comillas');
+  assert_(ttsPrompt_('Hola', 'none') === 'Hola', 'modo sin estilo: solo el texto');
+  assert_(ttsPrompt_('Hola', 'prefix').endsWith(': Hola') && ttsPrompt_('Hola', 'prefix').indexOf('Venezuelan') >= 0, 'modo prefijo');
+  assert_(ttsPrompt_('Hola', 'inventado') === ttsPrompt_('Hola', 'director') && ttsPrompt_('Hola') === ttsPrompt_('Hola', 'director'), 'estilo desconocido o ausente: director');
+  assert_(ttsStyle_(' NONE ') === 'none' && ttsStyle_('director"') === 'director' && ttsStyle_(null) === 'director', 'normalización del estilo');
+  assert_(/Chávez|Chavez|Hugo|presidente/i.test(TTS_DIRECTOR_ + TTS_PREFIX_) === false, 'el estilo pide un acento y una manera de decir, no la voz de una persona concreta');
+  // Detección de "ha leído también las indicaciones": un texto corto no puede durar medio minuto
+  assert_(ttsLooksWrong_(30, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === true, 'texto de 10 palabras que dura 30 s: sospechoso');
+  assert_(ttsLooksWrong_(5, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === false, 'el mismo texto en 5 s: normal');
+  assert_(ttsLooksWrong_(9, '¡Compatriota! A la carga: la revolución empieza por el cuerpo.') === false, 'un orador lento (9 s) no se considera error');
+  assert_(ttsLooksWrong_(60, 'x ' .repeat(100)) === false && ttsLooksWrong_(5, '') === false, 'textos largos y vacíos');
+  assert_(Math.abs(ttsSeconds_({ mime: 'audio/L16;codec=pcm;rate=24000', data: 'A'.repeat(64000) }) - 1) < 0.01, 'duración de un PCM de 24 kHz: 48.000 bytes = 1 s');
   const a = parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: 'AAAA' } }] } }] });
   assert_(a.data === 'AAAA' && a.mime.indexOf('rate=24000') >= 0, 'extrae el audio');
   assert_(parseGeminiAudio_({ candidates: [{ content: { parts: [{ inlineData: { data: 'AAAA' } }] } }] }).mime.indexOf('L16') >= 0, 'mime por defecto');

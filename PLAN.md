@@ -269,7 +269,7 @@ Los identificadores de modelo **no van en el código**: se leen de Propiedades d
 
 - `GEMINI_MODEL_FAST`: el modelo Flash vigente. Transcripción, interpretación de clips, comidas, pantallazos.
 - `GEMINI_MODEL_SMART`: el modelo Pro vigente. Plan de la sesión, consolidación de la sesión, revisión semanal.
-- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`.
+- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`. `TTS_STYLE` (opcional): `director` (por defecto: notas de estilo separadas de la transcripción), `prefix` (una frase corta de estilo delante) o `none` (solo el texto, sin estilo).
 
 En la Fase 0 se consultan los identificadores actuales en la documentación oficial y se fijan.
 
@@ -312,7 +312,7 @@ El usuario eligió una personalidad concreta y marcada para el entrenador. **La 
 - Las instrucciones piden hablar "al estilo de" la personalidad, no afirmar ser una persona real. Si Gemini bloquea o suaviza la respuesta, se muestra un texto neutro y se registra el código.
 - Seguridad física por encima del personaje: ante dolor o lesión, el mensaje recomienda parar o ajustar.
 - Si `PERSONA_PROMPT` está vacía, el entrenador habla en tono neutro y directo.
-- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Máximo 600 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
+- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Los modelos de voz leen todo lo que reciben, así que el estilo va separado de la transcripción y, si el audio dura demasiado para el texto (señal de que ha leído también las indicaciones), el servidor lo repite automáticamente sin estilo. Máximo 1.200 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
 
 ---
 
