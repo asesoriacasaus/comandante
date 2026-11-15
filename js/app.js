@@ -68,6 +68,8 @@ render();
 
 // Despierta al servidor nada más abrir la app: la primera llamada de verdad no paga el arranque en frío.
 if (getConfig().apiUrl) call('ping', {}, { silent: true, timeoutMs: 30000 }).catch(() => {});
+// La lista de ejercicios se guarda en el móvil con tiempo, para que el formulario de series funcione sin red en el gimnasio.
+if (getConfig().apiUrl) setTimeout(() => import('./lib/ejercicios.js').then((m) => m.cargarEjercicios()).catch(() => {}), 4000);
 
 if ('serviceWorker' in navigator) {
   // Cuando una versión nueva toma el control, se recarga para mostrarla. Nunca a mitad de una sesión de entreno:

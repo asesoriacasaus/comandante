@@ -61,8 +61,23 @@ function sessionEdit(p) {
   const library = exerciseSeed_();
   return { session: mutateSession_(p.id, (s) => {
     if (s.status === 'done') throw { code: 'VALIDATION', message: 'La sesión ya está cerrada' };
-    return applyEditOp_(s, p.op || {}, settings.equipment, library);
+    return applyOpOnce_(s, p.op || {}, settings.equipment, library);
   }) };
+}
+
+const OP_ID_RE_ = /^o_[A-Za-z0-9_]{6,40}$/;
+
+/**
+ * Aplica una edición una sola vez. Las ediciones hechas sin conexión se reenvían al volver la red y un
+ * reintento tras un tiempo de espera podría llegar dos veces: con opId, la segunda no hace nada.
+ */
+function applyOpOnce_(s, op, equipment, library) {
+  const id = op.opId;
+  if (id !== undefined && !OP_ID_RE_.test(String(id))) throw { code: 'VALIDATION', message: 'id de edición inválido' };
+  if (id && (s.appliedOps || []).indexOf(id) >= 0) return s;
+  const out = applyEditOp_(s, op, equipment, library);
+  if (id) out.appliedOps = (out.appliedOps || []).concat([id]).slice(-200);
+  return out;
 }
 
 /** Procesa un clip de audio. Idempotente: reenviar el mismo clipId no duplica series. */
@@ -80,7 +95,7 @@ function clipProcess(p) {
 
   const updated = mutateSession_(p.sessionId, (s) => {
     if ((s.clips || []).some((c) => c.id === p.clipId)) return s;
-    const res = eventsToSets_(ai.events, s, { library: library, equipment: settings.equipment, clipId: p.clipId });
+    const res = eventsToSets_(ai.events, s, { library: library, equipment: settings.equipment, clipId: p.clipId, at: setTime_(p.ts) });
     s.exercises = res.exercises;
     s.pending = (s.pending || []).concat(res.pending);
     s.painFlags = (s.painFlags || []).concat(res.pain);
@@ -95,7 +110,7 @@ function clipProcess(p) {
 
 function previousSameKey_(session, settings) {
   const today = todayIso_(settings.profile.timezone);
-  const all = loadSessionsSince_(addDays_(today, -180), today).filter((s) => s.id !== session.id);
+  const all = loadSessionsSince_(addDays_(today, -120), today).filter((s) => s.id !== session.id);
   return lastSessionOfKey_(all, session.cycleKey);
 }
 
@@ -166,4 +181,35 @@ function sessionResume(id) {
     delete s.endedAt;
     return s;
   }) };
+}
+
+// ---------- Resumen ligero para Diario y Progreso ----------
+
+/** 1RM estimado (Epley); por encima de 12 repeticiones no es fiable. Igual que js/lib/progress.js. */
+function epley_(kg, reps) {
+  if (!(kg > 0) || !(reps >= 1) || reps > 12) return null;
+  return Math.round(kg * (reps === 1 ? 1 : 1 + reps / 30) * 10) / 10;
+}
+
+/**
+ * Lo que necesitan las listas: unos cientos de bytes por sesión en vez de 10-15 KB (sin clips ni series).
+ * El detalle se pide aparte con session.get cuando el usuario abre una sesión.
+ */
+function sessionSummary_(s) {
+  const ex = (s.exercises || []).map((x) => {
+    let best = null;
+    (x.sets || []).forEach((set) => {
+      if (set.type === 'warmup' || !set.load || set.load.implement === 'bodyweight') return;
+      const v = epley_(set.load.totalKg, set.reps);
+      if (v !== null && (best === null || v > best)) best = v;
+    });
+    return { exerciseId: x.exerciseId, name: x.name, sets: (x.sets || []).length, e1rm: best };
+  });
+  return { id: s.id, date: s.date, status: s.status, startedAt: s.startedAt || null, groups: s.groups || [],
+    metrics: s.metrics || {}, pain: (s.painFlags || []).length, exercises: ex };
+}
+
+function sessionsSummary(p) {
+  const r = queryRecords({ entity: 'session', from: p.from, to: p.to, filters: { status: 'done' } });
+  return { items: r.items.map(sessionSummary_) };
 }

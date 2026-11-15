@@ -36,3 +36,13 @@ test('semanas y tablas', () => {
   assert.equal(Object.keys(t.groups).length, 3);
 });
 test('color de celda', () => { assert.equal(cellClass(0), 'c0'); assert.equal(cellClass(5), 'c1'); assert.equal(cellClass(8), 'c2'); assert.equal(cellClass(16), 'c2'); assert.equal(cellClass(20), 'c3'); });
+
+test('Progreso funciona igual con el resumen ligero del servidor (e1rm ya calculado, sin series)', async () => {
+  const { exerciseList, e1rmSeries, bestOf } = await import('../js/lib/progress.js');
+  const resumen = [
+    { id: 'a', date: '2026-11-03', status: 'done', exercises: [{ exerciseId: 'pb', name: 'Press banca', sets: 4, e1rm: 76 }, { exerciseId: 'dom', name: 'Dominadas', sets: 3, e1rm: null }] },
+    { id: 'b', date: '2026-11-10', status: 'done', exercises: [{ exerciseId: 'pb', name: 'Press banca', sets: 4, e1rm: 80 }] }];
+  assert.deepEqual(exerciseList(resumen).map((e) => e.id), ['pb']);
+  assert.deepEqual(e1rmSeries(resumen, 'pb'), [{ date: '2026-11-03', value: 76 }, { date: '2026-11-10', value: 80 }]);
+  assert.equal(bestOf({ sets: [{ type: 'working', reps: 1, load: { implement: 'barbell', totalKg: 100 } }] }), 100, 'formato completo sigue valiendo');
+});

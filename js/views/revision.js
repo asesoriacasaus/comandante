@@ -6,7 +6,7 @@ import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
 import { botonEscuchar } from '../lib/voz.js';
-import { borrar } from '../lib/cache.js';
+import { borrar, swr, guardar, leer } from '../lib/cache.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -22,9 +22,11 @@ export function render(el) {
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Revisión'), h('h2', {}, 'Preparando la revisión…'), h('p', { class: 'vacio' }, 'Puede tardar unos segundos.')));
   const st = { id, session: null, review: null, editing: null, msg: '', msgType: '', busy: false, formulario: null, ejercicios: null, scrollForm: false };
 
+  const clave = 'revision-' + id;
   const load = async () => {
     const r = await call('session.review', { id }, { timeoutMs: 150000 });
     st.session = r.session; st.review = r.review;
+    guardar(clave, { session: r.session, review: r.review });
   };
   const paint = () => {
     if (!vigente(el)) return;
@@ -32,12 +34,34 @@ export function render(el) {
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   };
 
-  load().then(paint).catch((err) => {
-    console.error(err);
+  // Lo último visto se enseña al instante; el servidor lo confirma en segundo plano. Luego, el mensaje con la personalidad.
+  swr(clave, async () => { const r = await call('session.review', { id }, { timeoutMs: 150000 }); return { session: r.session, review: r.review }; },
+    (d) => { if (st.busy) return; st.session = d.session; st.review = d.review; paint(); },
+    { valido: (d) => d && d.session && d.session.id === id && d.session.status === 'review' })
+    .then(() => pedirMensajeCierre(el, st, clave))
+    .catch((err) => {
+      console.error(err);
+      if (!vigente(el)) return;
+      el.replaceChildren(h('section', {}, h('h2', {}, 'Revisión'), h('p', { class: 'estado error' }, err.message),
+        h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => render(el) }, 'Reintentar'), h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy'))));
+    });
+}
+
+function pedirMensajeCierre(el, st, clave) {
+  if (!st.session || st.session.reviewMessageSource === 'ai') return;
+  call('session.reviewMessage', { id: st.session.id }, { silent: true, timeoutMs: 120000 }).then((r) => {
+    const m = r && r.session && r.session.reviewMessage;
+    if (!m || !st.session || r.session.id !== st.session.id) return;
+    st.session.reviewMessage = m; st.session.reviewMessageSource = 'ai';
+    const hit = leer(clave);
+    if (hit && hit.data && hit.data.session) { hit.data.session.reviewMessage = m; hit.data.session.reviewMessageSource = 'ai'; guardar(clave, hit.data); }
     if (!vigente(el)) return;
-    el.replaceChildren(h('section', {}, h('h2', {}, 'Revisión'), h('p', { class: 'estado error' }, err.message),
-      h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => render(el) }, 'Reintentar'), h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy'))));
-  });
+    const q = el.querySelector('.mensaje');
+    if (q) q.textContent = m;
+    const v = el.querySelector('.voz');
+    const nuevo = botonEscuchar(m);
+    if (v && nuevo) v.replaceWith(nuevo);
+  }).catch((err) => console.error(err));   // se queda el mensaje neutro
 }
 
 function vista(st, ctx) {
@@ -121,17 +145,17 @@ function vista(st, ctx) {
   nodes.push(h('div', { class: 'acciones fin' },
     h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: () => run(async () => {
       await call('session.save', { id: ctx.id }, { timeoutMs: 60000 });
-      ['hoy', 'diario', 'progreso'].forEach(borrar);
+      ['hoy', 'resumen-sesiones', 'sesion-' + ctx.id, 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
       try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
       location.hash = '#hoy';
     }) }, 'Guardar sesión'),
     h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
-      await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); location.hash = '#sesion';
+      await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar); location.hash = '#sesion';
     }) }, 'Seguir grabando'),
     h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
       if (!confirm('¿Descartar esta sesión? No se podrá recuperar.')) return;
       await call('session.discard', { id: ctx.id }, { timeoutMs: 60000 });
-      borrar('hoy');
+      ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
       try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
       location.hash = '#hoy';
     }) }, 'Descartar sesión')));

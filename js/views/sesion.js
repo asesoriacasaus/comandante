@@ -3,12 +3,14 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
-import { borrar } from '../lib/cache.js';
+import { borrar, leer, guardar } from '../lib/cache.js';
+import { descanso, objetivo, seriesHechas } from '../lib/sesion-viva.js';
+import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
 import { valoresDeHeard, valorDeCarga } from '../lib/serie.js';
-import { groupsEs, formatLoad, formatClock, formatDateEs, formatRest, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
+import { groupsEs, formatLoad, formatClock, formatDateEs, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
 
 /** Lo que la IA entendió y oyó en un pendiente: así se ve por qué no cuadra. */
 export function pendienteDetalle(p, session) {
@@ -19,6 +21,7 @@ export function pendienteDetalle(p, session) {
 }
 
 export const ACTIVE_KEY = 'comandante.sessionId';
+export const CLAVE_VIVA = 'sesion-viva';   // copia local de la sesión en curso: se abre al instante y sin red
 const getActive = () => { try { return localStorage.getItem(ACTIVE_KEY) || ''; } catch (_) { return ''; } };
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
   invalid_load: 'Carga imposible', no_exercise: 'No sé de qué ejercicio hablas', nothing_to_repeat: 'No hay serie anterior que repetir' };
@@ -35,7 +38,7 @@ const recorder = createRecorder({
   },
   onAutoStop: () => { if (cur && cur.st.recording) cur.toggle(); }
 });
-window.addEventListener('online', () => { if (cur) cur.queue.flush({ force: true }); });
+window.addEventListener('online', () => { if (cur) { cur.queue.flush({ force: true }); if (cur.enviar) cur.enviar(); } });
 
 const vigente = (el) => el.dataset.route === 'sesion';
 
@@ -63,25 +66,65 @@ export function render(el) {
     }
   });
 
+  let guardada = '';
   function paint() {
     if (!vigente(el)) { stopTimer(); return; }
-    el.replaceChildren(view(st, { queue, el, paint, id }));
+    if (st.session) { const j = JSON.stringify(st.session); if (j !== guardada) { guardada = j; guardar(CLAVE_VIVA, st.session); } }
+    const nombres = Object.fromEntries((st.ejercicios || []).map((e) => [e.id, e.name]));
+    st.sinEnviar = ediciones.pendientes(id).length;
+    st.vista = st.session ? vistaLocal(st.session, ediciones.pendientes(id), nombres) : null;
+    el.replaceChildren(view(st, { queue, el, paint, id, editar, enviar }));
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   }
+  // Envía las ediciones hechas sin conexión, en orden. Una que el servidor rechace se quita y se explica.
+  let enviando = false;
+  async function enviar() {
+    if (enviando || !ediciones.pendientes(id).length) return;
+    enviando = true;
+    try {
+      const r = await ediciones.enviar(id, async (op) => (await call('session.edit', { id, op }, { timeoutMs: 60000, silent: true })).session,
+        (op, err) => { st.msg = 'Un cambio hecho sin conexión no se pudo guardar: ' + err.message; st.msgType = 'error'; });
+      if (r.sesion) st.session = r.sesion;
+      if (!r.parado && st.msgType !== 'error') st.msg = '';
+    } finally { enviando = false; }
+    paint();
+  }
+
+  /** Una edición: al servidor si hay red; si no (o si ya hay otras esperando, para no desordenarlas), a la cola local. */
+  async function editar(op) {
+    op.opId = newId('o');
+    if (!ediciones.pendientes(id).length) {
+      try { st.session = (await call('session.edit', { id, op }, { timeoutMs: 60000 })).session; return 'enviado'; }
+      catch (err) { if (!esFalloDeRed(err)) throw err; }
+    }
+    ediciones.poner(id, op);
+    st.msg = 'Sin conexión: el cambio se ve aquí y se enviará solo al volver la red.'; st.msgType = '';
+    enviar();
+    return 'en cola';
+  }
+
   function stopTimer() { if (st.timer) { clearInterval(st.timer); st.timer = null; } }
 
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Cargando…')));
+  const local = leer(CLAVE_VIVA);
+  if (local && local.data && local.data.id === id) { st.session = local.data; paint(); }
+  else el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Cargando…')));
   (async () => {
     try {
-      st.session = (await call('session.get', { id }, { timeoutMs: 60000 })).session;
       st.queueInfo = await queue.counts(id);
+      const fresca = (await call('session.get', { id }, { timeoutMs: 60000, silent: !!st.session })).session;
+      if (!st.session || JSON.stringify(fresca) !== JSON.stringify(st.session)) { st.session = fresca; }
     } catch (err) {
       console.error(err);
-      el.replaceChildren(h('section', {}, h('h2', {}, 'Sesión'), h('p', { class: 'estado error' }, err.message),
-        h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy')));
-      return;
+      if (!vigente(el)) return;
+      if (st.session) { st.msg = 'Sin conexión con el servidor: trabajas con la copia de este móvil. Graba igual; los clips se envían al volver la red.'; st.msgType = 'error'; }
+      else {
+        el.replaceChildren(h('section', {}, h('h2', {}, 'Sesión'), h('p', { class: 'estado error' }, err.message),
+          h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: () => render(el) }, 'Reintentar'), h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy'))));
+        return;
+      }
     }
     paint();
+    enviar();
     cargarEjercicios().then((l) => { st.ejercicios = l; }).catch(() => { /* se pedirá al abrir el formulario */ });
     requestWake();
     queue.flush({ force: true });
@@ -89,12 +132,12 @@ export function render(el) {
     st.timer = setInterval(() => {
       if (!vigente(el)) { stopTimer(); recorder.releaseMic(); releaseWake(); cur = null; return; }
       tick(el);
-      if (++n % 15 === 0) queue.flush();   // reintentos con backoff
+      if (++n % 15 === 0) { queue.flush(); enviar(); }   // reintentos con backoff
     }, 1000);
   })();
 
   el._sesion = st;
-  cur = { st, queue, toggle: () => {} };
+  cur = { st, queue, enviar, toggle: () => {} };
 }
 
 async function blobToPayload(clip) {
@@ -113,33 +156,18 @@ async function requestWake() {
 function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (_) { /* opcional */ } wakeLock = null; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock === null && location.hash === '#sesion') requestWake(); });
 
-// Actualiza solo los relojes sin repintar toda la pantalla.
+// Actualiza solo el reloj de descanso sin repintar toda la pantalla.
 function tick(el) {
   const rest = el.querySelector('#descanso');
   const st = el._sesion;
-  if (rest && st && st.session) rest.textContent = restText(st.session);
-}
-
-function lastSet(session) {
-  let best = null;
-  (session.exercises || []).forEach((x) => x.sets.forEach((s) => {
-    const clip = (session.clips || []).find((c) => c.id === s.clipId);
-    const ts = clip ? Date.parse(clip.ts) : NaN;
-    if (!isNaN(ts) && (!best || ts > best.ts)) best = { ts, exerciseId: x.exerciseId };
-  }));
-  return best;
-}
-
-function restText(session) {
-  const l = lastSet(session);
-  if (!l) return 'Descanso: registra tu primera serie';
-  const planned = (session.plannedExercises || []).find((p) => p.exerciseId === l.exerciseId);
-  const sec = (Date.now() - l.ts) / 1000;
-  return 'Descanso ' + formatClock(sec) + (planned && planned.restSec ? ' de ' + formatRest(planned.restSec) : '');
+  if (!rest || !st || !st.session) return;
+  const d = descanso(st.vista || st.session, Date.now());
+  if (rest.textContent !== d.texto) rest.textContent = d.texto;
+  rest.classList.toggle('listo', d.listo);
 }
 
 function view(st, ctx) {
-  const s = st.session;
+  const s = st.vista || st.session;
   const { queue, el, paint } = ctx;
   const setMsg = (m, t = '') => { st.msg = m; st.msgType = t; paint(); };
 
@@ -171,27 +199,32 @@ function view(st, ctx) {
   if (cur) cur.toggle = toggleRecord;
   const abrir = (cfg) => abrirFormulario(st, cfg, paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
   const guardarSerie = async (payload, pendiente) => {
-    const op = Object.assign({ op: 'add' }, payload);
+    const op = Object.assign({ op: 'add', at: new Date().toISOString() }, payload);
     if (Number.isInteger(pendiente)) op.dismissPending = pendiente;
-    st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session;   // si falla, el formulario muestra el error y conserva lo escrito
+    await ctx.editar(op);   // si el servidor la rechaza, el formulario muestra el error y conserva lo escrito
     st.formulario = null; paint();
   };
   const edit = async (op) => {
-    try { st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session; st.editing = null; paint(); }
+    try { await ctx.editar(op); st.editing = null; paint(); }
     catch (err) { setMsg(err.message, 'error'); }
   };
 
+  const d = descanso(s, Date.now());
+  const enCola = st.queueInfo.waiting;
   const nodes = [
     h('p', { class: 'etiqueta' }, 'Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date)),
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
-    h('p', { class: 'descanso', id: 'descanso' }, restText(s)),
+    st.sinEnviar ? h('p', { class: 'aviso' }, st.sinEnviar === 1 ? '1 cambio sin enviar: se enviará solo al volver la conexión.'
+      : st.sinEnviar + ' cambios sin enviar: se enviarán solos al volver la conexión.') : null,
+    enCola ? h('p', { class: 'procesando', role: 'status' }, enCola === 1 ? 'Procesando 1 clip… sigue entrenando, la serie aparecerá sola.'
+      : 'Procesando ' + enCola + ' clips… se guardan en este móvil hasta que el servidor los confirme.') : null,
+    h('p', { class: 'descanso' + (d.listo ? ' listo' : ''), id: 'descanso' }, d.texto),
     nodoFormulario(st, { paint, guardar: guardarSerie })
   ];
 
-  if (st.queueInfo.waiting) nodes.push(h('p', { class: 'aviso' }, st.queueInfo.waiting + ' clip(s) pendientes de procesar. Se guardan en este móvil hasta que el servidor los confirme.'));
   if (st.queueInfo.errors) nodes.push(h('div', { class: 'aviso' }, st.queueInfo.errors + ' clip(s) con error.',
     h('div', { class: 'acciones' },
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => queue.flush({ force: true }) }, 'Reintentar'),
@@ -210,15 +243,19 @@ function view(st, ctx) {
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));
   (s.exercises || []).forEach((x, idx) => {
     const current = idx === s.exercises.length - 1;
+    const meta = objetivo(s, x.exerciseId, seriesHechas(x));
     nodes.push(h('div', { class: 'bloque' + (current ? ' actual' : '') },
       h('h3', {}, x.name + (current ? ' · en curso' : '')),
+      meta ? h('p', { class: 'objetivo' }, meta) : null,
       h('ul', { class: 'series' }, x.sets.map((set) => serieNodo(st, x, set, edit, paint))),
-      h('div', { class: 'acciones' },
-        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+      h('div', { class: 'acciones compactas' },
+        h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
-          edit({ op: 'add', exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
+          const load = Object.assign({}, l.load);
+          if (l.local) delete load.totalKg;   // el total de una serie sin enviar es aproximado: que lo calcule el servidor
+          edit({ op: 'add', at: new Date().toISOString(), exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load } });
         } }, 'Otra serie igual'),
-        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+        h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
           abrir({ titulo: 'Serie a mano: ' + x.name, exerciseId: x.exerciseId, implement: l.load.implement, valor: valorDeCarga(l.load), reps: l.reps, rir: l.rir === null ? '' : l.rir });
         } }, 'Añadir serie a mano'))));
@@ -228,14 +265,16 @@ function view(st, ctx) {
   if (resto.length) nodes.push(h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Pendiente del plan'),
     h('ul', { class: 'lista' }, resto.map((p) => h('li', {}, h('button', { type: 'button', class: 'fila fila-boton', 'aria-label': 'Añadir series de ' + p.name, onClick: () => abrir({
       titulo: 'Serie a mano: ' + p.name, exerciseId: p.exerciseId, implement: p.targetLoad ? p.targetLoad.implement : null,
-      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name), h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax)))))));
+      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name),
+      h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax + (p.targetLoad ? ' · ' + formatLoad(p.targetLoad) : ''))))))));
 
   nodes.push(h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir({ titulo: 'Añadir un ejercicio a mano' }) }, 'Añadir otro ejercicio a mano')));
   nodes.push(h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: async () => {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
-    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
+    if (st.sinEnviar) { await ctx.enviar(); if (ediciones.pendientes(ctx.id).length) { setMsg('Hay cambios sin enviar. Cuando vuelva la conexión se enviarán y podrás terminar.', 'error'); return; } }
+    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); borrar('revision-' + ctx.id); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
   return h('section', {}, nodes);
@@ -255,6 +294,7 @@ export function serieNodo(st, x, set, edit, paint) {
   const fila = h('li', { class: 'serie' },
     h('button', { type: 'button', class: 'serie-btn', onClick: () => { st.editing = editing ? null : { exerciseId: x.exerciseId, order: set.order }; paint(); } },
       h('span', { class: 'n' }, set.order), h('span', {}, resumen), h('span', { class: 'carga' }, formatLoad(set.load))),
+    set.local ? h('p', { class: 'nota' }, 'Sin enviar todavía: se guardará al volver la conexión.') : null,
     ...(set.flags || []).filter((f) => FLAGS[f]).map((f) => h('p', { class: 'nota' }, FLAGS[f] + ': revísala.')));
   if (!editing) return fila;
   const [key, label] = loadField(set.load.implement);

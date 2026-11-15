@@ -1,9 +1,8 @@
 // Diario: historial de sesiones guardadas, con el detalle de cada una.
-import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { botonEscuchar } from '../lib/voz.js';
-import { swr } from '../lib/cache.js';
+import { resumenSesiones, detalleSesion } from '../lib/sesiones-datos.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
 const vigente = (el) => el.dataset.route === 'diario';
@@ -17,9 +16,7 @@ export function render(el) {
 async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
-    const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    await swr('diario', async () => (await call('query', { entity: 'session', from, to: hoy, filters: { status: 'done' } }, { timeoutMs: 60000 })).items || [],
-      (items) => { if (vigente(el)) pintar(el, sortSessions(items), hoy); });
+    await resumenSesiones((items) => { if (vigente(el)) pintar(el, sortSessions(items), hoy); });
   } catch (err) {
     console.error(err);
     if (!vigente(el)) return;
@@ -43,7 +40,7 @@ function pintar(el, sesiones, hoy) {
     btn.addEventListener('click', () => {
       const abierta = abiertas.has(s.id);
       if (abierta) abiertas.delete(s.id); else abiertas.add(s.id);
-      if (!abierta && !cuerpo.firstChild) cuerpo.append(...detalle(s));
+      if (!abierta && !cuerpo.firstChild) abrir(s, cuerpo);
       cuerpo.hidden = abierta;
       btn.setAttribute('aria-expanded', String(!abierta));
     });
@@ -57,6 +54,16 @@ function pintar(el, sesiones, hoy) {
     h('div', { class: 'resumen' },
       dato(String(semana.sessions), 'sesiones esta semana'), dato(String(semana.sets), 'series'), dato(thousands(semana.volumeKg), 'kg de volumen')),
     sesiones.length ? lista : h('p', { class: 'vacio' }, 'Aún no has guardado ninguna sesión. Cuando termines y guardes una, aparecerá aquí.')));
+}
+
+async function abrir(s, cuerpo) {
+  cuerpo.replaceChildren(h('p', { class: 'vacio' }, 'Cargando el detalle…'));
+  try {
+    cuerpo.replaceChildren(...detalle(await detalleSesion(s.id)));
+  } catch (err) {
+    cuerpo.replaceChildren(h('p', { class: 'estado error' }, err.message),
+      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir(s, cuerpo) }, 'Reintentar'));
+  }
 }
 
 function dato(valor, etiqueta) { return h('div', { class: 'dato' }, h('span', { class: 'valor' }, valor), h('span', { class: 'etiqueta' }, etiqueta)); }

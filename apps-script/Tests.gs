@@ -1281,6 +1281,61 @@ function test_pure_caso_real_cruce_poleas() {
   return 'ok';
 }
 
+function test_pure_friendly_errors() {
+  assert_(friendlySetError_('serie reps debe ser un entero') === 'Las repeticiones deben ser un número entero.', 'repeticiones no enteras');
+  assert_(friendlySetError_('serie: reps es obligatorio') === 'Faltan las repeticiones.', 'faltan repeticiones');
+  assert_(friendlySetError_('serie reps fuera de rango (0-100)') === 'Las repeticiones deben estar entre 0 y 100.', 'repeticiones fuera de rango');
+  assert_(friendlySetError_('serie rir fuera de rango (0-10)').indexOf('El RIR') === 0, 'RIR');
+  assert_(friendlySetError_('serie: faltan los kilos de la pila') === 'Faltan los kilos de la pila.', 'errores de carga ya en español: solo se pulen');
+  const fails = (op) => { try { applyEditOp_(sess_({ exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] }), op, ctx_().equipment, ctx_().library); return null; } catch (e) { return e.message; } };
+  const msg = fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { reps: 2.5 } });
+  assert_(msg === 'Las repeticiones deben ser un número entero.', 'la edición devuelve el mensaje amable: ' + msg);
+  assert_(/serie|reps|rir/.test(fails({ op: 'update', exerciseId: 'press_banca', order: 1, patch: { rir: 40 } })) === false, 'sin nombres internos');
+  return 'ok';
+}
+
+function test_pure_op_once() {
+  const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
+  let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
+  s = applyOpOnce_(s, JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
+  assert_(s.exercises[0].sets.length === 1, 'la misma edición dos veces añade una sola serie');
+  assert_(s.appliedOps.length === 1, 'se anota');
+  s = applyOpOnce_(s, { op: 'add', exerciseId: 'press_banca', set: op.set }, ctx_().equipment, ctx_().library);
+  assert_(s.exercises[0].sets.length === 2, 'sin opId se aplica siempre (compatibilidad)');
+  let err = null; try { applyOpOnce_(s, Object.assign({}, op, { opId: '../x' }), ctx_().equipment, ctx_().library); } catch (e) { err = e; }
+  assert_(err && err.code === 'VALIDATION', 'id raro rechazado');
+  return 'ok';
+}
+
+function test_pure_set_time() {
+  const now = Date.parse('2026-11-16T18:00:00Z');
+  assert_(setTime_('2026-11-16T17:58:30.000Z', now) === '2026-11-16T17:58:30.000Z', 'hora del móvil');
+  assert_(setTime_('2020-01-01T00:00:00Z', now) === '2026-11-16T18:00:00.000Z', 'demasiado lejos: hora del servidor');
+  assert_(setTime_('mañana', now) === '2026-11-16T18:00:00.000Z' && setTime_(undefined, now) === '2026-11-16T18:00:00.000Z', 'sin dato');
+  const s = applyEditOp_(sess_(), { op: 'add', exerciseId: 'press_banca', at: new Date().toISOString(), set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } }, ctx_().equipment, ctx_().library);
+  assert_(typeof s.exercises[0].sets[0].at === 'string', 'la serie a mano lleva hora');
+  const r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), Object.assign({}, ctx_(), { at: '2026-11-16T17:58:30.000Z' }));
+  assert_(r.exercises[0].sets[0].at === '2026-11-16T17:58:30.000Z', 'la serie dictada lleva la hora del clip');
+  return 'ok';
+}
+
+function test_pure_session_summary() {
+  const s = { id: 's1', date: '2026-11-10', status: 'done', groups: ['chest'], metrics: { workingSets: 3, totalVolumeKg: 900 }, painFlags: [{ text: 'hombro' }],
+    clips: [{ id: 'c1', transcript: 'mucho texto' }],
+    exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [
+      { order: 1, type: 'warmup', reps: 5, load: bb_(30) },
+      { order: 2, type: 'working', reps: 8, rir: 2, load: bb_(20) },
+      { order: 3, type: 'working', reps: 15, rir: 1, load: bb_(30) }] },
+      { exerciseId: 'dominadas', name: 'Dominadas', sets: [{ order: 1, type: 'working', reps: 8, load: { implement: 'bodyweight', addedKg: 0, totalKg: 0 } }] }] };
+  const r = sessionSummary_(s);
+  assert_(!('clips' in r) && !r.exercises[0].sets.length, 'sin clips ni series');
+  assert_(r.exercises[0].sets === 3 && r.pain === 1 && r.metrics.workingSets === 3, 'cuentas');
+  assert_(r.exercises[0].e1rm === epley_(60, 8), 'mejor 1RM sin calentamiento ni series de más de 12: ' + r.exercises[0].e1rm);
+  assert_(r.exercises[1].e1rm === null, 'peso corporal sin 1RM');
+  assert_(JSON.stringify(r).length < 600, 'ligero');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1288,7 +1343,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
