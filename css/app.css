@@ -111,3 +111,14 @@ label.sospechosa input { border-color: var(--error); }
 .serie-solo { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; min-height: 40px; font: 15px var(--sans); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--piedra); }
 .serie-solo .n { color: var(--tinta-2); font-size: 13px; }
 .serie-solo .carga { margin: 0; font-size: 13px; text-align: right; }
+
+/* Progreso y gráficas */
+.progreso { margin: 0 0 12px; }
+.progreso p { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
+progress { width: 100%; height: 10px; appearance: none; -webkit-appearance: none; border: 1px solid var(--piedra); background: var(--blanco); }
+progress::-webkit-progress-bar { background: var(--blanco); }
+progress::-webkit-progress-value { background: var(--acento); }
+progress::-moz-progress-bar { background: var(--acento); }
+.grafica { display: block; margin: 4px 0 16px; background: var(--blanco); border: 1px solid var(--piedra); }
+.gr-punto { fill: var(--tinta-2); opacity: .55; }
+.gr-linea { stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }

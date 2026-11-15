@@ -25,6 +25,7 @@ const SHELL = [
   './js/views/guia.js',
   './js/lib/measures.js',
   './js/lib/diary.js',
+  './js/lib/charts.js',
   './js/lib/figure.js',
   './js/lib/format.js',
   './js/views/bienvenida.js',

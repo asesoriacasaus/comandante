@@ -5,6 +5,7 @@ import { formatCm, formatDateEs, todayIsoLocal, parseNum, formatDelta } from '..
 import { MEASURES, measureLabel, summarize, latestWeight, SCALE_FIELDS, latestScale } from '../lib/measures.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
+import { seriesOf, movingAverage, goalProgress, timeline, lineChart } from '../lib/charts.js';
 
 const vigente = (el) => el.dataset.route === 'cuerpo';
 const num = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
@@ -17,6 +18,7 @@ const MOTIVOS = {
 };
 
 let recorder = null;
+let ajustes = null;   // settings.json (objetivo), para el progreso
 
 export function render(el) {
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Cuerpo'), h('p', { class: 'vacio' }, 'Cargando…')));
@@ -27,7 +29,9 @@ async function cargar(el) {
   try {
     const hoy = todayIsoLocal();
     const from = (Number(hoy.slice(0, 4)) - 1) + hoy.slice(4);
-    const r = await call('query', { entity: 'body', from, to: hoy }, { timeoutMs: 60000 });
+    const [r, s] = await Promise.all([call('query', { entity: 'body', from, to: hoy }, { timeoutMs: 60000 }),
+      call('settings.get', {}, { timeoutMs: 60000 }).catch(() => null)]);
+    ajustes = s;
     if (vigente(el)) inicio(el, r.items || []);
   } catch (err) {
     console.error(err);
@@ -56,9 +60,37 @@ function inicio(el, records) {
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => pantallaPantallazo(el, records) }, 'Subir pantallazo de la báscula'),
       h('a', { class: 'btn btn-sec', href: '#guia' }, 'Guía para medirte')),
     peso ? h('p', { class: 'nota' }, 'Peso: ' + num(peso.value) + ' kg · ' + formatDateEs(peso.date)) : null,
+    progreso(records),
     bascula(records),
     filas.length ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Última medida de cada parte'), h('ul', { class: 'lista' }, filas))
       : h('p', { class: 'vacio' }, 'Aún no hay medidas. Mídete con la cinta y dicta los números; la guía te enseña dónde colocarla.')));
+}
+
+function progreso(records) {
+  const g = ajustes && ajustes.goal;
+  if (!g || g.startWeightKg == null || g.targetWeightKg == null) return null;
+  const hoy = todayIsoLocal();
+  const nodos = [h('p', { class: 'etiqueta' }, 'Progreso hacia tu objetivo')];
+  const t = timeline(g.startDate, g.targetDate, hoy);
+  if (t) nodos.push(h('div', { class: 'progreso' }, h('p', {}, 'Día ' + t.elapsed + ' de ' + t.total + ' · faltan ' + t.left + ' días'), h('progress', { max: 100, value: Math.min(100, t.pct), 'aria-label': 'Tiempo transcurrido' })));
+
+  const peso = seriesOf(records, (r) => r.weightKg);
+  const media = movingAverage(peso, 7);
+  if (media.length) {
+    const actual = media[media.length - 1].value;
+    const gp = goalProgress(g.startWeightKg, actual, g.targetWeightKg);
+    nodos.push(h('div', { class: 'progreso' },
+      h('p', {}, 'Peso medio de 7 días: ' + num(actual) + ' kg · objetivo ' + num(g.targetWeightKg) + ' kg' + (gp ? ' · ' + gp.pct + ' %' : '')),
+      gp ? h('progress', { max: 100, value: Math.max(0, Math.min(100, gp.pct)), 'aria-label': 'Avance hacia el peso objetivo' }) : null));
+  }
+  const cintura = seriesOf(records, (r) => (r.measurementsCm || {}).waist);
+  if (cintura.length && g.startWaistCm != null) {
+    const d = Math.round((cintura[cintura.length - 1].value - g.startWaistCm) * 10) / 10;
+    nodos.push(h('p', { class: 'nota' }, 'Cintura: de ' + num(g.startWaistCm) + ' cm a ' + num(cintura[cintura.length - 1].value) + ' cm (' + (d === 0 ? 'sin cambio' : (d > 0 ? '+' : '−') + num(Math.abs(d)) + ' cm') + ')'));
+  }
+  if (peso.length) nodos.push(h('p', { class: 'etiqueta' }, 'Peso (puntos) y media de 7 días (línea)'), lineChart(peso, media, { label: 'Gráfica de peso' }));
+  if (cintura.length) nodos.push(h('p', { class: 'etiqueta' }, 'Cintura (cm)'), lineChart(cintura, null, { label: 'Gráfica de cintura' }));
+  return nodos.length > 1 ? h('div', { class: 'bloque' }, nodos) : null;
 }
 
 function bascula(records) {
