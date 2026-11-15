@@ -171,3 +171,19 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 .burbuja .voz { margin: 4px 0 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips .btn { font-size: 13px; text-align: left; }
+
+/* Indicador global de actividad */
+.actividad { position: fixed; top: 6px; left: 0; right: 0; z-index: 6; pointer-events: none; }
+.act-barra { height: 5px; background: var(--piedra); overflow: hidden; }
+.act-barra::before { content: ""; display: block; height: 100%; width: 32%; background: var(--tinta); animation: actividad 1.1s ease-in-out infinite; }
+@keyframes actividad { from { transform: translateX(-110%); } to { transform: translateX(330%); } }
+@media (prefers-reduced-motion: reduce) { .act-barra::before { animation: none; width: 100%; opacity: .55; } }
+.act-texto { margin: 0; padding: 6px 16px; background: var(--tinta); color: var(--lino); font: 600 13px var(--sans); }
+
+/* Series a mano */
+.form-serie { border-color: var(--acento); }
+.fila-boton { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--piedra); text-align: left; color: var(--tinta); cursor: pointer; }
+.fila-boton:active { background: var(--blanco); }
+
+label.casilla { display: flex; align-items: center; gap: 12px; min-height: 44px; font: 600 14px var(--sans); letter-spacing: .04em; text-transform: none; color: var(--tinta); }
+input[type="checkbox"] { width: 28px; height: 28px; min-height: 28px; margin: 0; accent-color: var(--acento); flex: none; }

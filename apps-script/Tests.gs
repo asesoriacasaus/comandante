@@ -1224,6 +1224,44 @@ function test_pure_lenient_loads() {
   return 'ok';
 }
 
+function test_pure_manual_entry() {
+  // Los pendientes recuerdan de qué ejercicio eran
+  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'missing_reps' && r.pending[0].exerciseId === 'press_banca', 'falta de repeticiones: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 4, reps: 5 })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'invalid_load' && r.pending[0].exerciseId === 'press_banca', 'carga imposible: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'curl de bíceps', repeatLast: true })], sess_(), ctx_());
+  assert_(r.pending[0].reason === 'nothing_to_repeat' && r.pending[0].exerciseId === 'curl_mancuernas', 'nada que repetir: recuerda el ejercicio');
+  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), ctx_());
+  assert_(r.pending[0].exerciseId === undefined, 'ejercicio desconocido: no hay id');
+
+  // Añadir una serie a mano y resolver el pendiente de una vez
+  const lib = ctx_().library; const eq = ctx_().equipment;
+  const base = sess_({ pending: [{ reason: 'missing_reps', exerciseId: 'press_banca', text: 'Press banca' }, { reason: 'unknown_exercise', text: 'x' }] });
+  let n = applyEditOp_(base, { op: 'add', exerciseId: 'press_banca', dismissPending: 0, set: { type: 'working', reps: 8, rir: null, load: { implement: 'barbell', perSideKg: 20 } } }, eq, lib);
+  assert_(n.exercises[0].sets[0].load.totalKg === 60 && n.pending.length === 1 && n.pending[0].reason === 'unknown_exercise', 'añadir + resolver el pendiente indicado');
+  assert_(base.pending.length === 2, 'no muta la sesión original');
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'press_banca', set: { type: 'warmup', reps: 12, load: { implement: 'barbell', perSideKg: 10 } } }, eq, lib);
+  assert_(n.pending.length === 2 && n.exercises[0].sets[0].type === 'warmup', 'sin dismissPending no se toca la lista');
+  const fails = (op) => { try { applyEditOp_(base, op, eq, lib); return false; } catch (e) { return e.code === 'VALIDATION'; } };
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', dismissPending: 9, set: { reps: 8, load: { implement: 'barbell', perSideKg: 20 } } }), 'pendiente inexistente');
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', set: { reps: 0, load: { implement: 'barbell', perSideKg: 20 } } }) === false, 'cero repeticiones es válido para el servidor (0-100)');
+  assert_(fails({ op: 'add', exerciseId: 'press_banca', set: { reps: 8, load: { implement: 'barbell' } } }), 'barra sin kilos');
+  // Serie de peso corporal y de máquina introducidas a mano
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'dominadas', set: { type: 'working', reps: 6, load: { implement: 'bodyweight', addedKg: 0 } } }, eq, lib);
+  assert_(n.exercises[n.exercises.length - 1].exerciseId === 'dominadas', 'ejercicio nuevo a mano');
+  n = applyEditOp_(base, { op: 'add', exerciseId: 'jalon_pecho', set: { type: 'working', reps: 12, rir: 2, load: { implement: 'cable', stackKg: 45 } } }, eq, lib);
+  assert_(n.exercises[n.exercises.length - 1].sets[0].load.stackKg === 45, 'jalón con pila a mano');
+
+  // Lista para el selector
+  const list = exerciseListForClient_();
+  assert_(list.length >= 90 && list.every((x) => x.id && x.name && x.implements.length > 0 && Object.keys(x).length === 3), 'lista con id, nombre e implementos');
+  const names = list.map((x) => normalizeText_(x.name));
+  assert_(names.join('|') === names.slice().sort().join('|'), 'ordenada por nombre sin acentos');
+  assert_(list.find((x) => x.id === 'press_banca').implements.indexOf('barbell') >= 0, 'implementos posibles');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1231,7 +1269,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

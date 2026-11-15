@@ -3,7 +3,11 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
+import { borrar } from '../lib/cache.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
+import { abrirFormulario, nodoFormulario } from './serie-form.js';
+import { cargarEjercicios } from '../lib/ejercicios.js';
+import { valoresDeHeard, valorDeCarga } from '../lib/serie.js';
 import { groupsEs, formatLoad, formatClock, formatDateEs, formatRest, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
 
 /** Lo que la IA entendió y oyó en un pendiente: así se ve por qué no cuadra. */
@@ -43,7 +47,7 @@ export function render(el) {
     return;
   }
   const st = { id, session: null, recording: false, processing: 0, msg: '', msgType: '', ms: 0, queueInfo: { waiting: 0, errors: 0 },
-    editing: null, timer: null };
+    editing: null, timer: null, formulario: null, ejercicios: null, scrollForm: false };
 
   const queue = createQueue({
     store,
@@ -62,6 +66,7 @@ export function render(el) {
   function paint() {
     if (!vigente(el)) { stopTimer(); return; }
     el.replaceChildren(view(st, { queue, el, paint, id }));
+    if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   }
   function stopTimer() { if (st.timer) { clearInterval(st.timer); st.timer = null; } }
 
@@ -77,6 +82,7 @@ export function render(el) {
       return;
     }
     paint();
+    cargarEjercicios().then((l) => { st.ejercicios = l; }).catch(() => { /* se pedirá al abrir el formulario */ });
     requestWake();
     queue.flush({ force: true });
     let n = 0;
@@ -163,6 +169,13 @@ function view(st, ctx) {
   }
 
   if (cur) cur.toggle = toggleRecord;
+  const abrir = (cfg) => abrirFormulario(st, cfg, paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
+  const guardarSerie = async (payload, pendiente) => {
+    const op = Object.assign({ op: 'add' }, payload);
+    if (Number.isInteger(pendiente)) op.dismissPending = pendiente;
+    st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session;   // si falla, el formulario muestra el error y conserva lo escrito
+    st.formulario = null; paint();
+  };
   const edit = async (op) => {
     try { st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session; st.editing = null; paint(); }
     catch (err) { setMsg(err.message, 'error'); }
@@ -174,7 +187,8 @@ function view(st, ctx) {
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
-    h('p', { class: 'descanso', id: 'descanso' }, restText(s))
+    h('p', { class: 'descanso', id: 'descanso' }, restText(s)),
+    nodoFormulario(st, { paint, guardar: guardarSerie })
   ];
 
   if (st.queueInfo.waiting) nodes.push(h('p', { class: 'aviso' }, st.queueInfo.waiting + ' clip(s) pendientes de procesar. Se guardan en este móvil hasta que el servidor los confirme.'));
@@ -189,7 +203,9 @@ function view(st, ctx) {
   (s.pending || []).forEach((p, i) => nodes.push(h('div', { class: 'aviso' },
     (MOTIVOS[p.reason] || 'Pendiente') + (p.text ? ': ' + p.text : '') + '. Añade la serie a mano.',
     ...pendienteDetalle(p, s),
-    h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
+    h('div', { class: 'acciones' },
+      h('button', { type: 'button', class: 'btn', onClick: () => abrir(cfgPendiente(p, i)) }, 'Completar a mano'),
+      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));
   (s.exercises || []).forEach((x, idx) => {
@@ -197,24 +213,39 @@ function view(st, ctx) {
     nodes.push(h('div', { class: 'bloque' + (current ? ' actual' : '') },
       h('h3', {}, x.name + (current ? ' · en curso' : '')),
       h('ul', { class: 'series' }, x.sets.map((set) => serieNodo(st, x, set, edit, paint))),
-      h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
-        const l = x.sets[x.sets.length - 1];
-        edit({ op: 'add', exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
-      } }, 'Otra serie igual'))));
+      h('div', { class: 'acciones' },
+        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+          const l = x.sets[x.sets.length - 1];
+          edit({ op: 'add', exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
+        } }, 'Otra serie igual'),
+        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+          const l = x.sets[x.sets.length - 1];
+          abrir({ titulo: 'Serie a mano: ' + x.name, exerciseId: x.exerciseId, implement: l.load.implement, valor: valorDeCarga(l.load), reps: l.reps, rir: l.rir === null ? '' : l.rir });
+        } }, 'Añadir serie a mano'))));
   });
 
   const resto = (s.plannedExercises || []).filter((p) => !done.has(p.exerciseId));
   if (resto.length) nodes.push(h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Pendiente del plan'),
-    h('ul', { class: 'lista' }, resto.map((p) => h('li', { class: 'fila' }, h('span', {}, p.name), h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax))))));
+    h('ul', { class: 'lista' }, resto.map((p) => h('li', {}, h('button', { type: 'button', class: 'fila fila-boton', 'aria-label': 'Añadir series de ' + p.name, onClick: () => abrir({
+      titulo: 'Serie a mano: ' + p.name, exerciseId: p.exerciseId, implement: p.targetLoad ? p.targetLoad.implement : null,
+      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name), h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax)))))));
 
+  nodes.push(h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir({ titulo: 'Añadir un ejercicio a mano' }) }, 'Añadir otro ejercicio a mano')));
   nodes.push(h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: async () => {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
-    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
+    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
   return h('section', {}, nodes);
+}
+
+/** Formulario precargado con lo que la IA entendió de un pendiente. Necesita la lista de ejercicios para elegir implemento. */
+export function cfgPendiente(p, indice) {
+  const v = valoresDeHeard(p.heard, ['barbell', 'dumbbell', 'cable', 'machine', 'ezbar', 'smith', 'kettlebell', 'bodyweight']);
+  return { titulo: 'Completar: ' + (p.text || 'serie pendiente'), exerciseId: p.exerciseId || null, implement: p.heard ? v.implement : null,
+    valor: v.valor, reps: v.reps, rir: v.rir, pendiente: indice };
 }
 
 export function serieNodo(st, x, set, edit, paint) {

@@ -2,6 +2,7 @@
 import { call } from '../api.js';
 import { h } from './dom.js';
 import { wavBlobFromBase64, silentWavBlob } from './audio.js';
+import { vozYChatActivos } from './prefs.js';
 
 export const MAX_CHARS = 1200;   // igual que TTS_MAX_CHARS_ del servidor
 const cache = new Map();   // texto → URL del audio (para no pagar dos veces por lo mismo)
@@ -23,7 +24,7 @@ function desbloquear(audio) {
 
 export function botonEscuchar(texto, etiqueta = 'Escuchar') {
   const t = String(texto || '').trim();
-  if (!t || t.length > MAX_CHARS) return null;
+  if (!t || t.length > MAX_CHARS || !vozYChatActivos()) return null;
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const btn = h('button', { type: 'button', class: 'btn btn-sec' }, etiqueta);
   const reset = () => { btn.disabled = false; btn.textContent = etiqueta; };

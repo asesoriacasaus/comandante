@@ -1,29 +1,27 @@
-// Bootstrap y router de vistas por hash.
-import * as hoy from './views/hoy.js';
-import * as diario from './views/diario.js';
-import * as cuerpo from './views/cuerpo.js';
-import * as comida from './views/comida.js';
-import * as mas from './views/mas.js';
-import * as ajustes from './views/ajustes.js';
-import * as prueba from './views/prueba.js';
-import * as sesion from './views/sesion.js';
-import * as revision from './views/revision.js';
-import * as guia from './views/guia.js';
-import * as carreras from './views/carreras.js';
-import * as progreso from './views/progreso.js';
-import * as chat from './views/chat.js';
+// Bootstrap y router de vistas por hash. Cada pantalla se carga solo cuando se abre (el Service Worker las tiene en caché).
 import { detenerVoz } from './lib/voz.js';
+import { onActividad, call } from './api.js';
+import { getConfig } from './state.js';
+import { mensajeActividad } from './lib/actividad.js';
 
-const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia, carreras, progreso, chat };
+const LOADERS = {
+  hoy: () => import('./views/hoy.js'), diario: () => import('./views/diario.js'), cuerpo: () => import('./views/cuerpo.js'),
+  comida: () => import('./views/comida.js'), mas: () => import('./views/mas.js'), ajustes: () => import('./views/ajustes.js'),
+  prueba: () => import('./views/prueba.js'), sesion: () => import('./views/sesion.js'), revision: () => import('./views/revision.js'),
+  guia: () => import('./views/guia.js'), carreras: () => import('./views/carreras.js'), progreso: () => import('./views/progreso.js'),
+  chat: () => import('./views/chat.js')
+};
+const cargados = {};
 // Ajustes y prueba cuelgan de "Más".
 const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas', chat: 'mas' };
 const view = document.getElementById('view');
 
 function currentRoute() {
   const key = location.hash.replace('#', '') || 'hoy';
-  return Object.prototype.hasOwnProperty.call(ROUTES, key) ? key : 'hoy';
+  return Object.prototype.hasOwnProperty.call(LOADERS, key) ? key : 'hoy';
 }
-function render() {
+
+async function render() {
   detenerVoz();   // la voz se corta al cambiar de pantalla
   const key = currentRoute();
   // Las vistas asíncronas comprueban este valor antes de dibujar, para no
@@ -36,7 +34,9 @@ function render() {
   });
 
   try {
-    ROUTES[key].render(view);
+    cargados[key] = cargados[key] || await LOADERS[key]();
+    if (view.dataset.route !== key) return;   // el usuario ya se ha ido a otra pantalla
+    cargados[key].render(view);
   } catch (err) {
     console.error(err);
     view.textContent = 'Error al mostrar la sección';
@@ -44,8 +44,30 @@ function render() {
   view.focus({ preventScroll: true });
 }
 
+// ---------- Indicador global de actividad ----------
+const barra = document.getElementById('actividad');
+if (barra) {
+  const texto = barra.querySelector('.act-texto');
+  let reloj = null;
+  onActividad(({ count, since }) => {
+    clearInterval(reloj);
+    if (!count) { barra.hidden = true; return; }
+    const pinta = () => {
+      const m = mensajeActividad(Date.now() - since);
+      barra.hidden = m === null;
+      texto.textContent = m || '';
+      texto.hidden = !m;
+    };
+    pinta();
+    reloj = setInterval(pinta, 500);
+  });
+}
+
 window.addEventListener('hashchange', render);
 render();
+
+// Despierta al servidor nada más abrir la app: la primera llamada de verdad no paga el arranque en frío.
+if (getConfig().apiUrl) call('ping', {}, { silent: true, timeoutMs: 30000 }).catch(() => {});
 
 if ('serviceWorker' in navigator) {
   // Cuando una versión nueva toma el control, se recarga para mostrarla. Nunca a mitad de una sesión de entreno:
