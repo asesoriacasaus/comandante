@@ -23,7 +23,7 @@ export function render(el) {
         </div>
         <p id="estado" class="estado" role="status" aria-live="polite"></p>
       </form>
-      <h2>Entrenador</h2>
+      <h3 class="seccion">Entrenador</h3>
       <form id="form-coach" class="card" novalidate>
         <label>Intensidad del Comandante
           <select id="c-intensidad">
@@ -35,7 +35,7 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
-      <h2>Correo semanal</h2>
+      <h3 class="seccion">Correo semanal</h3>
       <div class="card">
         <p class="nota">Cada domingo recibes el balance y el plan de la semana siguiente. Aquí puedes ver cómo sería ahora mismo o enviarlo ya.</p>
         <div class="acciones">
@@ -45,14 +45,14 @@ export function render(el) {
         <p id="estado-semanal" class="estado" role="status" aria-live="polite"></p>
         <pre id="vista-semanal" class="salida" hidden></pre>
       </div>
-      <h2>Copia de seguridad</h2>
+      <h3 class="seccion">Copia de seguridad</h3>
       <div class="card">
         <p class="nota">Descarga todos tus datos en un archivo para guardarlo tú. Para restaurarlos, elige ese archivo: se fusionan con lo que ya tienes y no se borra nada.</p>
         <div class="acciones"><button type="button" id="btn-exportar" class="btn btn-sec">Exportar mis datos</button></div>
         <label>Importar una copia <input id="f-importar" type="file" accept="application/json,.json"></label>
         <p id="estado-copia" class="estado" role="status" aria-live="polite"></p>
       </div>
-      <h2>Material</h2>
+      <h3 class="seccion">Material</h3>
       <form id="form-material" class="card" novalidate>
         <label>Peso de la barra olímpica (kg)<input id="m-barra" inputmode="decimal" autocomplete="off"></label>
         <label>Peso de la barra Z (kg)<input id="m-z" inputmode="decimal" autocomplete="off"></label>
