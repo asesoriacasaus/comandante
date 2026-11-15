@@ -1294,6 +1294,18 @@ function test_pure_friendly_errors() {
   return 'ok';
 }
 
+function test_pure_set_time() {
+  const now = Date.parse('2026-11-16T18:00:00Z');
+  assert_(setTime_('2026-11-16T17:58:30.000Z', now) === '2026-11-16T17:58:30.000Z', 'hora del móvil');
+  assert_(setTime_('2020-01-01T00:00:00Z', now) === '2026-11-16T18:00:00.000Z', 'demasiado lejos: hora del servidor');
+  assert_(setTime_('mañana', now) === '2026-11-16T18:00:00.000Z' && setTime_(undefined, now) === '2026-11-16T18:00:00.000Z', 'sin dato');
+  const s = applyEditOp_(sess_(), { op: 'add', exerciseId: 'press_banca', at: new Date().toISOString(), set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } }, ctx_().equipment, ctx_().library);
+  assert_(typeof s.exercises[0].sets[0].at === 'string', 'la serie a mano lleva hora');
+  const r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), Object.assign({}, ctx_(), { at: '2026-11-16T17:58:30.000Z' }));
+  assert_(r.exercises[0].sets[0].at === '2026-11-16T17:58:30.000Z', 'la serie dictada lleva la hora del clip');
+  return 'ok';
+}
+
 function test_pure_session_summary() {
   const s = { id: 's1', date: '2026-11-10', status: 'done', groups: ['chest'], metrics: { workingSets: 3, totalVolumeKg: 900 }, painFlags: [{ text: 'hombro' }],
     clips: [{ id: 'c1', transcript: 'mucho texto' }],
@@ -1318,7 +1330,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

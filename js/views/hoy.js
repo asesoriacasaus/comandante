@@ -2,7 +2,7 @@
 import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs, todayIsoLocal } from '../lib/format.js';
-import { ACTIVE_KEY } from './sesion.js';
+import { ACTIVE_KEY, CLAVE_VIVA } from './sesion.js';
 import { botonEscuchar } from '../lib/voz.js';
 import { swr, borrar, leer, guardar } from '../lib/cache.js';
 import { vozYChatActivos } from '../lib/prefs.js';
@@ -129,14 +129,15 @@ function renderSesion(el, s, deCache = false) {
   pedirMensaje(el, s);
 }
 
-async function empezar(el, s, btn, destino = '#sesion') {
+// Se entra en la sesión al instante con la copia que ya hay en pantalla; el servidor la marca como empezada
+// en segundo plano (y, si esa llamada fallara, el primer clip o serie la empieza igualmente).
+function empezar(el, s, btn, destino = '#sesion') {
   btn.disabled = true;
-  try {
-    if (s.status === 'planned') await call('session.start', { id: s.id }, { timeoutMs: 60000 });
-    try { localStorage.setItem(ACTIVE_KEY, s.id); } catch (_) { /* sin almacenamiento */ }
-    borrar('hoy');
-    location.hash = destino;
-  } catch (err) { btn.disabled = false; btn.after(h('p', { class: 'estado error' }, err.message)); }
+  try { localStorage.setItem(ACTIVE_KEY, s.id); } catch (_) { /* sin almacenamiento */ }
+  if (destino === '#sesion') guardar(CLAVE_VIVA, s.status === 'planned' ? Object.assign({}, s, { status: 'in_progress' }) : s);
+  if (s.status === 'planned') call('session.start', { id: s.id }, { timeoutMs: 60000, silent: true }).catch((err) => console.error(err));
+  borrar('hoy');
+  location.hash = destino;
 }
 
 function accion(el, s) {

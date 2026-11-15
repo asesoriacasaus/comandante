@@ -187,3 +187,13 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 
 label.casilla { display: flex; align-items: center; gap: 12px; min-height: 44px; font: 600 14px var(--sans); letter-spacing: .04em; text-transform: none; color: var(--tinta); }
 input[type="checkbox"] { width: 28px; height: 28px; min-height: 28px; margin: 0; accent-color: var(--acento); flex: none; }
+
+/* Sesión: objetivo, descanso cumplido, clips en proceso y botones compactos por ejercicio */
+.objetivo { margin: -4px 0 10px; font: 600 13px var(--sans); color: var(--oliva); font-variant-numeric: tabular-nums; }
+.descanso.listo { color: var(--oliva); font-weight: 800; }
+.descanso.listo::before { content: "\2605  "; color: var(--acento); }
+.procesando { position: relative; overflow: hidden; margin: 0 0 12px; padding: 10px 14px; background: var(--blanco); border: 2px dashed var(--oliva); font-size: 14px; color: var(--tinta); }
+.procesando::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 30%; background: var(--acento); animation: actividad 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .procesando::after { animation: none; width: 100%; opacity: .55; } }
+.acciones.compactas { gap: 8px; }
+.btn-mini { min-height: 44px; padding: 8px 12px; font-size: 12px; letter-spacing: .06em; }

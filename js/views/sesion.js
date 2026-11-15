@@ -3,12 +3,13 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
-import { borrar } from '../lib/cache.js';
+import { borrar, leer, guardar } from '../lib/cache.js';
+import { descanso, objetivo, seriesHechas } from '../lib/sesion-viva.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
 import { valoresDeHeard, valorDeCarga } from '../lib/serie.js';
-import { groupsEs, formatLoad, formatClock, formatDateEs, formatRest, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
+import { groupsEs, formatLoad, formatClock, formatDateEs, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
 
 /** Lo que la IA entendió y oyó en un pendiente: así se ve por qué no cuadra. */
 export function pendienteDetalle(p, session) {
@@ -19,6 +20,7 @@ export function pendienteDetalle(p, session) {
 }
 
 export const ACTIVE_KEY = 'comandante.sessionId';
+export const CLAVE_VIVA = 'sesion-viva';   // copia local de la sesión en curso: se abre al instante y sin red
 const getActive = () => { try { return localStorage.getItem(ACTIVE_KEY) || ''; } catch (_) { return ''; } };
 const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
   invalid_load: 'Carga imposible', no_exercise: 'No sé de qué ejercicio hablas', nothing_to_repeat: 'No hay serie anterior que repetir' };
@@ -63,23 +65,32 @@ export function render(el) {
     }
   });
 
+  let guardada = '';
   function paint() {
     if (!vigente(el)) { stopTimer(); return; }
+    if (st.session) { const j = JSON.stringify(st.session); if (j !== guardada) { guardada = j; guardar(CLAVE_VIVA, st.session); } }
     el.replaceChildren(view(st, { queue, el, paint, id }));
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   }
   function stopTimer() { if (st.timer) { clearInterval(st.timer); st.timer = null; } }
 
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Cargando…')));
+  const local = leer(CLAVE_VIVA);
+  if (local && local.data && local.data.id === id) { st.session = local.data; paint(); }
+  else el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Cargando…')));
   (async () => {
     try {
-      st.session = (await call('session.get', { id }, { timeoutMs: 60000 })).session;
       st.queueInfo = await queue.counts(id);
+      const fresca = (await call('session.get', { id }, { timeoutMs: 60000, silent: !!st.session })).session;
+      if (!st.session || JSON.stringify(fresca) !== JSON.stringify(st.session)) { st.session = fresca; }
     } catch (err) {
       console.error(err);
-      el.replaceChildren(h('section', {}, h('h2', {}, 'Sesión'), h('p', { class: 'estado error' }, err.message),
-        h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy')));
-      return;
+      if (!vigente(el)) return;
+      if (st.session) { st.msg = 'Sin conexión con el servidor: trabajas con la copia de este móvil. Graba igual; los clips se envían al volver la red.'; st.msgType = 'error'; }
+      else {
+        el.replaceChildren(h('section', {}, h('h2', {}, 'Sesión'), h('p', { class: 'estado error' }, err.message),
+          h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: () => render(el) }, 'Reintentar'), h('a', { class: 'btn btn-sec', href: '#hoy' }, 'Volver a Hoy'))));
+        return;
+      }
     }
     paint();
     cargarEjercicios().then((l) => { st.ejercicios = l; }).catch(() => { /* se pedirá al abrir el formulario */ });
@@ -113,29 +124,14 @@ async function requestWake() {
 function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (_) { /* opcional */ } wakeLock = null; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock === null && location.hash === '#sesion') requestWake(); });
 
-// Actualiza solo los relojes sin repintar toda la pantalla.
+// Actualiza solo el reloj de descanso sin repintar toda la pantalla.
 function tick(el) {
   const rest = el.querySelector('#descanso');
   const st = el._sesion;
-  if (rest && st && st.session) rest.textContent = restText(st.session);
-}
-
-function lastSet(session) {
-  let best = null;
-  (session.exercises || []).forEach((x) => x.sets.forEach((s) => {
-    const clip = (session.clips || []).find((c) => c.id === s.clipId);
-    const ts = clip ? Date.parse(clip.ts) : NaN;
-    if (!isNaN(ts) && (!best || ts > best.ts)) best = { ts, exerciseId: x.exerciseId };
-  }));
-  return best;
-}
-
-function restText(session) {
-  const l = lastSet(session);
-  if (!l) return 'Descanso: registra tu primera serie';
-  const planned = (session.plannedExercises || []).find((p) => p.exerciseId === l.exerciseId);
-  const sec = (Date.now() - l.ts) / 1000;
-  return 'Descanso ' + formatClock(sec) + (planned && planned.restSec ? ' de ' + formatRest(planned.restSec) : '');
+  if (!rest || !st || !st.session) return;
+  const d = descanso(st.session, Date.now());
+  if (rest.textContent !== d.texto) rest.textContent = d.texto;
+  rest.classList.toggle('listo', d.listo);
 }
 
 function view(st, ctx) {
@@ -171,7 +167,7 @@ function view(st, ctx) {
   if (cur) cur.toggle = toggleRecord;
   const abrir = (cfg) => abrirFormulario(st, cfg, paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
   const guardarSerie = async (payload, pendiente) => {
-    const op = Object.assign({ op: 'add' }, payload);
+    const op = Object.assign({ op: 'add', at: new Date().toISOString() }, payload);
     if (Number.isInteger(pendiente)) op.dismissPending = pendiente;
     st.session = (await call('session.edit', { id: ctx.id, op }, { timeoutMs: 60000 })).session;   // si falla, el formulario muestra el error y conserva lo escrito
     st.formulario = null; paint();
@@ -181,17 +177,20 @@ function view(st, ctx) {
     catch (err) { setMsg(err.message, 'error'); }
   };
 
+  const d = descanso(s, Date.now());
+  const enCola = st.queueInfo.waiting;
   const nodes = [
     h('p', { class: 'etiqueta' }, 'Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date)),
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
-    h('p', { class: 'descanso', id: 'descanso' }, restText(s)),
+    enCola ? h('p', { class: 'procesando', role: 'status' }, enCola === 1 ? 'Procesando 1 clip… sigue entrenando, la serie aparecerá sola.'
+      : 'Procesando ' + enCola + ' clips… se guardan en este móvil hasta que el servidor los confirme.') : null,
+    h('p', { class: 'descanso' + (d.listo ? ' listo' : ''), id: 'descanso' }, d.texto),
     nodoFormulario(st, { paint, guardar: guardarSerie })
   ];
 
-  if (st.queueInfo.waiting) nodes.push(h('p', { class: 'aviso' }, st.queueInfo.waiting + ' clip(s) pendientes de procesar. Se guardan en este móvil hasta que el servidor los confirme.'));
   if (st.queueInfo.errors) nodes.push(h('div', { class: 'aviso' }, st.queueInfo.errors + ' clip(s) con error.',
     h('div', { class: 'acciones' },
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => queue.flush({ force: true }) }, 'Reintentar'),
@@ -210,15 +209,17 @@ function view(st, ctx) {
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));
   (s.exercises || []).forEach((x, idx) => {
     const current = idx === s.exercises.length - 1;
+    const meta = objetivo(s, x.exerciseId, seriesHechas(x));
     nodes.push(h('div', { class: 'bloque' + (current ? ' actual' : '') },
       h('h3', {}, x.name + (current ? ' · en curso' : '')),
+      meta ? h('p', { class: 'objetivo' }, meta) : null,
       h('ul', { class: 'series' }, x.sets.map((set) => serieNodo(st, x, set, edit, paint))),
-      h('div', { class: 'acciones' },
-        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+      h('div', { class: 'acciones compactas' },
+        h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
-          edit({ op: 'add', exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
+          edit({ op: 'add', at: new Date().toISOString(), exerciseId: x.exerciseId, set: { type: l.type, reps: l.reps, rir: l.rir, load: l.load } });
         } }, 'Otra serie igual'),
-        h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
+        h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
           const l = x.sets[x.sets.length - 1];
           abrir({ titulo: 'Serie a mano: ' + x.name, exerciseId: x.exerciseId, implement: l.load.implement, valor: valorDeCarga(l.load), reps: l.reps, rir: l.rir === null ? '' : l.rir });
         } }, 'Añadir serie a mano'))));
@@ -228,14 +229,15 @@ function view(st, ctx) {
   if (resto.length) nodes.push(h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Pendiente del plan'),
     h('ul', { class: 'lista' }, resto.map((p) => h('li', {}, h('button', { type: 'button', class: 'fila fila-boton', 'aria-label': 'Añadir series de ' + p.name, onClick: () => abrir({
       titulo: 'Serie a mano: ' + p.name, exerciseId: p.exerciseId, implement: p.targetLoad ? p.targetLoad.implement : null,
-      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name), h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax)))))));
+      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name),
+      h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax + (p.targetLoad ? ' · ' + formatLoad(p.targetLoad) : ''))))))));
 
   nodes.push(h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir({ titulo: 'Añadir un ejercicio a mano' }) }, 'Añadir otro ejercicio a mano')));
   nodes.push(h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: async () => {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
-    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
+    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
   return h('section', {}, nodes);

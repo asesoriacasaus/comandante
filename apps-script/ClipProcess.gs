@@ -159,10 +159,20 @@ function eventsToSets_(events, session, ctx) {
     let target = exercises.find((x) => x.exerciseId === def.id);
     if (!target) { target = { exerciseId: def.id, name: def.name, sets: [] }; exercises.push(target); }
     target.sets.push({ order: target.sets.length + 1, type: type, reps: reps, rir: rir, load: load, restSec: null,
-      side: ev.side || null, clipId: clipId, notes: '', flags: flags });
+      side: ev.side || null, clipId: clipId, at: ctx.at || null, notes: '', flags: flags });
     currentId = def.id;
   });
   return { exercises: exercises, pending: pending, pain: pain, warnings: warnings };
+}
+
+/**
+ * Hora de una serie (para el reloj de descanso). Se acepta la del móvil si es una fecha ISO razonable
+ * (no más de un día de diferencia); si no, la del servidor.
+ */
+function setTime_(at, nowMs) {
+  const now = nowMs === undefined ? Date.now() : nowMs;
+  const t = typeof at === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(at) ? Date.parse(at) : NaN;
+  return new Date(!isNaN(t) && Math.abs(t - now) < 86400000 ? t : now).toISOString();
 }
 
 /** Traduce los errores de validación de una serie a frases para el usuario. */
@@ -218,7 +228,7 @@ function applyEditOp_(session, op, eq, library) {
     const n = normalizeLoad_(op.set && op.set.load, eq);
     if (!n.load) fail(n.errors.join('; '));
     const st = { order: x.sets.length + 1, type: (op.set && op.set.type) || 'working', reps: op.set && op.set.reps,
-      rir: op.set && op.set.rir !== undefined ? op.set.rir : null, load: n.load, restSec: null, side: null, clipId: null, notes: '', flags: [] };
+      rir: op.set && op.set.rir !== undefined ? op.set.rir : null, load: n.load, restSec: null, side: null, clipId: null, at: setTime_(op.at), notes: '', flags: [] };
     checkSet(st);
     x.sets.push(st);
     // Al completar un pendiente a mano, se resuelve en el mismo paso.

@@ -80,7 +80,7 @@ function clipProcess(p) {
 
   const updated = mutateSession_(p.sessionId, (s) => {
     if ((s.clips || []).some((c) => c.id === p.clipId)) return s;
-    const res = eventsToSets_(ai.events, s, { library: library, equipment: settings.equipment, clipId: p.clipId });
+    const res = eventsToSets_(ai.events, s, { library: library, equipment: settings.equipment, clipId: p.clipId, at: setTime_(p.ts) });
     s.exercises = res.exercises;
     s.pending = (s.pending || []).concat(res.pending);
     s.painFlags = (s.painFlags || []).concat(res.pain);
