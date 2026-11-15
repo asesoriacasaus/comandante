@@ -1262,6 +1262,25 @@ function test_pure_manual_entry() {
   return 'ok';
 }
 
+function test_pure_caso_real_cruce_poleas() {
+  // Caso real: «Primera serie de cruce en poleas con 10 kg a cada lado y 10 repeticiones en total.»
+  // La IA devolvió: "Entendí: 10 kg por lado, 10 repeticiones" y la app rechazó la serie con "faltan los kilos de la pila".
+  const sess = { exercises: [], plannedExercises: [] };
+  let r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', perSideKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0, 'ya no queda pendiente: ' + JSON.stringify(r.pending));
+  const set = r.exercises[0].sets[0];
+  assert_(r.exercises[0].exerciseId === 'cruce_poleas' && set.reps === 10 && set.load.implement === 'cable' && set.load.stackKg === 10 && set.load.totalKg === 10, 'serie guardada con pila de 10 kg y 10 repeticiones');
+  // Si la IA no indica el implemento, se toma el habitual del ejercicio (polea)
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', perSideKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.implement === 'cable' && r.exercises[0].sets[0].load.stackKg === 10, 'sin implemento dicho: polea');
+  // Y con las demás formas de decirlo
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', totalKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.stackKg === 10, 'dicho como total');
+  r = eventsToSets_([ev_({ exerciseName: 'Cruce en poleas', implement: 'cable', perHandKg: 10, reps: 10 })], sess, ctx_());
+  assert_(r.pending.length === 0 && r.exercises[0].sets[0].load.stackKg === 10, 'dicho por mano');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1269,7 +1288,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_tts, test_pure_chat_facts, test_pure_chat_turns, test_pure_chat_request, test_pure_chat_reply, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
