@@ -274,7 +274,7 @@ function view(st, ctx) {
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
     if (st.sinEnviar) { await ctx.enviar(); if (ediciones.pendientes(ctx.id).length) { setMsg('Hay cambios sin enviar. Cuando vuelva la conexión se enviarán y podrás terminar.', 'error'); return; } }
-    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
+    try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); borrar('revision-' + ctx.id); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
   } }, 'Terminar sesión')));
   return h('section', {}, nodes);

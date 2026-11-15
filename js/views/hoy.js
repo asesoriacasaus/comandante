@@ -64,7 +64,7 @@ function pedirMensaje(el, s) {
   if (s.coachMessageSource !== 'neutral' || pidiendoMensaje.has(s.id) || s.status === 'done') return;
   pidiendoMensaje.add(s.id);
   call('session.message', { id: s.id }, { silent: true, timeoutMs: 120000 }).then((r) => {
-    const m = r.session && r.session.coachMessage;
+    const m = r && r.session && r.session.coachMessage;
     const hit = leer('hoy');
     if (hit && hit.data.today && hit.data.today.session.id === s.id && m) {
       hit.data.today.session.coachMessage = m; hit.data.today.session.coachMessageSource = 'ai'; guardar('hoy', hit.data);
