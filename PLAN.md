@@ -53,7 +53,7 @@ Los datos personales (edad, altura, peso, medidas y cifras del objetivo) **no es
 | Nutrición | Comidas por voz; macros imprescindibles, también vitaminas y minerales |
 | Avisos | Por correo |
 | Historial previo | Ninguno |
-| Estilo visual | Claro, inspirado en Zara Home y Massimo Dutti |
+| Estilo visual | Cartel revolucionario y militar: papel crema, tinta negra, rojo y verde oliva (sección 9.3) |
 
 ---
 
@@ -73,7 +73,7 @@ Los datos personales (edad, altura, peso, medidas y cifras del objetivo) **no es
 | Plan | Rotación de sesiones, no días fijos de la semana | Entrena de forma ocasional, 3-4 días |
 | Progresión | La app decide (sección 8), dentro de límites deterministas | Entrenador personal real |
 | Avisos | Correo semanal con balance y plan, y aviso cuando toca entrenar | Decisión del usuario |
-| Interfaz | Español, estilo claro y editorial | Decisión del usuario |
+| Interfaz | Español, estilo de cartel revolucionario y militar | Decisión del usuario (15 de noviembre de 2026) |
 | Nombre | Comandante | Decisión del usuario |
 
 ---
