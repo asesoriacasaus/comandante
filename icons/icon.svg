@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#1c1b19"/>
+  
+  <g transform="translate(256 256) scale(1.07) translate(-256 -256)">
+  <g transform="translate(0 6) rotate(-9 256 256)">
+    <ellipse cx="262" cy="372" rx="170" ry="13" fill="#000" opacity=".35"/>
+    <path d="M112 318 C160 350 330 358 410 330 L402 362 C330 392 168 390 120 354 Z" fill="#7d0c11"/>
+    <path d="M62 290 C46 214 140 150 262 148 C384 146 468 206 450 282 C440 334 366 352 256 352 C140 352 70 336 62 290 Z" fill="#c8171e"/>
+    <path d="M116 246 C150 196 226 168 306 170 C232 186 168 212 138 274 Z" fill="#e8434a" opacity=".55"/>
+    <path d="M300 340 C380 336 438 312 450 282 C452 300 430 330 372 346 Z" fill="#9c1016" opacity=".8"/>
+    <ellipse cx="258" cy="146" rx="12" ry="7" fill="#7d0c11"/>
+    <polygon points="172.0,260.0 180.2,284.7 206.2,284.9 185.3,300.3 193.2,325.1 172.0,310.0 150.8,325.1 158.7,300.3 137.8,284.9 163.8,284.7" fill="#f2c94c" stroke="#b8891c" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+  </g>
+</svg>

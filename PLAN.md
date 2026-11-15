@@ -389,6 +389,7 @@ Navegación inferior con 5 entradas (Hoy, Diario, Cuerpo, Comida, Más). Carrera
 - Fondo lino muy claro, superficies blancas, líneas finas color piedra, texto casi negro, un acento sobrio (tabaco u oliva oscuro). Sin degradados ni sombras marcadas.
 - Titulares en una serifa refinada y fina; texto en una sans geométrica limpia; etiquetas en mayúsculas pequeñas con espaciado.
 - Mucho aire, alineación a la izquierda, rejilla sobria, números tabulares.
+- Icono de la app: boina roja con estrella dorada sobre fondo oscuro (`icons/icon.svg` y `icons/icon-maskable.svg` son las fuentes; los PNG de 180, 192, 512 y maskable se generan a partir de ellas). Son símbolos, sin retrato de ninguna persona.
 - Contraste mínimo AA y objetivos táctiles de al menos 44 px; el botón de grabar, mucho mayor (se usa con las manos ocupadas).
 - Tokens de color definidos en `:root`. Solo tema claro, que es lo que pidió el usuario.
 
