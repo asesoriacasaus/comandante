@@ -301,7 +301,7 @@ function commitBody_(input, today) {
     const arr = readJson_('body.json', []);
     const idx = arr.findIndex((x) => x.date === input.date);
     // Un check-in por día: los campos nuevos sustituyen a los anteriores del mismo día.
-    if (idx >= 0) arr[idx] = Object.assign({}, arr[idx], input);
+    if (idx >= 0) arr[idx] = mergeBody_(arr[idx], input);
     else arr.push(input);
     arr.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     writeFile_('body.json', arr);

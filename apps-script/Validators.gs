@@ -123,11 +123,7 @@ function validateBody_(b, today) {
   pushIf_(e, checkNum_(b.weightKg, 'weightKg', 20, 400, false));
   pushIf_(e, checkNum_(b.bodyFatPct, 'bodyFatPct', 1, 70, false));
   pushIf_(e, checkNum_(b.muscleMassKg, 'muscleMassKg', 1, 200, false));
-  if (b.measurementsCm && typeof b.measurementsCm === 'object') {
-    Object.keys(b.measurementsCm).forEach((k) => {
-      pushIf_(e, checkNum_(b.measurementsCm[k], 'measurementsCm.' + k, 1, 300, false));
-    });
-  }
+  e.push(...validateMeasurements_(b.measurementsCm));
   return e;
 }
 

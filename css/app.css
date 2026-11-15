@@ -83,3 +83,21 @@ select { background: var(--lino); }
 .avisos li { margin: 0 0 6px; }
 
 details.bloque summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font: 600 13px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--acento); }
+
+/* Cuerpo y guía */
+.medida .valor-medida { font: 600 16px var(--sans); font-variant-numeric: tabular-nums; }
+.medida small { color: var(--tinta-2); font-weight: 400; }
+.fila.medida { font: 400 17px var(--sans); }
+label.sospechosa input { border-color: var(--error); }
+.aviso-medida { display: block; margin-top: 6px; font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--error); }
+.guia-tarjeta { display: grid; grid-template-columns: auto 1fr; gap: 16px; padding: 20px 0; border-top: 1px solid var(--piedra); }
+.guia-texto h3 { margin: 0 0 4px; }
+.guia-texto .donde { margin: 0 0 8px; font-weight: 600; }
+.guia-texto ol { margin: 0 0 8px; padding-left: 18px; font-size: 15px; color: var(--tinta-2); }
+.guia-texto li { margin: 0 0 4px; }
+.figura { flex: none; }
+.fig-cuerpo { stroke: var(--piedra); fill: none; }
+.fig-relleno { stroke: var(--piedra); fill: var(--blanco); stroke-width: 2; }
+.fig-cinta { stroke: var(--acento); fill: none; stroke-width: 5.5; }
+.fig-texto { fill: var(--tinta-2); font: 600 14px var(--sans); }
+@media (max-width: 380px) { .guia-tarjeta { grid-template-columns: 1fr; } }
