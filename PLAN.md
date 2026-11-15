@@ -283,6 +283,7 @@ Todas desde Apps Script (`UrlFetchApp`) a `generateContent`, con `responseMimeTy
 | `session.review` (sustituye a `session.consolidate`) | FAST (solo el mensaje) | Resumen calculado por el código: plan, última vez y avisos | Mensaje de cierre. La sesión ya se estructura en `clip.process`; la revisión es determinista (`buildReview_`) para que ningún número dependa de la IA. Si la IA falla, texto neutro con datos reales |
 | `plan.cycle.propose` | SMART | Preferencias de entrenamiento | Ciclo de sesiones A-D (validado por `validateCycle_`) |
 | `session.plan` | SMART | Grupos de hoy, referencia de fuerza y lista de ejercicios permitidos. **Solo la primera vez que toca esa sesión del ciclo**; después el plan es determinista (mismos ejercicios, cargas por progresión) | Ejercicios, series, rangos y una estimación de 10RM por ejercicio. El código calcula las cargas (85 % hacia abajo, RIR 3) y aplica `applyPlanRules_` |
+| `coach.chat` | FAST (o SMART con la Propiedad `CHAT_TIER` = `SMART`) | Últimos turnos de la conversación (o un audio) y un **resumen de tus datos** como primer turno, marcado como datos y no como instrucciones: plan de hoy, últimas sesiones, semana, peso y cintura, comida del día frente al objetivo y carreras recientes | `reply` (2 a 4 párrafos con el estilo de la personalidad) y, si la pregunta fue un audio, su `transcript`. No puede cambiar el plan ni inventar cifras; ante dolor recomienda parar y consultar a un profesional. El historial vive solo en el móvil (sesión del navegador); el servidor no lo guarda |
 | `coach.message` | FAST | Grupos de hoy, avisos y `PERSONA_PROMPT` | Mensaje breve; si falla o se bloquea, texto neutro |
 | `meal.process` | FAST | Audio o texto | Ítems con cantidades, macros, micros y confianza |
 | `run.extract` | FAST | Pantallazo del reloj | Campos de carrera (6.4) |
@@ -378,6 +379,7 @@ Disparador de tiempo en Apps Script: `weekly.review` → actualiza `plan/current
 | **Revisión** | Sesión consolidada por la IA, editable, con comparación frente al plan y frente a la última vez. "Guardar" |
 | **Diario** | Historial de sesiones por fecha; detalle con series, volumen y mensaje |
 | **Cuerpo** | Peso con media de 7 días, grasa, músculo, cintura y medidas; botón "Subir pantallazo de la báscula" y "Medir por voz" (con revisión antes de guardar y aviso si una medida cambia más del 10 %), "Anotar a mano"; progreso hacia el objetivo |
+| **Chat** | Conversación con el Comandante, escrita o dictada, con preguntas rápidas; cada respuesta se puede escuchar. Cuelga de Más y de Hoy |
 | **Guía** | Cómo medirse con cinta de sastre: figura con la cinta colocada, dónde y cómo para cada parte, consejos y frase de ejemplo para dictar. Cuelga de Cuerpo |
 | **Comida** | Comidas del día por voz; totales de macros frente al objetivo; micronutrientes aproximados; semana |
 | **Carreras** | Lista de carreras; "Subir pantallazo del reloj" |

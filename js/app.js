@@ -11,11 +11,12 @@ import * as revision from './views/revision.js';
 import * as guia from './views/guia.js';
 import * as carreras from './views/carreras.js';
 import * as progreso from './views/progreso.js';
+import * as chat from './views/chat.js';
 import { detenerVoz } from './lib/voz.js';
 
-const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia, carreras, progreso };
+const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia, carreras, progreso, chat };
 // Ajustes y prueba cuelgan de "Más".
-const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas' };
+const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas', chat: 'mas' };
 const view = document.getElementById('view');
 
 function currentRoute() {
