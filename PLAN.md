@@ -391,14 +391,16 @@ Navegación inferior con 5 entradas (Hoy, Diario, Cuerpo, Comida, Más). Carrera
 - Cada clip se guarda primero en IndexedDB con su marca de tiempo y después se sube. Sin conexión, se encolan y se procesan en orden al volver la red.
 - Feedback táctil y visual claro al empezar y parar. Nunca se pierde un clip: si la subida falla, sigue en la cola.
 
-### 9.3 Dirección visual (claro, editorial, tipo Zara Home / Massimo Dutti)
+### 9.3 Dirección visual (cartel revolucionario y militar)
 
-- Fondo lino muy claro, superficies blancas, líneas finas color piedra, texto casi negro, un acento sobrio (tabaco u oliva oscuro). Sin degradados ni sombras marcadas.
-- Titulares en una serifa refinada y fina; texto en una sans geométrica limpia; etiquetas en mayúsculas pequeñas con espaciado.
-- Mucho aire, alineación a la izquierda, rejilla sobria, números tabulares.
-- Icono de la app: boina roja con estrella dorada sobre fondo oscuro (`icons/icon.svg` y `icons/icon-maskable.svg` son las fuentes; los PNG de 180, 192, 512 y maskable se generan a partir de ellas). Son símbolos, sin retrato de ninguna persona.
+Cambiada el 15 de noviembre de 2026: sustituye a la dirección editorial clara (Zara Home / Massimo Dutti) para que la estética coincida con el entrenador.
+
+- Papel de cartel crema (`--lino`), tinta casi negra, rojo revolucionario (`--acento`) y verde oliva militar (`--oliva`). El ámbar quemado (`--error`) es distinto del rojo de marca para no confundir un fallo con un elemento de la interfaz.
+- Titulares y botones en tipografía condensada en mayúsculas (Avenir Next Condensed o DIN Condensed en iOS, con Impact y Arial Narrow de respaldo); texto en sans limpia, números tabulares.
+- Etiquetas con una estrella roja; botones rectangulares con borde negro y sombra dura; tarjetas con borde negro; franja roja superior; barra inferior negra con la pestaña activa en rojo.
+- Texto de la IA siempre legible: los mensajes del Comandante no se ponen en mayúsculas.
 - Contraste mínimo AA y objetivos táctiles de al menos 44 px; el botón de grabar, mucho mayor (se usa con las manos ocupadas).
-- Tokens de color definidos en `:root`. Solo tema claro, que es lo que pidió el usuario.
+- Tokens de color y tipografía definidos en `:root`. Solo tema claro (papel de cartel).
 
 ---
 
