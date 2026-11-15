@@ -252,7 +252,7 @@ El dictado describe la carga de formas distintas; se guarda la forma original y 
 ### 6.4 Carrera, cuerpo y comida
 
 - **Carrera:** `date, distanceKm, durationSec, avgPaceSecPerKm, avgHr, maxHr, cadence, kcal, elevationM, trainingEffect, source: "screenshot", imageFileId, notes`.
-- **Cuerpo:** `date, weightKg, fatPct, muscleKg, waterPct, visceralFat, boneKg, bmrKcal, measurementsCm { waist, chest, hip, armR, thighR, neck }, source, imageFileId`.
+- **Cuerpo:** `date, weightKg, fatPct, muscleKg, waterPct, visceralFat, boneKg, bmrKcal, measurementsCm, source, imageFileId`. Medidas con cinta (13, en cm): `neck, shoulders, chest, waist, hip` y, por lado, `armL/armR` (bíceps relajado, a medio camino entre hombro y codo), `forearmL/forearmR`, `thighL/thighR` (a medio camino entre la ingle y la rótula), `calfL/calfR`. La cintura se mide a la altura del ombligo y siempre en el mismo punto. Un registro por día: las medidas se fusionan clave a clave, de modo que medir otra parte más tarde no borra las anteriores.
 - **Comida:** como en la spec v1, más `micros` por ítem y en totales: `fiberG, sugarG, saturatedFatG, sodiumMg, potassiumMg, calciumMg, ironMg, magnesiumMg, zincMg, vitAUg, vitCMg, vitDUg, vitEMg, vitKUg, b1Mg, b2Mg, b3Mg, b6Mg, folateUg, b12Ug, omega3G`, y `confidence` por ítem. Los micronutrientes se muestran siempre como aproximados.
 
 ### 6.5 Biblioteca de ejercicios
@@ -368,7 +368,8 @@ Disparador de tiempo en Apps Script: `weekly.review` → actualiza `plan/current
 | **Sesión** | Botón de grabar enorme (pulsar para empezar, pulsar para parar). Lista viva de series reconocidas, editable con un toque. Ejercicio en curso destacado. Temporizador de descanso que arranca al registrar una serie. Indicador de clips pendientes. "Terminar sesión" |
 | **Revisión** | Sesión consolidada por la IA, editable, con comparación frente al plan y frente a la última vez. "Guardar" |
 | **Diario** | Historial de sesiones por fecha; detalle con series, volumen y mensaje |
-| **Cuerpo** | Peso con media de 7 días, grasa, músculo, cintura y medidas; botón "Subir pantallazo de la báscula" y "Dictar medidas"; progreso hacia el objetivo |
+| **Cuerpo** | Peso con media de 7 días, grasa, músculo, cintura y medidas; botón "Subir pantallazo de la báscula" y "Medir por voz" (con revisión antes de guardar y aviso si una medida cambia más del 10 %), "Anotar a mano"; progreso hacia el objetivo |
+| **Guía** | Cómo medirse con cinta de sastre: figura con la cinta colocada, dónde y cómo para cada parte, consejos y frase de ejemplo para dictar. Cuelga de Cuerpo |
 | **Comida** | Comidas del día por voz; totales de macros frente al objetivo; micronutrientes aproximados; semana |
 | **Carreras** | Lista de carreras; "Subir pantallazo del reloj" |
 | **Progreso** | Cargas por ejercicio, 1RM estimado, volumen por grupo y semana, tendencia de peso y cintura |
@@ -454,7 +455,7 @@ Criterio de aceptación: el usuario hace una sesión real en el gimnasio dictand
 
 ### Fase 2. Cuerpo (10 %)
 
-`body.extract` (pantallazo y dictado), pantalla **Cuerpo** con gráficas y progreso al objetivo.
+`body.extract` (pantallazo y dictado), pantalla **Cuerpo** con gráficas y progreso al objetivo. **Hecho (15 de noviembre):** dictado de medidas por voz, entrada a mano, guía visual y resumen de la última medida. **Falta:** pantallazo de la báscula, gráficas y progreso al objetivo.
 
 Criterio: un pantallazo real de la báscula Huawei rellena bien todos los campos; la cintura se dicta y queda registrada.
 

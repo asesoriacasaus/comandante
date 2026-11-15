@@ -701,13 +701,60 @@ function test_pure_bar_inference() {
   return 'ok';
 }
 
+// ---------- Medidas corporales ----------
+
+function test_pure_measurements() {
+  assert_(MEASURE_KEYS_.length === 13 && MEASURE_KEYS_.indexOf('armR') >= 0 && MEASURE_KEYS_.indexOf('calfL') >= 0, 'catálogo de 13 medidas');
+  assert_(validateMeasurements_({ waist: 99.5, armR: 38, thighL: 62 }).length === 0, 'medidas válidas');
+  assert_(validateMeasurements_({ waist: 20 }).length > 0, 'cintura de 20 cm imposible');
+  assert_(validateMeasurements_({ armR: 380 }).length > 0, 'brazo de 380 cm (cm por mm) imposible');
+  assert_(validateMeasurements_({ cejas: 5 }).length > 0, 'medida desconocida');
+  assert_(validateMeasurements_({ arm: 35 }).length > 0, 'sin lado no es una clave válida');
+  assert_(validateBody_({ date: '2026-11-11', weightKg: 80, measurementsCm: { waist: 99 } }, '2026-11-11').length === 0, 'registro con medidas válido');
+  assert_(validateBody_({ date: '2026-11-11', measurementsCm: { waist: 999 } }, '2026-11-11').length > 0, 'registro con medida absurda rechazado');
+
+  // Un segundo registro del mismo día no borra las medidas anteriores
+  const m = mergeBody_({ date: 'd', weightKg: 80, measurementsCm: { waist: 99, armR: 37 } }, { date: 'd', measurementsCm: { armR: 38, thighR: 60 } });
+  assert_(m.weightKg === 80 && m.measurementsCm.waist === 99 && m.measurementsCm.armR === 38 && m.measurementsCm.thighR === 60, 'fusión por clave y conserva el peso');
+  assert_(mergeBody_(null, { date: 'd', weightKg: 80 }).measurementsCm === undefined, 'sin medidas no se inventa el objeto');
+
+  const hist = [{ date: '2026-11-10', measurementsCm: { waist: 100, armR: 36 } }, { date: '2026-11-17', measurementsCm: { waist: 98.5 } }, { date: '2026-11-03', measurementsCm: { waist: 101, neck: 40 } }];
+  const lat = latestMeasurements_(hist);
+  assert_(lat.waist.value === 98.5 && lat.waist.date === '2026-11-17' && lat.armR.value === 36 && lat.neck.value === 40, 'última medida de cada clave, en cualquier orden');
+  const ch = measurementChanges_(lat, { waist: 85, armR: 36.5, neck: 40 });
+  assert_(ch.length === 1 && ch[0].key === 'waist' && ch[0].pct < -10, 'solo marca el cambio de más del 10 %: ' + JSON.stringify(ch));
+  assert_(measurementChanges_(lat, { waist: 90 }).length === 0, 'un −8,6 % es un cambio normal y no se marca');
+  assert_(measurementChanges_(lat, { calfL: 38 }).length === 0, 'sin referencia previa no hay aviso');
+  return 'ok';
+}
+
+function test_pure_body_extraction() {
+  const ok = { transcript: 'cintura noventa y nueve coma cinco, bíceps derecho treinta y ocho, muslos sesenta y dos', weightKg: 87.46,
+    items: [{ part: 'waist', side: null, valueCm: 99.5 }, { part: 'arm', side: 'right', valueCm: 38 }, { part: 'thigh', side: 'both', valueCm: 62 }] };
+  assert_(validateBodyExtraction_(ok).length === 0, 'extracción válida: ' + validateBodyExtraction_(ok));
+  let r = sanitizeExtraction_(ok);
+  assert_(r.measurements.waist === 99.5 && r.measurements.armR === 38 && r.measurements.thighL === 62 && r.measurements.thighR === 62, '"ambos" rellena izquierdo y derecho');
+  assert_(r.weightKg === 87.5 && r.rejected.length === 0, 'peso redondeado a 0,1');
+  r = sanitizeExtraction_({ items: [{ part: 'arm', side: null, valueCm: 36 }] });
+  assert_(r.rejected[0].reason === 'missing_side' && Object.keys(r.measurements).length === 0, 'sin lado no se adivina');
+  r = sanitizeExtraction_({ items: [{ part: 'waist', side: null, valueCm: 990 }, { part: 'calf', side: 'left', valueCm: 5 }], weightKg: 8 });
+  assert_(r.rejected.length === 3 && r.rejected.every((x) => x.reason === 'out_of_range'), 'fuera de rango (mm por cm, etc.) se rechaza');
+  r = sanitizeExtraction_({ items: [{ part: 'waist', valueCm: 99 }, { part: 'waist', valueCm: 98 }] });
+  assert_(r.measurements.waist === 98, 'si se repite una medida, vale la última');
+  assert_(validateBodyExtraction_({ transcript: 'x', items: [{ part: 'cejas', valueCm: 3 }] }).length > 0, 'parte desconocida');
+  assert_(validateBodyExtraction_({ transcript: 'x', items: [{ part: 'arm', side: 'medio', valueCm: 3 }] }).length > 0, 'lado inválido');
+  assert_(validateBodyExtraction_({ transcript: 'x', items: [{ part: 'arm', side: 'left', valueCm: '38' }] }).length > 0, 'valor no numérico');
+  assert_(BODY_SYSTEM_.indexOf('no inventes') >= 0 && BODY_SYSTEM_.indexOf('both') >= 0, 'el prompt prohíbe inventar y define "ambos"');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {

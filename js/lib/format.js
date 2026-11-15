@@ -110,3 +110,11 @@ export function quoteTranscript(text, max = 180) {
   if (!t) return '';
   return '«' + (t.length > max ? t.slice(0, max).trimEnd() + '…' : t) + '»';
 }
+
+/** Fecha local de hoy como YYYY-MM-DD (no la de UTC, que de madrugada sería la del día anterior). */
+export function todayIsoLocal(now = new Date()) {
+  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+}
+
+/** 99.5 → "99,5 cm". */
+export function formatCm(v) { return num(v) + ' cm'; }
