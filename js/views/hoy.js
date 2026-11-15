@@ -10,6 +10,7 @@ const AVISOS = {
   first_session: 'Primera sesión de este bloque: las cargas son conservadoras. Registra lo que realmente levantes y el plan se ajusta.',
   layoff: 'Vuelves tras más de una semana parado: menos carga y una serie menos por ejercicio.',
   deload: 'Semana de descarga: menos volumen y menos carga para recuperar.',
+  priority: 'Hay una serie extra en algunos ejercicios porque la semana pasada te quedaste corto de volumen en esos grupos.',
   long_run: 'Hoy se ha adelantado una sesión sin pierna por tu tirada larga reciente.',
   legs_after_long_run: 'Toca pierna con una tirada larga reciente. Ve con cuidado y baja la intensidad si hace falta.'
 };

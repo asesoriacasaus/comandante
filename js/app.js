@@ -9,10 +9,12 @@ import * as prueba from './views/prueba.js';
 import * as sesion from './views/sesion.js';
 import * as revision from './views/revision.js';
 import * as guia from './views/guia.js';
+import * as carreras from './views/carreras.js';
+import * as progreso from './views/progreso.js';
 
-const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia };
+const ROUTES = { hoy, diario, cuerpo, comida, mas, ajustes, prueba, sesion, revision, guia, carreras, progreso };
 // Ajustes y prueba cuelgan de "Más".
-const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo' };
+const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas' };
 const view = document.getElementById('view');
 
 function currentRoute() {

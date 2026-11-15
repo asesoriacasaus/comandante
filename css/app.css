@@ -101,3 +101,51 @@ label.sospechosa input { border-color: var(--error); }
 .fig-cinta { stroke: var(--acento); fill: none; stroke-width: 5.5; }
 .fig-texto { fill: var(--tinta-2); font: 600 14px var(--sans); }
 @media (max-width: 380px) { .guia-tarjeta { grid-template-columns: 1fr; } }
+
+/* Diario */
+.diario-item { border-bottom: 1px solid var(--piedra); }
+.diario-fila { display: grid; gap: 2px; width: 100%; min-height: 64px; padding: 14px 0; background: none; border: 0; text-align: left; color: var(--tinta); }
+.diario-fecha { font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--tinta-2); }
+.diario-titulo { font: 400 21px var(--serif); }
+.detalle-sesion { padding: 0 0 16px; }
+.serie-solo { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; min-height: 40px; font: 15px var(--sans); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--piedra); }
+.serie-solo .n { color: var(--tinta-2); font-size: 13px; }
+.serie-solo .carga { margin: 0; font-size: 13px; text-align: right; }
+
+/* Progreso y gráficas */
+.progreso { margin: 0 0 12px; }
+.progreso p { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
+progress { width: 100%; height: 10px; appearance: none; -webkit-appearance: none; border: 1px solid var(--piedra); background: var(--blanco); }
+progress::-webkit-progress-bar { background: var(--blanco); }
+progress::-webkit-progress-value { background: var(--acento); }
+progress::-moz-progress-bar { background: var(--acento); }
+.grafica { display: block; margin: 4px 0 16px; background: var(--blanco); border: 1px solid var(--piedra); }
+.gr-punto { fill: var(--tinta-2); opacity: .55; }
+.gr-linea { stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+
+/* Comida */
+.dia-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 0 16px; }
+.dia-nav .btn { min-width: 48px; padding: 10px 14px; font-size: 20px; }
+.dia-titulo { font: 400 22px var(--serif); }
+.comida { padding: 12px 0; border-bottom: 1px solid var(--piedra); }
+.comida-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.comida-cab h3 { margin: 0; }
+.comida-cab .btn { min-height: 44px; padding: 8px 14px; }
+.item-comida { padding: 16px 0; border-top: 1px solid var(--piedra); }
+.rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: 16px var(--sans); color: var(--tinta); background: var(--lino); border: 1px solid var(--piedra); border-radius: 0; resize: vertical; }
+
+/* Progreso */
+.tabla-grupos { width: 100%; border-collapse: collapse; font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+.tabla-grupos th, .tabla-grupos td { padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--piedra); }
+.tabla-grupos th[scope="row"] { text-align: left; font-weight: 400; padding-right: 8px; }
+.tabla-grupos thead th { font: 600 11px var(--sans); color: var(--tinta-2); }
+.tabla-grupos .c0 { color: var(--tinta-2); }
+.tabla-grupos .c1 { background: #f0d9d3; color: var(--error); }
+.tabla-grupos .c2 { background: #dfe6d3; }
+.tabla-grupos .c3 { background: #b9c6a0; font-weight: 600; }
+
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabla-grupos th[scope="row"] { white-space: nowrap; }
+
+h3.seccion { margin: 28px 0 12px; font-size: 24px; }

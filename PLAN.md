@@ -358,6 +358,13 @@ Disparador de tiempo en Apps Script: `weekly.review` → actualiza `plan/current
 
 ---
 
+### 8.7 Cómo se ejecuta la revisión semanal
+
+- `weeklyTrigger` (domingo, 19:00) calcula los hechos de los últimos 7 días (`weeklyFacts_`), aplica las reglas (`calorieAdjustment_`: ±150 kcal según tendencia de peso y cintura, acumulado y acotado a ±450; grupos con menos de 8 series reciben una serie más; ejercicios principales estancados cuentan para adelantar la descarga) y guarda `plan/history/AAAA-Www.json`.
+- La IA solo redacta el comentario de apertura del correo (modelo SMART, con el rápido y un texto neutro de respaldo). Los números y los ajustes salen del código y no dependen del estilo.
+- `reminderTrigger` (a diario, hacia las 7:00) avisa solo si llevas `reminderAfterRestDays` días sin entrenar y hoy no has empezado una sesión.
+- `installTriggers` crea ambos disparadores; se ejecuta una vez desde el editor. En Ajustes hay "Vista previa" y "Enviar ahora" para probar sin esperar al domingo.
+
 ## 9. Interfaz
 
 ### 9.1 Pantallas
@@ -440,7 +447,7 @@ Dentro de una fase, el avance se reparte por sus tareas a partes iguales.
 
 Criterio de aceptación: un push a `main` despliega frontend y servidor sin intervención salvo la aprobación; desde el iPhone instalado, un clip dictado vuelve transcrito e interpretado; ningún secreto aparece en el repo.
 
-### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3, 4, 5, 6 y 9 hechas (cada tarea pesa 3,3 puntos)
+### Fase 1. Entrenar (30 %). En curso: tareas 1, 2, 3, 4, 5, 6, 7 y 9 hechas (cada tarea pesa 3,3 puntos)
 
 1. Biblioteca de ejercicios (6.5) y modelo de serie (6.2) con tests.
 2. `Planner.gs`: rotación, reglas de carrera y vuelta, volumen y progresión (8.1-8.4), con tests de funciones puras.
@@ -460,19 +467,19 @@ Criterio de aceptación: el usuario hace una sesión real en el gimnasio dictand
 
 Criterio: un pantallazo real de la báscula Huawei rellena bien todos los campos; la cintura se dicta y queda registrada.
 
-### Fase 3. Comida (15 %)
+### Fase 3. Comida (15 %). Código completo el 15 de noviembre; falta la prueba en el iPhone
 
-`meal.process`, pantalla **Comida**, objetivos de 8.5, micronutrientes marcados como aproximados.
+`meal.process`, pantalla **Comida**, objetivos de 8.5, micronutrientes marcados como aproximados. Detalles: las calorías de cada alimento se comprueban contra sus macros (4-4-9) y se corrigen si difieren más de un 25 %; al cambiar la cantidad en la revisión, todos los nutrientes se reescalan; la media de 7 días avisa de micronutrientes por debajo del 60 % de la referencia (o de sodio, azúcares y grasa saturada por encima del 130 % del máximo) cuando hay al menos 3 días con datos. Objetivos: Mifflin-St Jeor × 1,55 menos un 10 %, proteína 2 g/kg y grasa 0,9 g/kg; el resto, hidratos.
 
 Criterio: una comida dictada genera ítems coherentes con macros y micronutrientes y suma bien los totales del día.
 
-### Fase 4. Carreras (8 %)
+### Fase 4. Carreras (8 %). Código completo el 15 de noviembre; falta la prueba con un pantallazo real del reloj
 
-`run.extract`, pantalla **Carreras**, regla de carrera del planificador conectada a datos reales.
+`run.extract`, pantalla **Carreras**, regla de carrera del planificador conectada a datos reales. El modelo solo transcribe los textos del reloj ("00:14:51", "7'35\""); el código convierte y comprueba que ritmo, distancia y duración sean coherentes. La hora de inicio de la carrera alimenta la regla de las 36 horas.
 
 Criterio: un pantallazo real del Huawei Watch Fit 4 rellena los campos; una tirada larga reciente adelanta la sesión sin pierna.
 
-### Fase 5. Semana y pulido (17 %)
+### Fase 5. Semana y pulido (17 %). Código completo el 15 de noviembre (revisión semanal, correos, disparadores, Progreso, exportar e importar); falta la prueba real y la personalidad del Comandante
 
 `weekly.review`, disparadores de tiempo, correos (semanal y aviso), pantalla **Progreso**, exportar e importar, accesibilidad, estados vacíos y textos.
 
@@ -526,3 +533,20 @@ Criterio: el domingo llega el correo con balance y plan; el plan de la semana si
 Mensaje sugerido para abrir la conversación nueva con Sonnet, con el repo `comandante` conectado:
 
 > Vamos a construir Comandante siguiendo `PLAN.md` del repositorio. Léelo entero. Mis datos personales y la personalidad del entrenador están en mi cuestionario privado: [enlace que te paso aparte]. No los escribas nunca en el repo. Empieza por la Fase 0 y guíame en los pasos de la sección 13 que me tocan. Termina cada respuesta con el porcentaje de avance del proyecto y el modelo recomendado.
+
+---
+
+## 15. Estado y pruebas pendientes en el iPhone (15 de noviembre de 2026)
+
+Todo el código de las fases 0 a 5 está escrito y probado en Node y en Chromium con servidores simulados. Lo que **no** se ha podido probar es lo que depende de Gemini, de Drive y del correo con datos reales. Orden sugerido de pruebas, de menor a mayor riesgo:
+
+1. **Despliegue:** fusionar la rama, aprobar `production` y comprobar en Más > Ajustes que la "Versión de la app" cambia. Ejecutar `setup` e `installTriggers` desde el editor de Apps Script y aceptar los permisos nuevos.
+2. **Cuerpo:** guía de medidas; medir por voz (lados y decimales); pantallazo de la báscula (los 10 campos); gráficas tras 2 o más registros.
+3. **Entrenar:** sesión corta con dictado en desorden; revisar los pendientes y "Lo que oí"; guardar; Diario; Progreso.
+4. **Comida:** dictar una comida con cantidades; comprobar el reescalado y los totales frente a objetivos.
+5. **Carreras:** pantallazo real del reloj; comprobar que una tirada larga reciente adelanta la sesión sin pierna.
+6. **Semana:** Ajustes > Correo semanal > Vista previa y Enviar ahora; revisar el correo; al día siguiente, el recordatorio.
+7. **Personalidad:** pegar `PERSONA_PROMPT` en las Propiedades del script y comprobar el tono en Hoy y en la revisión.
+
+Decisiones abiertas que tendrá que confirmar el usuario: bíceps relajado (no contraído), punto de la cintura por la parte más ancha, modelos `GEMINI_MODEL_FAST` y `GEMINI_MODEL_SMART` tras probar con audio real, y qué hacer con las sesiones de prueba.
+

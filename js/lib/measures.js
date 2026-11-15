@@ -84,3 +84,30 @@ export function latestWeight(records) {
   const w = [...records].filter((r) => typeof r.weightKg === 'number').sort((a, b) => (a.date < b.date ? -1 : 1));
   return w.length ? { value: w[w.length - 1].weightKg, date: w[w.length - 1].date, prev: w.length > 1 ? w[w.length - 2].weightKg : null } : null;
 }
+
+// Campos de la báscula inteligente. Las claves coinciden con SCALE_FIELDS_ de apps-script/Body.gs.
+export const SCALE_FIELDS = [
+  { key: 'weightKg', label: 'Peso', unit: 'kg' },
+  { key: 'bmi', label: 'IMC', unit: '' },
+  { key: 'bodyFatPct', label: 'Grasa corporal', unit: '%' },
+  { key: 'muscleMassKg', label: 'Masa musculoesquelética', unit: 'kg' },
+  { key: 'visceralFat', label: 'Grasa visceral', unit: 'nivel' },
+  { key: 'bmrKcal', label: 'Metabolismo basal', unit: 'kcal' },
+  { key: 'waterPct', label: 'Agua', unit: '%' },
+  { key: 'boneKg', label: 'Minerales óseos', unit: 'kg' },
+  { key: 'proteinPct', label: 'Proteínas', unit: '%' },
+  { key: 'fatFreeMassKg', label: 'Masa libre de grasa', unit: 'kg' }
+];
+
+/** Último valor conocido de cada campo de la báscula, con su fecha y el valor anterior. */
+export function latestScale(records) {
+  const out = {};
+  [...records].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((r) => {
+    for (const f of SCALE_FIELDS) {
+      if (typeof r[f.key] !== 'number') continue;
+      const cur = out[f.key];
+      out[f.key] = { value: r[f.key], date: r.date, prev: cur ? cur.value : null };
+    }
+  });
+  return out;
+}

@@ -398,7 +398,7 @@ function test_pure_settings() {
   return 'ok';
 }
 
-const LIB_ = exerciseSeed_();
+function lib_() { return exerciseSeed_(); }
 const EQ_ = { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 };
 
 function test_pure_plan_from_history() {
@@ -407,18 +407,18 @@ function test_pure_plan_from_history() {
     exercises: [{ exerciseId: 'press_banca', sets: sets }] });
   const full = [wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 2, bb_(20)), wset_(10, 3, bb_(20))];
   const s1 = mk('2026-11-16', full);
-  let plan = planFromHistory_(s1, [s1], LIB_, EQ_);
+  let plan = planFromHistory_(s1, [s1], lib_(), EQ_);
   assert_(plan.length === 1 && plan[0].exerciseId === 'press_banca', 'mismos ejercicios que la última vez');
   assert_(plan[0].targetLoad.totalKg === 62.5 && plan[0].progression === 'increase', 'sube la carga tras llegar al máximo');
   assert_(plan[0].sets === 4 && plan[0].repsMax === 10 && plan[0].targetRir === 2, 'conserva series y rangos');
 
   const weak = mk('2026-11-16', [wset_(9, 2, bb_(20)), wset_(8, 2, bb_(20)), wset_(8, 2, bb_(20))]);
-  plan = planFromHistory_(weak, [weak], LIB_, EQ_);
+  plan = planFromHistory_(weak, [weak], lib_(), EQ_);
   assert_(plan[0].targetLoad.totalKg === 60 && plan[0].progression === 'hold', 'en rango: mantiene');
 
   // Sin plannedExercises: se reconstruye desde lo hecho
   const bare = { status: 'done', cycleKey: 'A', date: '2026-11-16', exercises: [{ exerciseId: 'curl_barra', sets: [wset_(12, 2, normalizeLoad_({ implement: 'ezbar', perSideKg: 10 }, EQ_).load)] }] };
-  plan = planFromHistory_(bare, [bare], LIB_, EQ_);
+  plan = planFromHistory_(bare, [bare], lib_(), EQ_);
   assert_(plan[0].repsMin === 10 && plan[0].repsMax === 15 && plan[0].targetLoad.totalKg === 30, 'reconstruye rangos de aislamiento');
 
   assert_(exerciseHistory_([s1], 'press_banca', 2).length === 1 && exerciseHistory_([s1], 'sentadilla', 2).length === 0, 'historial por ejercicio');
@@ -436,8 +436,8 @@ function test_pure_ai_plan() {
     { exerciseId: 'aperturas', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 30, restSec: 75 },
     { exerciseId: 'extension_polea', implement: 'cable', sets: 3, repsMin: 10, repsMax: 15, estimated10RmTotalKg: 35, restSec: 75 }
   ] };
-  assert_(validateAiPlan_(good, groups, LIB_).length === 0, 'plan válido: ' + validateAiPlan_(good, groups, LIB_));
-  const bad = (mut) => { const c = JSON.parse(JSON.stringify(good)); mut(c); return validateAiPlan_(c, groups, LIB_).length > 0; };
+  assert_(validateAiPlan_(good, groups, lib_()).length === 0, 'plan válido: ' + validateAiPlan_(good, groups, lib_()));
+  const bad = (mut) => { const c = JSON.parse(JSON.stringify(good)); mut(c); return validateAiPlan_(c, groups, lib_()).length > 0; };
   assert_(bad((c) => { c.exercises[0].exerciseId = 'baile'; }), 'id inventado rechazado');
   assert_(bad((c) => { c.exercises[0].exerciseId = 'sentadilla'; }), 'ejercicio de otro grupo rechazado');
   assert_(bad((c) => { c.exercises[0].implement = 'machine'; }), 'implemento no válido rechazado');
@@ -446,9 +446,9 @@ function test_pure_ai_plan() {
   assert_(bad((c) => { c.exercises[0].repsMin = 12; }), 'rango invertido rechazado');
   assert_(bad((c) => { c.exercises[0].estimated10RmTotalKg = -5; }), 'estimación negativa rechazada');
   assert_(bad((c) => { c.exercises = c.exercises.slice(0, 2); }), 'muy pocos ejercicios rechazados');
-  assert_(validateAiPlan_({}, groups, LIB_).length > 0, 'sin ejercicios rechazado');
+  assert_(validateAiPlan_({}, groups, lib_()).length > 0, 'sin ejercicios rechazado');
 
-  const planned = buildPlannedFromAi_(good, LIB_, EQ_);
+  const planned = buildPlannedFromAi_(good, lib_(), EQ_);
   assert_(planned[0].targetLoad.totalKg <= 55.25 && planned[0].targetLoad.totalKg >= 50, 'barra: 85 % hacia abajo, obtenido ' + planned[0].targetLoad.totalKg);
   assert_(planned[1].targetLoad.implement === 'dumbbell' && planned[1].targetLoad.perHandKg === 18, 'mancuernas: 44 × 0,85 / 2 → 18 por mano');
   assert_(planned.every((p) => p.targetRir === 3), 'primera sesión: RIR 3');
@@ -459,8 +459,8 @@ function test_pure_ai_plan() {
 
 function test_pure_prompts() {
   const settings = deepMerge_(defaultSettings_(), { strength: { referenceTotalKg: 65 } });
-  const user = buildSessionUser_(['chest', 'triceps'], settings, LIB_);
-  assert_(user.ejerciciosPermitidos.length > 5 && user.ejerciciosPermitidos.every((x) => LIB_.find((e) => e.id === x.id).primary.some((g) => ['chest', 'triceps'].indexOf(g) >= 0)), 'solo ejercicios de los grupos de hoy');
+  const user = buildSessionUser_(['chest', 'triceps'], settings, lib_());
+  assert_(user.ejerciciosPermitidos.length > 5 && user.ejerciciosPermitidos.every((x) => lib_().find((e) => e.id === x.id).primary.some((g) => ['chest', 'triceps'].indexOf(g) >= 0)), 'solo ejercicios de los grupos de hoy');
   assert_(user.referenciaDeFuerza.pesoTotalKg === 65, 'la referencia viaja en el mensaje del usuario');
   assert_(SESSION_SYSTEM_.indexOf('65') < 0, 'las instrucciones no contienen datos del usuario');
   assert_(JSON.stringify(buildCycleUser_(settings)).indexOf('65') < 0, 'el ciclo no necesita la referencia');
@@ -486,68 +486,68 @@ const sess_ = (extra) => Object.assign({ id: 's_20261116_1800_ab12', date: '2026
     { exerciseId: 'press_banca', name: 'Press banca', sets: 4, targetLoad: bb_(15) },
     { exerciseId: 'press_inclinado', name: 'Press inclinado', sets: 3, targetLoad: normalizeLoad_({ implement: 'dumbbell', perHandKg: 20 }, {}).load }
   ] }, extra || {});
-const CTX_ = { library: exerciseSeed_(), equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 }, clipId: 'c_20261116_1832_x7k2' };
+function ctx_() { return { library: exerciseSeed_(), equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 }, clipId: 'c_20261116_1832_x7k2' }; }
 
 function test_pure_dictation() {
   // "press banca con barra y 20 a cada lado, 8 repeticiones, me quedaban dos"
-  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), CTX_);
+  let r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 })], sess_(), ctx_());
   const set = r.exercises[0].sets[0];
   assert_(r.exercises[0].exerciseId === 'press_banca' && set.load.totalKg === 60 && set.reps === 8 && set.rir === 2, '"20 a cada lado" = 60 kg, 8 reps, RIR 2');
-  assert_(set.order === 1 && set.type === 'working' && set.clipId === CTX_.clipId, 'orden, tipo y clip de origen');
+  assert_(set.order === 1 && set.type === 'working' && set.clipId === ctx_().clipId, 'orden, tipo y clip de origen');
 
   // "otra igual"
   const s2 = sess_({ exercises: r.exercises });
-  r = eventsToSets_([ev_({ repeatLast: true })], s2, CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true })], s2, ctx_());
   assert_(r.exercises[0].sets.length === 2 && r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].reps === 8 && r.exercises[0].sets[1].rir === 2, '"otra igual" repite la última serie');
-  r = eventsToSets_([ev_({ repeatLast: true, reps: 7, rir: 1 })], s2, CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true, reps: 7, rir: 1 })], s2, ctx_());
   assert_(r.exercises[0].sets[1].reps === 7 && r.exercises[0].sets[1].rir === 1, '"otra igual pero 7" respeta lo nuevo');
 
   // Solo repeticiones: hereda la carga y lo marca
-  r = eventsToSets_([ev_({ reps: 6, rir: 1 })], s2, CTX_);
+  r = eventsToSets_([ev_({ reps: 6, rir: 1 })], s2, ctx_());
   assert_(r.exercises[0].sets[1].load.totalKg === 60 && r.exercises[0].sets[1].flags.indexOf('inherited_load') >= 0, 'sin carga: hereda la anterior y lo señala');
 
   // Mancuernas de 15 y "otra serie de 10"
-  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', implement: 'dumbbell', perHandKg: 15, reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', implement: 'dumbbell', perHandKg: 15, reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.totalKg === 30 && r.exercises[0].sets[0].load.count === 2 && r.exercises[0].sets[0].rir === null, '"mancuernas de 15" = 30 kg y RIR sin inventar (null)');
 
   // Cambio de ejercicio y orden de aparición
   r = eventsToSets_([ev_({ exerciseName: 'banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
     ev_({ exerciseName: 'elevaciones laterales', implement: 'dumbbell', perHandKg: 8, reps: 12, rir: 1 }),
-    ev_({ repeatLast: true })], sess_(), CTX_);
+    ev_({ repeatLast: true })], sess_(), ctx_());
   assert_(r.exercises.length === 2 && r.exercises[1].exerciseId === 'elevaciones_laterales' && r.exercises[1].sets.length === 2, 'varios ejercicios en un clip, la repetición va al último');
 
   // Total de la barra dictado ("barra con 60 kilos")
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 60, reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 60, reps: 5 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.perSideKg === 20, 'total 60 con barra de 20 = 20 por lado');
 
   // Sin ejercicio ni historial: el siguiente del plan, con aviso
-  r = eventsToSets_([ev_({ implement: 'barbell', perSideKg: 15, reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ implement: 'barbell', perSideKg: 15, reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].exerciseId === 'press_banca' && r.warnings[0] === 'assumed_exercise:press_banca', 'asume el siguiente del plan y avisa');
   // Sin carga dicha ni serie previa: usa el plan y lo señala
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', reps: 10 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', reps: 10 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.totalKg === 50 && r.exercises[0].sets[0].flags[0] === 'load_from_plan', 'carga del plan señalada');
   // Implemento por defecto del plan
-  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', perHandKg: 22, reps: 8 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press inclinado', perHandKg: 22, reps: 8 })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].load.implement === 'dumbbell', 'implemento tomado del plan');
 
   // Pendientes: nunca se inventa
-  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'baile flamenco', reps: 5 })], sess_(), ctx_());
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'unknown_exercise', 'ejercicio desconocido → pendiente');
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20 })], sess_(), ctx_());
   assert_(r.exercises.length === 0 && r.pending[0].reason === 'missing_reps', 'sin repeticiones → pendiente');
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 5 })], sess_(), ctx_());
   assert_(r.pending[0].reason === 'invalid_load', 'carga imposible → pendiente');
-  r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), CTX_);
+  r = eventsToSets_([ev_({ repeatLast: true })], sess_({ plannedExercises: [] }), ctx_());
   assert_(r.pending[0].reason === 'no_exercise', 'nada que repetir ni ejercicio');
-  r = eventsToSets_([ev_({ exerciseName: 'curl de biceps', repeatLast: true })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'curl de biceps', repeatLast: true })], sess_(), ctx_());
   assert_(r.pending[0].reason === 'nothing_to_repeat', 'repetir sin serie previa');
 
   // Dolor
   r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8 }),
-    ev_({ type: 'pain', text: 'me molesta el hombro derecho' })], sess_(), CTX_);
+    ev_({ type: 'pain', text: 'me molesta el hombro derecho' })], sess_(), ctx_());
   assert_(r.pain.length === 1 && r.pain[0].exerciseId === 'press_banca', 'dolor registrado para el entrenador');
   // Calentamiento y dropset
-  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, reps: 10, setType: 'warmup' })], sess_(), CTX_);
+  r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, reps: 10, setType: 'warmup' })], sess_(), ctx_());
   assert_(r.exercises[0].sets[0].type === 'warmup', 'calentamiento');
   assert_(sess_().exercises.length === 0, 'no muta la sesión original');
   return 'ok';
@@ -564,15 +564,15 @@ function test_pure_clip_validation() {
   assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ rir: 14 })] }).length > 0, 'rir fuera de rango');
   assert_(validateClipResponse_({ transcript: 'x', events: [ev_({ perSideKg: -5 })] }).length > 0, 'carga negativa');
   assert_(CLIP_SYSTEM_.indexOf('NO calcules kilos totales') >= 0, 'la IA no calcula totales');
-  assert_(JSON.stringify(buildClipUser_(sess_(), CTX_.library)).indexOf('press_banca') >= 0, 'contexto con el plan de hoy');
+  assert_(JSON.stringify(buildClipUser_(sess_(), ctx_().library)).indexOf('press_banca') >= 0, 'contexto con el plan de hoy');
   return 'ok';
 }
 
 function test_pure_edit_ops() {
   const base = sess_();
-  const r0 = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 }), ev_({ repeatLast: true })], base, CTX_);
+  const r0 = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: 8, rir: 2 }), ev_({ repeatLast: true })], base, ctx_());
   const s = sess_({ exercises: r0.exercises, pending: [{ reason: 'missing_reps' }] });
-  const eq = CTX_.equipment; const lib = CTX_.library;
+  const eq = ctx_().equipment; const lib = ctx_().library;
   let n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 2, patch: { reps: 9, rir: 1 } }, eq, lib);
   assert_(n.exercises[0].sets[1].reps === 9 && n.exercises[0].sets[1].rir === 1, 'editar repeticiones y RIR');
   n = applyEditOp_(s, { op: 'update', exerciseId: 'press_banca', order: 1, patch: { load: { perSideKg: 22.5 } } }, eq, lib);
@@ -676,26 +676,26 @@ function test_pure_bar_inference() {
   assert_(r.load === null, 'barra deducida de 70 kg no es plausible');
 
   // En el dictado: se acepta, se avisa y se reutiliza en las series siguientes
-  let res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_);
+  let res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), ctx_());
   const set = res.exercises[0].sets[0];
   assert_(res.pending.length === 0 && set.load.totalKg === 30 && set.load.barKg === 10 && set.flags.indexOf('bar_inferred') >= 0 && set.load.barInferred === undefined, 'dictado: barra deducida y señalada');
   const s2 = sess_({ exercises: res.exercises });
-  res = eventsToSets_([ev_({ perSideKg: 12.5, reps: 8 })], s2, CTX_);
+  res = eventsToSets_([ev_({ perSideKg: 12.5, reps: 8 })], s2, ctx_());
   assert_(res.exercises[0].sets[1].load.totalKg === 35, 'las series siguientes reutilizan la barra deducida (10 + 2 × 12,5)');
 
   // Pendientes con lo entendido
-  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_());
   assert_(res.pending.length === 0 && res.exercises[0].sets[0].load.totalKg === 60 && res.exercises[0].sets[0].flags.indexOf('total_ignored') >= 0,
     'total absurdo junto a "20 por lado": se fía de los kilos por lado (60 kg) y avisa');
-  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', totalKg: 10, reps: 8 })], sess_(), ctx_());
   assert_(res.pending[0].reason === 'invalid_load' && res.pending[0].heard.totalKg === 10 && res.pending[0].heard.reps === 8, 'el pendiente guarda lo que la IA entendió');
-  const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  const rv2 = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, totalKg: 20, reps: 8 })], sess_(), ctx_()).exercises }, null, ctx_().library, {});
   assert_(rv2.issues.some((i) => i.type === 'total_ignored'), 'la revisión avisa de que se ignoró el total');
-  res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), CTX_);
+  res = eventsToSets_([ev_({ exerciseName: 'baile', reps: 5 })], sess_(), ctx_());
   assert_(res.pending[0].heard.reps === 5, 'también en ejercicio desconocido');
 
   // Aviso en la revisión
-  const rv = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), CTX_).exercises }, null, CTX_.library, {});
+  const rv = buildReview_({ plannedExercises: [], exercises: eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 10, totalKg: 30, reps: 8 })], sess_(), ctx_()).exercises }, null, ctx_().library, {});
   assert_(rv.issues.some((i) => i.type === 'bar_inferred' && i.barKg === 10), 'la revisión avisa de la barra deducida');
   assert_(CLIP_SYSTEM_.indexOf('nunca reps 20') >= 0 && CLIP_SYSTEM_.indexOf('no sumes la barra') >= 0, 'el prompt distingue reps de kilos y no suma la barra');
   return 'ok';
@@ -748,13 +748,340 @@ function test_pure_body_extraction() {
   return 'ok';
 }
 
+function test_pure_scale() {
+  const full = { kind: 'scale', date: null, weightKg: 87.5, bmi: 28.8, bodyFatPct: 23.3, muscleMassKg: 36, visceralFat: 13, bmrKcal: 1818,
+    waterPct: 56.1, boneKg: 3.46, proteinPct: 16.6, fatFreeMassKg: 67.1 };
+  assert_(validateScaleExtraction_(full).length === 0, 'extracción válida');
+  const r = sanitizeScale_(full, '2026-11-15');
+  assert_(Object.keys(r.fields).length === 10 && r.fields.boneKg === 3.46 && r.fields.bmrKcal === 1818 && r.rejected.length === 0, 'los 10 campos de una captura real');
+  assert_(validateBody_(Object.assign({ date: '2026-11-15' }, r.fields), '2026-11-15').length === 0, 'el registro con esos campos es válido');
+  const part = sanitizeScale_({ kind: 'scale', weightKg: 87.5, bodyFatPct: null }, '2026-11-15');
+  assert_(Object.keys(part.fields).length === 1, 'lo que no se ve se omite');
+  const bad = sanitizeScale_({ kind: 'scale', weightKg: 875, bodyFatPct: 233 }, '2026-11-15');
+  assert_(bad.rejected.length === 2 && Object.keys(bad.fields).length === 0, 'valores imposibles rechazados (coma mal leída)');
+  let c = null; try { sanitizeScale_({ kind: 'other' }, '2026-11-15'); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'una imagen que no es báscula se rechaza');
+  assert_(sanitizeScale_({ kind: 'scale', date: '2026-11-10', weightKg: 80 }, '2026-11-15').date === '2026-11-10', 'fecha visible aceptada');
+  assert_(sanitizeScale_({ kind: 'scale', date: '2027-03-01', weightKg: 80 }, '2026-11-15').date === null, 'fecha futura descartada');
+  assert_(sanitizeScale_({ kind: 'scale', date: 'ayer', weightKg: 80 }, '2026-11-15').date === null, 'fecha mal formada descartada');
+  assert_(validateScaleExtraction_({ kind: 'scale', weightKg: '87' }).length > 0 && validateScaleExtraction_({ kind: 'foto' }).length > 0, 'validación del formato');
+  assert_(SCALE_SYSTEM_.indexOf('nunca inventes ni calcules') >= 0, 'el prompt prohíbe inventar');
+  assert_(validateBody_({ date: '2026-11-15', visceralFat: 99 }, '2026-11-15').length > 0, 'grasa visceral fuera de rango');
+  return 'ok';
+}
+
+// ---------- Nutrición ----------
+
+function test_pure_nutrition_targets() {
+  const st = deepMerge_(defaultSettings_(), { profile: { sex: 'male', birthYear: 1990, heightCm: 180 } });
+  // Mifflin-St Jeor: 10×80 + 6,25×180 − 5×36 + 5 = 1750
+  const t = nutritionTargets_(st, 80, 2026);
+  assert_(t.bmr === 1750 && t.tdee === 2713 && t.kcal === 2441, 'BMR 1750, mantenimiento 2713 (×1,55) y −10 % = 2441: ' + JSON.stringify(t));
+  assert_(t.proteinG === 160 && t.fatG === 72, 'proteína 2 g/kg y grasa 0,9 g/kg');
+  assert_(Math.abs(4 * t.proteinG + 9 * t.fatG + 4 * t.carbsG - t.kcal) <= 4, 'los macros suman las calorías objetivo');
+  const f = nutritionTargets_(deepMerge_(st, { profile: { sex: 'female' } }), 80, 2026);
+  assert_(f.bmr === 1584, 'mujer: −161 en lugar de +5');
+  assert_(nutritionTargets_(defaultSettings_(), 80, 2026) === null, 'sin perfil no hay objetivos');
+  assert_(nutritionTargets_(st, null, 2026) === null, 'sin peso no hay objetivos');
+  const m = nutritionTargets_(deepMerge_(st, { nutrition: { kcalStrategy: 'maintenance' } }), 80, 2026);
+  assert_(m.kcal === 2713, 'estrategia de mantenimiento');
+  assert_(validateSettings_(deepMerge_(st, { nutrition: { proteinGPerKg: 9 } })).length > 0, 'proteína absurda rechazada');
+  assert_(MICROS_.length === 21 && MICROS_.every((x) => x.ref > 0 && ['min', 'max'].indexOf(x.kind) >= 0), '21 micronutrientes con referencia');
+  return 'ok';
+}
+
+const rawItem_ = (o) => Object.assign({ name: 'Pollo a la plancha', quantity: 150, unit: 'g', kcal: 248, proteinG: 46.5, carbsG: 0, fatG: 5.4, confidence: 0.8 }, o || {});
+
+function test_pure_meal_extraction() {
+  const ok = { mealType: 'lunch', time: '14:30', items: [rawItem_(), rawItem_({ name: 'Arroz', quantity: 200, kcal: 260, proteinG: 5.4, carbsG: 56, fatG: 0.6, fiberG: 0.6 })] };
+  assert_(validateMealExtraction_(ok).length === 0, 'extracción válida: ' + validateMealExtraction_(ok));
+  const r = sanitizeMeal_(ok);
+  assert_(r.items.length === 2 && r.mealType === 'lunch' && r.time === '14:30' && r.warnings.length === 0, 'comida coherente sin avisos');
+  assert_(r.items[1].fiberG === 0.6 && r.items[0].fiberG === undefined, 'los micronutrientes null se omiten');
+
+  // Coherencia de calorías (Atwater)
+  let n = normalizeMealItem_(rawItem_({ kcal: 900 }));
+  assert_(n.flags[0] === 'kcal_fixed' && n.item.kcal === 235, 'calorías incoherentes con los macros se corrigen: ' + JSON.stringify(n));
+  n = normalizeMealItem_(rawItem_({ kcal: null }));
+  assert_(n.flags[0] === 'kcal_from_macros' && n.item.kcal === 235, 'sin calorías se calculan de los macros');
+  n = normalizeMealItem_(rawItem_({ kcal: 240 }));
+  assert_(n.flags.length === 0 && n.item.kcal === 240, 'dentro del 25 % se respeta la estimación');
+  n = normalizeMealItem_(rawItem_({ name: 'Agua', quantity: 500, unit: 'ml', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }));
+  assert_(n.item.kcal === 0 && n.flags.length === 0, 'el agua tiene 0 kcal sin avisos');
+
+  // Rangos y limpieza
+  n = normalizeMealItem_(rawItem_({ proteinG: 9999, vitCMg: -5, ironMg: 2.345 }));
+  assert_(n.item.proteinG === 300 && n.item.vitCMg === 0, 'se acotan los valores absurdos (máximo y mínimo)');
+  assert_(n.item.ironMg === 2.35, 'micros con 2 decimales');
+  assert_(normalizeMealItem_(rawItem_({ confidence: 7 })).item.confidence === 1, 'confianza acotada a 1');
+  const low = sanitizeMeal_({ items: [rawItem_({ confidence: 0.3 })] });
+  assert_(low.warnings.some((w) => w.flag === 'low_confidence'), 'confianza baja marcada');
+  assert_(sanitizeMeal_({ mealType: 'elevenses', time: '25:99', items: [rawItem_()] }).mealType === null, 'tipo de comida inválido a null');
+  assert_(sanitizeMeal_({ mealType: 'snack', time: 'tarde', items: [rawItem_()] }).time === null, 'hora inválida a null');
+
+  // Validación del formato
+  assert_(validateMealExtraction_({ items: [] }).length > 0, 'sin alimentos');
+  assert_(validateMealExtraction_({ items: [rawItem_({ unit: 'litros' })] }).length > 0, 'unidad inválida');
+  assert_(validateMealExtraction_({ items: [rawItem_({ quantity: 0 })] }).length > 0, 'cantidad cero');
+  assert_(validateMealExtraction_({ items: [rawItem_({ proteinG: null })] }).length > 0, 'macros obligatorios');
+  let c = null; try { sanitizeMeal_({ items: [] }); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'sin alimentos no se acepta');
+  assert_(MEAL_SYSTEM_.indexOf('NO por 100 g') >= 0 && MEAL_SYSTEM_.indexOf('No añadas alimentos') >= 0, 'el prompt pide totales y prohíbe inventar alimentos');
+  return 'ok';
+}
+
+function test_pure_meal_totals() {
+  const meal = (date, items) => ({ id: 'm_' + date, date: date, items: items });
+  const a = { name: 'a', quantity: 1, unit: 'unidad', kcal: 500, proteinG: 30, carbsG: 50, fatG: 20, fiberG: 5, ironMg: 4, sodiumMg: 800 };
+  const b = { name: 'b', quantity: 1, unit: 'unidad', kcal: 300, proteinG: 10, carbsG: 40, fatG: 8, fiberG: 3.5 };
+  const tot = sumMeals_([meal('2026-11-15', [a, b])]);
+  assert_(tot.kcal === 800 && tot.proteinG === 40 && tot.fiberG === 8.5 && tot.ironMg === 4 && tot.vitCMg === undefined, 'suma de macros y micros presentes');
+  assert_(commitMealTotalsCheck_(), 'los totales guardados se recalculan con todos los nutrientes');
+
+  // Media semanal: solo cuentan los días con datos
+  const meals = [meal('2026-11-15', [a]), meal('2026-11-14', [a]), meal('2026-11-13', [a, b]), meal('2026-11-01', [a])];
+  const w = weekNutrition_(meals, '2026-11-15');
+  assert_(w.days === 3, 'tres días con comidas en la última semana (el del 1 de noviembre queda fuera)');
+  assert_(Math.abs(w.avg.kcal - 600) < 0.01 && w.avg.ironMg === 4, 'media diaria de kcal 600');
+  const lowIron = w.alerts.find((x) => x.key === 'ironMg');
+  assert_(lowIron && lowIron.level === 'low' && lowIron.pct === 29, 'hierro: 4 de 14 mg es el 29 %, por debajo del 60 %: aviso');
+  assert_(w.alerts.some((x) => x.key === 'fiberG' && x.level === 'low'), 'fibra baja también avisa');
+  assert_(!w.alerts.some((x) => x.key === 'vitCMg'), 'sin dato de un nutriente no hay aviso (no se asume que falte)');
+  assert_(weekNutrition_(meals.slice(0, 2), '2026-11-15').alerts.length === 0, 'con menos de 3 días de datos no se avisa');
+  const salty = weekNutrition_([meal('2026-11-15', [Object.assign({}, a, { sodiumMg: 4000 })]), meal('2026-11-14', [Object.assign({}, a, { sodiumMg: 4000 })]), meal('2026-11-13', [Object.assign({}, a, { sodiumMg: 4000 })])], '2026-11-15');
+  assert_(salty.alerts.some((x) => x.key === 'sodiumMg' && x.level === 'high'), 'sodio muy por encima: aviso de exceso');
+  return 'ok';
+}
+
+function commitMealTotalsCheck_() {
+  const rec = { id: 'm1', date: '2026-11-15', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 500, proteinG: 30, carbsG: 50, fatG: 20, vitCMg: 10 }] };
+  const totals = sumMeals_([rec]);
+  return totals.vitCMg === 10 && totals.kcal === 500;
+}
+
+// ---------- Carreras ----------
+
+const OFF_ = () => '+01:00';
+const rawRun_ = (o) => Object.assign({ kind: 'run', date: '2026-10-31', time: '11:17', durationText: '00:14:51', paceText: '7\'35"', distanceKm: 1.96,
+  avgHr: 155, cadence: 130, kcal: 125, elevationM: 5, trainingLoad: 31 }, o || {});
+
+function test_pure_runs() {
+  assert_(parseDuration_('00:14:51') === 891 && parseDuration_('1:05:03') === 3903 && parseDuration_('14:51') === 891, 'duraciones hh:mm:ss, h:mm:ss y mm:ss');
+  assert_(parseDuration_('00:75:00') === null && parseDuration_('12:99') === null && parseDuration_('abc') === null && parseDuration_('') === null, 'duraciones inválidas');
+  assert_(parsePace_('7\'35"') === 455 && parsePace_("5'05\"") === 305 && parsePace_('6:10') === 370 && parsePace_('7\'35" /km') === 455, 'ritmos con formatos de reloj');
+  assert_(parsePace_('7\'75"') === null && parsePace_('rápido') === null && parsePace_(null) === null, 'ritmos inválidos');
+
+  assert_(validateRunExtraction_(rawRun_()).length === 0, 'extracción válida');
+  const r = sanitizeRun_(rawRun_(), '2026-11-15', OFF_);
+  assert_(r.fields.distanceKm === 1.96 && r.fields.durationSec === 891 && r.fields.avgPaceSecPerKm === 455 && r.fields.avgHr === 155, 'campos convertidos por el código');
+  assert_(r.warnings.length === 0 && r.date === '2026-10-31' && r.startedAt === '2026-10-31T11:17:00+01:00', 'ritmo coherente y hora de inicio con offset');
+  assert_(validateRun_(Object.assign({ date: '2026-10-31', startedAt: r.startedAt }, r.fields), '2026-11-15').length === 0, 'el registro resultante es válido');
+
+  // Ritmo ausente: se calcula; ritmo incoherente: se avisa
+  let x = sanitizeRun_(rawRun_({ paceText: null }), '2026-11-15', OFF_);
+  assert_(x.fields.avgPaceSecPerKm === 455 && x.warnings[0] === 'pace_from_data', 'sin ritmo se calcula de distancia y duración');
+  x = sanitizeRun_(rawRun_({ paceText: '4\'00"' }), '2026-11-15', OFF_);
+  assert_(x.warnings[0] === 'pace_mismatch', 'ritmo que no cuadra con distancia y duración: aviso');
+  x = sanitizeRun_(rawRun_({ avgHr: 150, maxHr: 120 }), '2026-11-15', OFF_);
+  assert_(x.fields.maxHr === undefined && x.warnings.indexOf('maxhr_below_avg') >= 0, 'pulso máximo menor que el medio se descarta');
+
+  // Rechazos
+  x = sanitizeRun_(rawRun_({ distanceKm: 196, kcal: 99999 }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.part === 'kcal') && x.fields.distanceKm === 196, 'kcal absurdas rechazadas');
+  x = sanitizeRun_(rawRun_({ distanceKm: 1960 }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.part === 'distanceKm'), 'distancia imposible (coma mal leída) rechazada');
+  x = sanitizeRun_(rawRun_({ durationText: 'mucho' }), '2026-11-15', OFF_);
+  assert_(x.rejected.some((q) => q.reason === 'unreadable') && x.fields.durationSec === undefined, 'duración ilegible');
+  x = sanitizeRun_(rawRun_({ date: '2027-02-01' }), '2026-11-15', OFF_);
+  assert_(x.date === null && x.startedAt === null, 'fecha futura descartada: sin hora de inicio');
+  x = sanitizeRun_(rawRun_({ time: null }), '2026-11-15', OFF_);
+  assert_(x.date === '2026-10-31' && x.startedAt === null, 'sin hora no se inventa startedAt');
+  let c = null; try { sanitizeRun_({ kind: 'other' }, '2026-11-15', OFF_); } catch (e) { c = e.code; }
+  assert_(c === 'VALIDATION', 'imagen que no es una carrera');
+  assert_(validateRun_({ date: '2026-10-31', distanceKm: 5 }, '2026-11-15').length > 0, 'falta la duración');
+  assert_(validateRun_({ date: '2026-10-31', distanceKm: 5, durationSec: 20 }, '2026-11-15').length > 0, 'duración de 20 s imposible');
+  assert_(RUN_SYSTEM_.indexOf('nunca inventes ni calcules') >= 0 && RUN_SYSTEM_.indexOf('No extraigas zancada') >= 0, 'prompt prudente');
+
+  // Conexión con la regla de carrera del planificador: una carrera guardada con este formato cuenta como tirada larga
+  const run = Object.assign({ date: '2026-10-31', startedAt: r.startedAt }, r.fields);
+  assert_(isLongRun_({ durationSec: 4000, distanceKm: 8 }) && !isLongRun_(run), 'una salida corta de 15 min no es tirada larga');
+  assert_(recentLongRun_([{ date: '2026-11-14', startedAt: '2026-11-14T08:00:00+01:00', durationSec: 4000, distanceKm: 9 }], '2026-11-15T09:00:00+01:00'), 'tirada larga de ayer a las 8:00 cuenta a las 9:00 de hoy (25 h)');
+  return 'ok';
+}
+
+// ---------- Revisión semanal ----------
+
+const wsess_ = (date, key, groups, sets, vol, ex, extra) => Object.assign({ status: 'done', date: date, cycleKey: key, groups: groups,
+  metrics: { workingSets: sets, totalVolumeKg: vol, setsByGroup: {} }, exercises: ex || [] }, extra || {});
+const wex_ = (id, name, ps, reps) => ({ exerciseId: id, name: name, sets: [{ type: 'working', reps: reps || 8, rir: 2, load: bb_(ps) }, { type: 'working', reps: reps || 8, rir: 2, load: bb_(ps) }] });
+
+function test_pure_weekly_facts() {
+  const lib = exerciseSeed_();
+  const sessions = [
+    wsess_('2026-11-02', 'A', ['chest', 'triceps'], 12, 3000, [wex_('press_banca', 'Press banca', 15)]),
+    wsess_('2026-11-10', 'A', ['chest', 'triceps'], 12, 3300, [wex_('press_banca', 'Press banca', 17.5)], { metrics: { workingSets: 12, totalVolumeKg: 3300, setsByGroup: { chest: 10, triceps: 4 } } }),
+    wsess_('2026-11-12', 'B', ['back', 'biceps'], 10, 2500, [wex_('remo_barra', 'Remo con barra', 20)], { metrics: { workingSets: 10, totalVolumeKg: 2500, setsByGroup: { back: 9, biceps: 5 } }, painFlags: [{ text: 'x' }] }),
+    wsess_('2026-11-14', 'D', ['shoulders'], 8, 1000, [], { status: 'discarded' })
+  ];
+  const body = [{ date: '2026-11-03', weightKg: 88, measurementsCm: { waist: 100 } }, { date: '2026-11-05', weightKg: 88.2 },
+    { date: '2026-11-11', weightKg: 87.4, measurementsCm: { waist: 99 } }, { date: '2026-11-13', weightKg: 87.6, bodyFatPct: 23 }];
+  const meals = [{ date: '2026-11-11', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 2000, proteinG: 150, carbsG: 200, fatG: 60 }] }, { date: '2026-11-12', items: [{ name: 'a', quantity: 1, unit: 'unidad', kcal: 2400, proteinG: 170, carbsG: 250, fatG: 70 }] }];
+  const runs = [{ date: '2026-11-11', distanceKm: 12, durationSec: 4200 }, { date: '2026-11-13', distanceKm: 5, durationSec: 1700 }, { date: '2026-11-01', distanceKm: 20, durationSec: 7000 }];
+  const f = weeklyFacts_({ today: '2026-11-16', sessions: sessions, runs: runs, meals: meals, body: body, targets: { kcal: 2470, proteinG: 174 }, library: lib });
+  assert_(f.from === '2026-11-10' && f.to === '2026-11-16', 'ventana de 7 días terminada hoy');
+  assert_(f.training.sessions === 2 && f.training.sets === 22 && f.training.volumeKg === 5800 && f.training.prevVolumeKg === 0, 'solo sesiones hechas de la semana (las descartadas y las anteriores no cuentan)');
+  assert_(f.training.setsByGroup.chest === 10 && f.training.setsByGroup.back === 9, 'series por grupo');
+  assert_(f.training.belowMin.indexOf('triceps') >= 0 && f.training.belowMin.indexOf('quads') >= 0 && f.training.belowMin.indexOf('chest') < 0, 'grupos por debajo de 8 series');
+  assert_(f.training.pain === 1, 'molestias de la semana');
+  const pb = f.training.progressions.find((x) => x.name === 'Press banca');
+  assert_(pb.kg === 55 && pb.prevKg === 50 && pb.deltaKg === 5, 'progresión de carga frente a la última vez');
+  assert_(f.training.progressions.find((x) => x.name === 'Remo con barra').prevKg === null, 'ejercicio nuevo sin comparación');
+  assert_(f.runs.count === 2 && f.runs.km === 17 && f.runs.longRuns === 1, 'carreras de la semana (la del día 1 queda fuera)');
+  assert_(f.nutrition.daysLogged === 2 && f.nutrition.avgKcal === 2200 && f.nutrition.avgProteinG === 160, 'media solo de los días registrados');
+  assert_(f.body.weight.avg === 87.5 && f.body.weight.prevAvg === 88.1 && f.body.weight.delta === -0.6, 'peso medio y cambio: ' + JSON.stringify(f.body.weight));
+  assert_(f.body.waist.now === 99 && f.body.waist.before === 100 && f.body.fat.avg === 23 && f.body.fat.delta === null, 'cintura y grasa');
+  const empty = weeklyFacts_({ today: '2026-11-16', sessions: [], runs: [], meals: [], body: [], targets: null, library: lib });
+  assert_(empty.training.sessions === 0 && empty.training.belowMin.length === 0 && empty.body.weight.avg === null && empty.nutrition.avgKcal === null, 'semana vacía sin errores ni avisos de grupos');
+  return 'ok';
+}
+
+function test_pure_weekly_rules() {
+  const f = (delta, now, before) => ({ body: { weight: { delta: delta }, waist: { now: now, before: before } } });
+  assert_(calorieAdjustment_(f(-0.6, 99, 100)).deltaKcal === 150, 'bajar más de 0,5 kg/semana: +150 kcal');
+  assert_(calorieAdjustment_(f(-0.5, 99, 100)).deltaKcal === 0, 'exactamente 0,5 kg no ajusta');
+  assert_(calorieAdjustment_(f(0.2, 101, 100)).deltaKcal === -150 && calorieAdjustment_(f(0.2, 101, 100)).reason === 'waist_rising', 'cintura +1 cm: −150 kcal');
+  assert_(calorieAdjustment_(f(0.2, 100.4, 100)).deltaKcal === 0, 'cintura +0,4 cm: sin ajuste');
+  assert_(calorieAdjustment_(f(null, 99, 100)).reason === 'insufficient_data', 'sin dos semanas de peso no se toca nada');
+  assert_(calorieAdjustment_(f(0.1, null, null)).reason === 'on_track', 'sin cintura y con peso estable: en ruta');
+  assert_(clampAdjust_(300, 150) === 450 && clampAdjust_(450, 150) === 450 && clampAdjust_(-400, -150) === -450 && clampAdjust_(0, 150) === 150, 'el ajuste acumulado se acota a ±450');
+  const st = deepMerge_(defaultSettings_(), { profile: { sex: 'male', birthYear: 1990, heightCm: 180 }, nutrition: { kcalAdjust: 150 } });
+  assert_(nutritionTargets_(st, 80, 2026).kcal === 2591, 'el ajuste se suma a las calorías objetivo (2441 + 150)');
+  assert_(validateSettings_(deepMerge_(st, { nutrition: { kcalAdjust: 900 } })).length > 0, 'ajuste fuera de rango rechazado');
+
+  // Estancamiento
+  const lib = exerciseSeed_();
+  const mk = (date, ps, reps) => wsess_(date, 'A', ['chest'], 4, 0, [wex_('press_banca', 'Press banca', ps, reps)]);
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 20, 8), mk('2026-11-03', 20, 8)], lib).length === 1, 'tres sesiones con la misma carga y repeticiones: estancado');
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 21.25, 8), mk('2026-11-03', 21.25, 8)], lib).length === 0, 'si ha subido la carga no está estancado');
+  assert_(stalledMainLifts_([mk('2026-10-20', 20, 8), mk('2026-10-27', 20, 9), mk('2026-11-03', 20, 10)], lib).length === 0, 'si suben las repeticiones tampoco');
+  assert_(stalledMainLifts_([mk('2026-10-27', 20, 8), mk('2026-11-03', 20, 8)], lib).length === 0, 'con menos de tres apariciones no hay veredicto');
+  const iso = (id) => wsess_('2026-11-03', 'D', ['shoulders'], 3, 0, [wex_(id, id, 5)]);
+  assert_(stalledMainLifts_([iso('elevaciones_laterales'), iso('elevaciones_laterales'), iso('elevaciones_laterales')], lib).length === 0, 'los de aislamiento no cuentan como principales');
+
+  // Prioridad de volumen
+  const ex = [{ exerciseId: 'press_banca', sets: 4 }, { exerciseId: 'remo_barra', sets: 6 }, { exerciseId: 'curl_barra', sets: 3 }];
+  const pr = applyPriority_(ex, ['chest', 'back'], lib);
+  assert_(pr.exercises[0].sets === 5 && pr.exercises[1].sets === 6 && pr.exercises[2].sets === 3 && pr.boosted.length === 1, '+1 serie a los grupos prioritarios, máximo 6');
+  assert_(ex[0].sets === 4, 'no muta la entrada');
+  assert_(applyPriority_(ex, [], lib).boosted.length === 0, 'sin prioridades no cambia nada');
+  return 'ok';
+}
+
+function test_pure_weekly_email() {
+  const facts = { from: '2026-11-10', to: '2026-11-16',
+    training: { sessions: 2, sets: 22, volumeKg: 5800, prevVolumeKg: 3000, prevSessions: 1, setsByGroup: {}, belowMin: ['triceps', 'quads'], pain: 1,
+      list: [], progressions: [{ name: 'Press banca', kg: 55, prevKg: 50, deltaKg: 5 }] },
+    runs: { count: 2, km: 17, longRuns: 1 }, nutrition: { daysLogged: 2, avgKcal: 2200, avgProteinG: 160, targets: { kcal: 2470, proteinG: 174 }, micro: { days: 3, avg: {}, alerts: [{ key: 'ironMg', level: 'low', pct: 29 }] } },
+    body: { weight: { avg: 87.5, prevAvg: 88.1, delta: -0.6 }, waist: { now: 99, before: 100 }, fat: { avg: 23, delta: null } } };
+  const plan = { adjustment: { deltaKcal: 150, reason: 'weight_dropping_fast' }, nextSession: { key: 'C', groups: ['quads', 'hamstrings'] }, priorityGroups: ['triceps', 'quads'], stalled: ['press_banca'] };
+  const mail = buildWeeklyEmail_(facts, plan, 'Compañero, buena semana <script>alert(1)</script>.');
+  assert_(mail.subject === 'Comandante · Balance semanal (10/11 al 16/11)', 'asunto con fechas: ' + mail.subject);
+  ['2 sesión(es), 22 series de trabajo, 5800 kg', 'Press banca: +5 kg', '17 km', '1 tirada(s) larga(s)', 'Peso medio: 87,5 kg (−0,6 kg', 'Cintura: 99 cm (−1 cm)', 'Poco hierro (29 %', 'subo 150 kcal', 'Próxima sesión del ciclo: C (cuádriceps y femorales)', 'Prioridad de volumen: tríceps, cuádriceps', 'Ejercicios estancados: 1'].forEach((t) =>
+    assert_(mail.text.indexOf(t) >= 0, 'el correo debe contener «' + t + '»'));
+  assert_(mail.html.indexOf('<script>') < 0 && mail.html.indexOf('&lt;script&gt;') >= 0, 'el texto de la IA se escapa en el HTML');
+  assert_(escapeHtml_('<a href="x">&\'</a>') === '&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;', 'escapeHtml_');
+  const empty = buildWeeklyEmail_({ from: '2026-11-10', to: '2026-11-16', training: { sessions: 0, sets: 0, volumeKg: 0, prevVolumeKg: 0, prevSessions: 0, setsByGroup: {}, belowMin: [], pain: 0, list: [], progressions: [] },
+    runs: { count: 0, km: 0, longRuns: 0 }, nutrition: { daysLogged: 0, avgKcal: null, avgProteinG: null, targets: null, micro: { days: 0, avg: {}, alerts: [] } },
+    body: { weight: { avg: null, prevAvg: null, delta: null }, waist: { now: null, before: null }, fat: { avg: null, delta: null } } },
+    { adjustment: { deltaKcal: 0, reason: 'insufficient_data' }, nextSession: null, priorityGroups: [], stalled: [] }, 'x');
+  assert_(empty.text.indexOf('no has registrado carreras') >= 0 && empty.text.indexOf('Faltan pesos') >= 0 && empty.text.indexOf('NaN') < 0 && empty.text.indexOf('undefined') < 0, 'semana vacía: textos limpios');
+  assert_(neutralWeeklyMessage_(facts, plan).indexOf('2 sesiones') >= 0 && neutralWeeklyMessage_(empty.facts || { training: { sessions: 0 } }, plan).indexOf('no has entrenado') >= 0, 'mensaje neutro');
+  return 'ok';
+}
+
+function test_pure_reminder() {
+  const st = defaultSettings_();
+  const done = (date) => ({ status: 'done', date: date, cycleKey: 'A', groups: ['chest'] });
+  assert_(shouldRemind_([done('2026-11-12')], '2026-11-14', st, null) === true, 'tras 2 días de descanso se avisa');
+  assert_(shouldRemind_([done('2026-11-13')], '2026-11-14', st, null) === false, 'con 1 día de descanso no');
+  assert_(shouldRemind_([done('2026-11-12')], '2026-11-14', st, '2026-11-14') === false, 'no se avisa dos veces el mismo día');
+  assert_(shouldRemind_([done('2026-11-12'), done('2026-11-14')], '2026-11-14', st, null) === false, 'si ya has entrenado hoy, no');
+  assert_(shouldRemind_([done('2026-11-12'), { status: 'in_progress', date: '2026-11-14' }], '2026-11-14', st, null) === false, 'si la sesión de hoy está en curso, no');
+  assert_(shouldRemind_([done('2026-11-12'), { status: 'planned', date: '2026-11-14' }], '2026-11-14', st, null) === true, 'una sesión solo planificada no cuenta como entrenada');
+  assert_(shouldRemind_([], '2026-11-14', st, null) === false, 'sin historial no se avisa');
+  assert_(shouldRemind_([done('2026-11-01')], '2026-11-14', deepMerge_(st, { notifications: { reminder: false } }), null) === false, 'aviso desactivado');
+  assert_(shouldRemind_([done('2026-11-10')], '2026-11-14', deepMerge_(st, { notifications: { reminderAfterRestDays: 5 } }), null) === false, 'umbral configurable');
+  const m = buildReminderEmail_({ key: 'C', groups: ['quads', 'glutes'] }, 3);
+  assert_(m.subject === 'Comandante · Hoy toca cuádriceps y glúteos' && m.text.indexOf('3 días') >= 0 && m.html.indexOf('<') >= 0, 'correo de recordatorio');
+  return 'ok';
+}
+
+function test_pure_week_key() {
+  assert_(isoWeekKey_('2026-11-16') === '2026-W47' && isoWeekKey_('2026-11-22') === '2026-W47' && isoWeekKey_('2026-11-23') === '2026-W48', 'semanas ISO de noviembre 2026');
+  assert_(isoWeekKey_('2026-01-01') === '2026-W01' && isoWeekKey_('2025-12-29') === '2026-W01', 'semana 1 que cruza el año');
+  assert_(isoWeekKey_('2027-01-03') === '2026-W53', 'la semana 53 de 2026 termina el 3 de enero de 2027');
+  return 'ok';
+}
+
+// ---------- Exportar e importar ----------
+
+function test_pure_export_import() {
+  const eq = { barbellKg: 20, ezBarKg: 10 };
+  const sess = (id, date) => ({ id: id, date: date, status: 'done', groups: ['chest'], startedAt: date + 'T17:00:00Z', endedAt: date + 'T18:00:00Z',
+    exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] });
+  const meal = { id: 'm_1', date: '2026-11-10', items: [{ name: 'a', quantity: 100, unit: 'g', kcal: 100, proteinG: 5, carbsG: 15, fatG: 2 }] };
+  const run = { id: 'r_1', date: '2026-11-09', distanceKm: 5, durationSec: 1700 };
+  const bodyRec = { date: '2026-11-08', weightKg: 80, measurementsCm: { waist: 90 } };
+  const exp = buildExport_({ settings: defaultSettings_(), plan: null, body: [bodyRec], sessions: [sess('s_20261110_1700_ab12', '2026-11-10'), sess('s_20261201_1700_ab12', '2026-12-01')], runs: [run], meals: [meal] });
+  assert_(exp.format === 'comandante-export' && exp.version === 1 && Object.keys(exp.sessions).join() === '2026-11,2026-12', 'exportación con formato y sesiones por mes');
+  assert_(flatten_(exp.sessions).length === 2 && flatten_(null).length === 0, 'flatten_');
+  assert_(validateImport_(exp, '2026-12-15', eq).length === 0, 'una exportación propia se puede importar: ' + validateImport_(exp, '2026-12-15', eq));
+  const copy = () => JSON.parse(JSON.stringify(exp));
+  assert_(validateImport_({ format: 'otra' }, '2026-12-15', eq).length === 1 && validateImport_(null, '2026-12-15', eq).length === 1, 'otro formato');
+  assert_(validateImport_(Object.assign(copy(), { version: 9 }), '2026-12-15', eq)[0].indexOf('no compatible') >= 0, 'versión desconocida');
+  let bad = copy(); bad.sessions['2026-11'][0].status = 'zumba';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'sesión con estado inválido');
+  bad = copy(); bad.sessions['2026-11'][0].exercises[0].sets[0].reps = -3;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'serie con repeticiones negativas');
+  bad = copy(); bad.sessions['2026-11'][0].id = '../../x';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'id de sesión malicioso');
+  bad = copy(); bad.meals['2026-11'][0].items[0].unit = 'litros';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'comida con unidad inválida');
+  bad = copy(); bad.body[0].measurementsCm.waist = 999;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'medida absurda');
+  bad = copy(); bad.runs['2026-11'][0].durationSec = 5;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'carrera imposible');
+  bad = copy(); bad.sessions['2026-12'][0].id = bad.sessions['2026-11'][0].id;
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('repetido') >= 0), 'ids repetidos');
+  bad = copy(); bad.sessions['2026-12'][0].date = '2027-05-01';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'fecha futura');
+  bad = copy(); bad.settings = { equipment: { barbellKg: -5 } };
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('Ajustes') >= 0), 'ajustes inválidos');
+  bad = copy(); bad.meals['2026-11'].push(null);
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'registro nulo');
+
+  bad = copy(); bad.sessions['2026-11'] = { no: 'lista' };
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('no es una lista') >= 0), 'un mes que no es una lista');
+  bad = copy(); bad.meals['2026-12'] = bad.meals['2026-11']; delete bad.meals['2026-11'];
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('su fecha es') >= 0), 'registro bajo el mes equivocado');
+
+  // Fusión por id: no borra lo existente
+  const m = mergeById_([{ id: 'a', v: 1 }, { id: 'b', v: 1 }], [{ id: 'b', v: 2 }, { id: 'c', v: 2 }], 'id');
+  assert_(m.length === 3 && m.find((x) => x.id === 'b').v === 2 && m.find((x) => x.id === 'a').v === 1, 'la fusión conserva lo existente y actualiza lo coincidente');
+  assert_(mergeById_([], [{ date: 'x' }], 'date').length === 1 && mergeById_(null, null, 'id').length === 0, 'fusión con listas vacías');
+  assert_(Object.keys(groupByMonth_([{ date: '2026-11-01' }, { date: 'basura' }, { date: '2026-12-02' }])).join() === '2026-11,2026-12', 'registros con fecha mala se ignoran al agrupar');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
     test_pure_limits, test_pure_gemini, test_pure_loads, test_pure_exercises, test_pure_rotation, test_pure_progression,
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
-    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_commit_roundtrip].forEach((fn) => {
+    test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import,
+    test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
     } catch (err) {
