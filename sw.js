@@ -28,6 +28,8 @@ const SHELL = [
   './js/lib/charts.js',
   './js/lib/nutrition.js',
   './js/lib/runs.js',
+  './js/lib/progress.js',
+  './js/views/progreso.js',
   './js/views/carreras.js',
   './js/lib/figure.js',
   './js/lib/format.js',

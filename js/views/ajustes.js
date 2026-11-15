@@ -45,6 +45,13 @@ export function render(el) {
         <p id="estado-semanal" class="estado" role="status" aria-live="polite"></p>
         <pre id="vista-semanal" class="salida" hidden></pre>
       </div>
+      <h2>Copia de seguridad</h2>
+      <div class="card">
+        <p class="nota">Descarga todos tus datos en un archivo para guardarlo tú. Para restaurarlos, elige ese archivo: se fusionan con lo que ya tienes y no se borra nada.</p>
+        <div class="acciones"><button type="button" id="btn-exportar" class="btn btn-sec">Exportar mis datos</button></div>
+        <label>Importar una copia <input id="f-importar" type="file" accept="application/json,.json"></label>
+        <p id="estado-copia" class="estado" role="status" aria-live="polite"></p>
+      </div>
       <h2>Material</h2>
       <form id="form-material" class="card" novalidate>
         <label>Peso de la barra olímpica (kg)<input id="m-barra" inputmode="decimal" autocomplete="off"></label>
@@ -105,6 +112,35 @@ export function render(el) {
   };
   el.querySelector('#btn-prev').addEventListener('click', () => semanal(true));
   el.querySelector('#btn-enviar').addEventListener('click', () => { if (confirm('¿Enviar ahora el correo semanal?')) semanal(false); });
+
+  const estC = el.querySelector('#estado-copia');
+  const copia = (m, t = '') => { estC.textContent = m; estC.className = 'estado ' + t; };
+  el.querySelector('#btn-exportar').addEventListener('click', async () => {
+    copia('Preparando la copia…');
+    try {
+      const data = await call('export.all', {}, { timeoutMs: 170000 });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+      const enlace = document.createElement('a');
+      enlace.href = url; enlace.download = 'comandante-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.append(enlace); enlace.click(); enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      copia('Copia generada.', 'ok');
+    } catch (err) { console.error(err); copia(err.message, 'error'); }
+  });
+  el.querySelector('#f-importar').addEventListener('change', async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    if (f.size > 5.5 * 1024 * 1024) { copia('El archivo es demasiado grande para importarlo de una vez (máximo 5,5 MB).', 'error'); return; }
+    let data;
+    try { data = JSON.parse(await f.text()); } catch (_) { copia('El archivo no es un JSON válido.', 'error'); return; }
+    if (!confirm('¿Importar esta copia? Se fusionará con tus datos actuales.')) { ev.target.value = ''; return; }
+    copia('Importando…');
+    try {
+      const r = await call('import.all', { data }, { timeoutMs: 170000 });
+      copia('Importado: ' + r.sessions + ' sesiones, ' + r.runs + ' carreras, ' + r.meals + ' comidas y ' + r.body + ' registros de cuerpo.', 'ok');
+    } catch (err) { console.error(err); copia(err.message, 'error'); }
+    ev.target.value = '';
+  });
 
   el.querySelector('#form-coach').addEventListener('submit', async (ev) => {
     ev.preventDefault();

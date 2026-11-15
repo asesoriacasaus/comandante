@@ -1023,6 +1023,56 @@ function test_pure_week_key() {
   return 'ok';
 }
 
+// ---------- Exportar e importar ----------
+
+function test_pure_export_import() {
+  const eq = { barbellKg: 20, ezBarKg: 10 };
+  const sess = (id, date) => ({ id: id, date: date, status: 'done', groups: ['chest'], startedAt: date + 'T17:00:00Z', endedAt: date + 'T18:00:00Z',
+    exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] });
+  const meal = { id: 'm_1', date: '2026-11-10', items: [{ name: 'a', quantity: 100, unit: 'g', kcal: 100, proteinG: 5, carbsG: 15, fatG: 2 }] };
+  const run = { id: 'r_1', date: '2026-11-09', distanceKm: 5, durationSec: 1700 };
+  const bodyRec = { date: '2026-11-08', weightKg: 80, measurementsCm: { waist: 90 } };
+  const exp = buildExport_({ settings: defaultSettings_(), plan: null, body: [bodyRec], sessions: [sess('s_20261110_1700_ab12', '2026-11-10'), sess('s_20261201_1700_ab12', '2026-12-01')], runs: [run], meals: [meal] });
+  assert_(exp.format === 'comandante-export' && exp.version === 1 && Object.keys(exp.sessions).join() === '2026-11,2026-12', 'exportación con formato y sesiones por mes');
+  assert_(flatten_(exp.sessions).length === 2 && flatten_(null).length === 0, 'flatten_');
+  assert_(validateImport_(exp, '2026-12-15', eq).length === 0, 'una exportación propia se puede importar: ' + validateImport_(exp, '2026-12-15', eq));
+  const copy = () => JSON.parse(JSON.stringify(exp));
+  assert_(validateImport_({ format: 'otra' }, '2026-12-15', eq).length === 1 && validateImport_(null, '2026-12-15', eq).length === 1, 'otro formato');
+  assert_(validateImport_(Object.assign(copy(), { version: 9 }), '2026-12-15', eq)[0].indexOf('no compatible') >= 0, 'versión desconocida');
+  let bad = copy(); bad.sessions['2026-11'][0].status = 'zumba';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'sesión con estado inválido');
+  bad = copy(); bad.sessions['2026-11'][0].exercises[0].sets[0].reps = -3;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'serie con repeticiones negativas');
+  bad = copy(); bad.sessions['2026-11'][0].id = '../../x';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'id de sesión malicioso');
+  bad = copy(); bad.meals['2026-11'][0].items[0].unit = 'litros';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'comida con unidad inválida');
+  bad = copy(); bad.body[0].measurementsCm.waist = 999;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'medida absurda');
+  bad = copy(); bad.runs['2026-11'][0].durationSec = 5;
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'carrera imposible');
+  bad = copy(); bad.sessions['2026-12'][0].id = bad.sessions['2026-11'][0].id;
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('repetido') >= 0), 'ids repetidos');
+  bad = copy(); bad.sessions['2026-12'][0].date = '2027-05-01';
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'fecha futura');
+  bad = copy(); bad.settings = { equipment: { barbellKg: -5 } };
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('Ajustes') >= 0), 'ajustes inválidos');
+  bad = copy(); bad.meals['2026-11'].push(null);
+  assert_(validateImport_(bad, '2026-12-15', eq).length > 0, 'registro nulo');
+
+  bad = copy(); bad.sessions['2026-11'] = { no: 'lista' };
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('no es una lista') >= 0), 'un mes que no es una lista');
+  bad = copy(); bad.meals['2026-12'] = bad.meals['2026-11']; delete bad.meals['2026-11'];
+  assert_(validateImport_(bad, '2026-12-15', eq).some((m) => m.indexOf('su fecha es') >= 0), 'registro bajo el mes equivocado');
+
+  // Fusión por id: no borra lo existente
+  const m = mergeById_([{ id: 'a', v: 1 }, { id: 'b', v: 1 }], [{ id: 'b', v: 2 }, { id: 'c', v: 2 }], 'id');
+  assert_(m.length === 3 && m.find((x) => x.id === 'b').v === 2 && m.find((x) => x.id === 'a').v === 1, 'la fusión conserva lo existente y actualiza lo coincidente');
+  assert_(mergeById_([], [{ date: 'x' }], 'date').length === 1 && mergeById_(null, null, 'id').length === 0, 'fusión con listas vacías');
+  assert_(Object.keys(groupByMonth_([{ date: '2026-11-01' }, { date: 'basura' }, { date: '2026-12-02' }])).join() === '2026-11,2026-12', 'registros con fecha mala se ignoran al agrupar');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1030,7 +1080,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

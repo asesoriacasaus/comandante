@@ -134,3 +134,16 @@ progress::-moz-progress-bar { background: var(--acento); }
 .item-comida { padding: 16px 0; border-top: 1px solid var(--piedra); }
 .rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: 16px var(--sans); color: var(--tinta); background: var(--lino); border: 1px solid var(--piedra); border-radius: 0; resize: vertical; }
+
+/* Progreso */
+.tabla-grupos { width: 100%; border-collapse: collapse; font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+.tabla-grupos th, .tabla-grupos td { padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--piedra); }
+.tabla-grupos th[scope="row"] { text-align: left; font-weight: 400; padding-right: 8px; }
+.tabla-grupos thead th { font: 600 11px var(--sans); color: var(--tinta-2); }
+.tabla-grupos .c0 { color: var(--tinta-2); }
+.tabla-grupos .c1 { background: #f0d9d3; color: var(--error); }
+.tabla-grupos .c2 { background: #dfe6d3; }
+.tabla-grupos .c3 { background: #b9c6a0; font-weight: 600; }
+
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabla-grupos th[scope="row"] { white-space: nowrap; }

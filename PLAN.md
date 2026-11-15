@@ -479,7 +479,7 @@ Criterio: una comida dictada genera ítems coherentes con macros y micronutrient
 
 Criterio: un pantallazo real del Huawei Watch Fit 4 rellena los campos; una tirada larga reciente adelanta la sesión sin pierna.
 
-### Fase 5. Semana y pulido (17 %). En curso: revisión semanal, correos y disparadores hechos en el código; faltan Progreso, exportar e importar, y la prueba real
+### Fase 5. Semana y pulido (17 %). Código completo el 15 de noviembre (revisión semanal, correos, disparadores, Progreso, exportar e importar); falta la prueba real y la personalidad del Comandante
 
 `weekly.review`, disparadores de tiempo, correos (semanal y aviso), pantalla **Progreso**, exportar e importar, accesibilidad, estados vacíos y textos.
 
