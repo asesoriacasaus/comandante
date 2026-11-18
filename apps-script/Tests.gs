@@ -1188,6 +1188,41 @@ function test_pure_clip_ruido() {
   return 'ok';
 }
 
+function test_pure_recipes() {
+  const targets = { kcal: 2400, proteinG: 160, carbsG: 250, fatG: 70 };
+  const week = { days: 4, avg: { proteinG: 120, ironMg: 7, vitDUg: 1, calciumMg: 900, sodiumMg: 3600, fiberG: 19 }, alerts: [] };
+  const g = nutritionGaps_(targets, { kcal: 1000, proteinG: 60, carbsG: 300, fatG: 20 }, week);
+  assert_(g.remaining.kcal === 1400 && g.remaining.proteinG === 100 && g.remaining.carbsG === 0, 'macros que quedan hoy (sin negativos)');
+  assert_(g.low.map((x) => x.key).join(',') === 'vitDUg,ironMg,fiberG', 'micros bajos, del más bajo al menos: ' + g.low.map((x) => x.key));
+  assert_(g.high.length === 1 && g.high[0].key === 'sodiumMg' && g.proteinPct === 75, 'lo que sobra y la proteína media');
+  assert_(frequentFoods_([{ items: [{ name: 'Huevo' }, { name: 'arroz' }] }, { items: [{ name: 'huevo ' }] }], 5).join(',') === 'huevo,arroz', 'hábitos');
+  const r = { summary: 'Te falta hierro.', recipes: [
+    { name: 'Lentejas', moment: 'comida', minutes: 30, servings: 2, covers: ['ironMg', 'fiberG', 'inventado'], why: 'Hierro y fibra.', kcal: 520.4, proteinG: 32, carbsG: 60, fatG: 12,
+      ingredients: [{ name: 'Lentejas', quantity: 200, unit: 'g', section: 'despensa' }, { name: 'Espinacas', quantity: 100, unit: 'g', section: 'fruta_verdura' }], steps: ['Cocer.'] },
+    { name: 'Tortilla', moment: 'cena', minutes: 15, servings: 1, covers: ['proteinG'], why: 'Proteína.', kcal: 400, proteinG: 30, carbsG: 5, fatG: 25,
+      ingredients: [{ name: 'espinacas', quantity: 50, unit: 'g', section: 'fruta_verdura' }, { name: 'Huevo', quantity: 3, unit: 'unidad', section: 'lacteos_huevos' }], steps: ['Batir.', 'Cuajar.'] }] };
+  assert_(validateRecipes_(r).length === 0, 'válidas: ' + validateRecipes_(r));
+  const bad = JSON.parse(JSON.stringify(r)); bad.recipes[0].ingredients[0].unit = 'puñado'; bad.recipes[1].moment = 'merienda';
+  assert_(validateRecipes_(bad).length === 2, 'unidad y momento inválidos');
+  const c = sanitizeRecipes_(r);
+  assert_(c.recipes[0].covers.join(',') === 'ironMg,fiberG' && c.recipes[0].kcal === 520, 'limpia claves y redondea');
+  const l = shoppingList_(c.recipes);
+  assert_(l[0].name === 'Espinacas' && l[0].quantity === 150 && l[0].recipes.length === 2, 'suma ingredientes repetidos entre recetas');
+  assert_(l.map((x) => x.section).join(',') === 'fruta_verdura,lacteos_huevos,despensa', 'ordenada por sección del súper');
+  return 'ok';
+}
+
+function test_pure_debrief() {
+  const ai = { transcript: 'Bien, con fuerza, un poco de molestia en el hombro derecho. La próxima subo banca.', summary: 'Buena sesión.',
+    energy: 4, feeling: 'fuerte', pains: ['hombro derecho', '  '], nextTime: 'Subir el press banca.' };
+  assert_(validateDebrief_(ai).length === 0, 'válido');
+  assert_(validateDebrief_(Object.assign({}, ai, { energy: 9 })).length === 1, 'energía fuera de rango');
+  const d = buildDebrief_(ai, '2026-11-18T19:00:00Z');
+  assert_(d.pains.length === 1 && d.pains[0] === 'hombro derecho' && d.energy === 4 && d.nextTime === 'Subir el press banca.', 'limpio');
+  assert_(buildDebrief_(Object.assign({}, ai, { energy: 2.5, feeling: '' }), 'x').energy === null, 'energía no entera: null');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1237,7 +1272,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

@@ -213,3 +213,55 @@ function sessionsSummary(p) {
   const r = queryRecords({ entity: 'session', from: p.from, to: p.to, filters: { status: 'done' } });
   return { items: r.items.map(sessionSummary_) };
 }
+
+// ---------- Resumen hablado del entreno ----------
+
+const DEBRIEF_SCHEMA_ = { type: 'OBJECT', properties: {
+  transcript: { type: 'STRING' },
+  summary: { type: 'STRING' },
+  energy: { type: 'INTEGER', nullable: true },
+  feeling: { type: 'STRING', nullable: true },
+  pains: { type: 'ARRAY', items: { type: 'STRING' } },
+  nextTime: { type: 'STRING', nullable: true }
+}, required: ['transcript', 'summary', 'pains'] };
+
+const DEBRIEF_SYSTEM_ = 'Recibes un audio en español en el que una persona cuenta cómo le ha ido el entrenamiento de pesas que acaba de ' +
+  'terminar. Puede haber ruido de gimnasio y habla andaluza (s aspiradas, seseo o ceceo): transcribe solo a quien habla. ' +
+  'Devuelve "transcript" (lo dicho, sin inventar), "summary" (2 o 3 frases en segunda persona, claras, con lo importante), ' +
+  '"energy" (1 muy cansado a 5 con mucha energía, solo si se deduce; si no, null), "feeling" (una o dos palabras: por ejemplo ' +
+  '"fuerte", "cansado", "con prisa"; null si no se sabe), "pains" (cada molestia o dolor que mencione, con la zona; lista vacía si no hay) ' +
+  'y "nextTime" (lo que quiere cambiar o recordar para la próxima vez; null si no dice nada). No añadas consejos ni datos que no diga. ' +
+  'Responde solo con el JSON pedido.';
+
+function validateDebrief_(o) {
+  const e = [];
+  if (!o || typeof o.transcript !== 'string' || typeof o.summary !== 'string') return ['faltan transcript o summary'];
+  if (!Array.isArray(o.pains)) e.push('pains debe ser una lista');
+  if (o.energy !== null && o.energy !== undefined && !(Number.isInteger(o.energy) && o.energy >= 1 && o.energy <= 5)) e.push('energy fuera de rango');
+  return e;
+}
+
+/** Lo que se guarda en la sesión. Pura. */
+function buildDebrief_(ai, atIso) {
+  const txt = (s, n) => (typeof s === 'string' && s.trim() ? s.trim().slice(0, n) : null);
+  return { at: atIso, transcript: txt(ai.transcript, 4000) || '', summary: txt(ai.summary, 600) || '',
+    energy: Number.isInteger(ai.energy) && ai.energy >= 1 && ai.energy <= 5 ? ai.energy : null,
+    feeling: txt(ai.feeling, 40), nextTime: txt(ai.nextTime, 300),
+    pains: (ai.pains || []).map((p) => txt(p, 200)).filter(Boolean).slice(0, 5) };
+}
+
+/** Graba el resumen hablado de una sesión en revisión o ya guardada. Sustituye al anterior si lo había. */
+function sessionDebrief(p) {
+  const mime = validateMedia_('audio', p.mime, p.data);
+  const session = readSession_(p.id);
+  if (['review', 'done'].indexOf(session.status) < 0) throw { code: 'VALIDATION', message: 'El resumen se graba al terminar la sesión' };
+  const ai = callJson_('CLIP', DEBRIEF_SYSTEM_, { tarea: 'Resume cómo ha ido el entrenamiento', grupos: session.groups || [] },
+    DEBRIEF_SCHEMA_, validateDebrief_, [{ inlineData: { mimeType: mime, data: p.data } }]);
+  const d = buildDebrief_(ai, new Date().toISOString());
+  return { session: mutateSession_(p.id, (s) => {
+    s.painFlags = (s.painFlags || []).filter((f) => f.source !== 'debrief')
+      .concat(d.pains.map((t) => ({ clipId: null, source: 'debrief', text: t, exerciseId: null })));
+    s.debrief = d;
+    return s;
+  }) };
+}
