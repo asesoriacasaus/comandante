@@ -1,11 +1,11 @@
 // Pantalla Comida: totales del día frente a objetivos, dictar o escribir comidas, revisarlas y micronutrientes aproximados.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
 import { blobToBase64 } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar } from '../lib/cache.js';
-import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES } from '../lib/nutrition.js';
+import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
@@ -20,7 +20,7 @@ function sumarDias(iso, n) {
 export function render(el) {
   pantalla = 'inicio';
   fecha = fecha || todayIsoLocal();
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), cargando()));
   cargar(el);
 }
 
@@ -40,8 +40,26 @@ async function cargar(el) {
 function barra(etiqueta, valor, objetivo, unidad) {
   const p = pct(valor, objetivo);
   return h('div', { class: 'progreso' },
-    h('p', {}, etiqueta + ': ' + fmtInt(valor || 0) + ' / ' + fmtInt(objetivo) + ' ' + unidad + ' · ' + p + ' %'),
-    h('progress', { max: 100, value: Math.min(100, p), 'aria-label': etiqueta }));
+    h('p', {}, h('span', { class: 'macro-nombre' }, etiqueta), h('span', { class: 'macro-cifra' }, fmtInt(valor || 0) + '/' + fmtInt(objetivo), h('small', {}, ' ' + unidad))),
+    h('progress', { max: 100, value: Math.min(100, p), 'aria-label': etiqueta + ': ' + p + ' %' }));
+}
+
+// Anillos de calorías (fuera) y proteína (dentro), con las cifras grandes al lado.
+const NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v)); return n; }
+function anillos(tot, t) {
+  const svg = svgEl('svg', { viewBox: '0 0 120 120', width: 124, height: 124, 'aria-hidden': 'true', class: 'anillos' });
+  [[50, tot.kcal, t.kcal, 'kcal'], [34, tot.proteinG, t.proteinG, 'prot']].forEach(([r, v, obj, clase]) => {
+    const a = anillo(v || 0, obj, r);
+    svg.append(svgEl('circle', { cx: 60, cy: 60, r, class: 'anillo-fondo ' + clase }));
+    if (a.lleno > 0) svg.append(svgEl('circle', { cx: 60, cy: 60, r, class: 'anillo ' + clase, 'stroke-dasharray': a.lleno + ' ' + a.circunferencia, transform: 'rotate(-90 60 60)' }));
+  });
+  const linea = (nombre, v, obj, unidad, clase) => h('div', { class: 'anillo-dato ' + clase },
+    h('span', { class: 'anillo-nombre' }, nombre),
+    h('span', { class: 'anillo-cifra' }, fmtInt(v || 0) + '/' + fmtInt(obj), h('small', {}, unidad)),
+    h('span', { class: 'anillo-resta' }, (obj - (v || 0)) > 0 ? 'Faltan ' + fmtInt(obj - (v || 0)) + ' ' + unidad.toLowerCase() : 'Objetivo cumplido'));
+  return h('div', { class: 'anillos-caja', role: 'img', 'aria-label': 'Calorías ' + fmtInt(tot.kcal || 0) + ' de ' + fmtInt(t.kcal) + '; proteína ' + fmtInt(tot.proteinG || 0) + ' de ' + fmtInt(t.proteinG) + ' gramos' },
+    svg, h('div', { class: 'anillos-datos' }, linea('Calorías', tot.kcal, t.kcal, 'KCAL', 'kcal'), linea('Proteína', tot.proteinG, t.proteinG, 'G', 'prot')));
 }
 
 function inicio(el, st) {
@@ -55,8 +73,8 @@ function inicio(el, st) {
 
   const objetivos = t
     ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Objetivo del día'),
-        barra('Calorías', st.totals.kcal, t.kcal, 'kcal'), barra('Proteína', st.totals.proteinG, t.proteinG, 'g'),
-        barra('Hidratos', st.totals.carbsG, t.carbsG, 'g'), barra('Grasa', st.totals.fatG, t.fatG, 'g'),
+        anillos(st.totals, t),
+        h('div', { class: 'rejilla' }, barra('Hidratos', st.totals.carbsG, t.carbsG, 'g'), barra('Grasa', st.totals.fatG, t.fatG, 'g')),
         h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.'))
     : h('p', { class: 'aviso' }, 'Para calcular tus objetivos faltan tus datos: completa la bienvenida desde Hoy.');
 
@@ -80,13 +98,15 @@ let vistaMicros = null;   // 'semana' | 'hoy': se recuerda mientras la app está
 
 /** Una fila con barra: la marca vertical es la referencia (100 %); la barra llega hasta el 150 %. */
 function filaMicro(m) {
-  const ancho = Math.min(m.pct, 150) / 150 * 100;
+  const e = escalaMicro(m);
   const valor = (m.value >= 100 ? fmtInt(m.value) : fmtDec(m.value)) + ' ' + m.unit;
   return h('li', { class: 'micro ' + m.estado },
     h('div', { class: 'micro-cab' }, h('span', { class: 'micro-nombre' }, m.label),
       h('span', { class: 'micro-pct' }, m.pct + ' %'), h('span', { class: 'micro-valor' }, '≈ ' + valor)),
-    h('div', { class: 'micro-barra', role: 'img', 'aria-label': m.label + ': ' + m.pct + ' % de la referencia' },
-      h('span', { class: 'micro-relleno', 'data-ancho': String(Math.round(ancho)) }), h('span', { class: 'micro-ref' })),
+    h('div', { class: 'escala', role: 'img', 'aria-label': m.label + ': ' + m.pct + ' % de la referencia' },
+      h('div', { class: 'escala-tramos' }, ...e.zonas.map((z) => h('span', { class: 'tramo ' + z.clase, 'data-ancho': String(z.ancho) }))),
+      h('span', { class: 'escala-marca', 'data-pos': String(e.marca) })),
+    h('div', { class: 'escala-extremos', 'aria-hidden': 'true' }, h('span', {}, e.extremos[0]), h('span', {}, e.extremos[1])),
     m.estado === 'bajo' && FUENTES[m.key] ? h('p', { class: 'micro-fuentes' }, 'Lo tienes en: ' + FUENTES[m.key]) : null,
     m.estado === 'alto' ? h('p', { class: 'micro-fuentes' }, 'Conviene no pasar de ' + fmtInt(m.ref) + ' ' + m.unit + ' al día') : null);
 }
@@ -100,7 +120,7 @@ function bloqueMicros(el, st) {
   const g = agruparMicros(estadoMicros(st.micros, valores));
   const pestaña = (m, texto) => h('button', { type: 'button', class: 'segmento' + (modo === m ? ' activo' : ''), 'aria-pressed': String(modo === m),
     onClick: () => { vistaMicros = m; inicio(el, st); } }, texto);
-  const contador = (n, texto, clase) => h('div', { class: 'dato ' + clase }, h('span', { class: 'valor' }, String(n)), h('span', { class: 'etiqueta' }, texto));
+  const contador = (n, texto, clase) => h('div', { class: 'dato ' + clase }, h('span', { class: 'valor' }, String(n)), h('span', { class: 'dato-que' }, texto));
 
   const caja = h('div', { class: 'bloque micros' },
     h('p', { class: 'etiqueta' }, 'Vitaminas y minerales'),
@@ -114,7 +134,8 @@ function bloqueMicros(el, st) {
       : 'Solo lo apuntado hoy. ') + 'Son estimaciones de la IA a partir de lo que dictas: sirven para ver tendencias. Referencia: valores de la UE para un adulto.' +
       (g.sinDato.length ? ' Sin dato: ' + g.sinDato.map((m) => m.label.toLowerCase()).join(', ') + '.' : '')));
   // El ancho de las barras se pone por JavaScript: la política de seguridad no permite estilos en línea en el HTML.
-  caja.querySelectorAll('.micro-relleno').forEach((n) => { n.style.width = n.dataset.ancho + '%'; });
+  caja.querySelectorAll('.tramo').forEach((n) => { n.style.width = n.dataset.ancho + '%'; });
+  caja.querySelectorAll('.escala-marca').forEach((n) => { n.style.left = n.dataset.pos + '%'; });
   return caja;
 }
 

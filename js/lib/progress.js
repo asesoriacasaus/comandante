@@ -78,3 +78,59 @@ export function cellClass(sets) {
   if (sets <= 16) return 'c2';
   return 'c3';
 }
+
+/** Número de semana ISO de una fecha 'AAAA-MM-DD'. */
+export function isoWeek(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dia = (dt.getUTCDay() + 6) % 7;
+  dt.setUTCDate(dt.getUTCDate() - dia + 3);
+  const primerJueves = new Date(Date.UTC(dt.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((dt - primerJueves) / 86400000 - 3 + ((primerJueves.getUTCDay() + 6) % 7)) / 7);
+}
+
+/**
+ * Matriz de las últimas `n` semanas: por semana, el volumen de cada día (lunes a domingo), el total y el cambio
+ * frente a la semana anterior. Para dibujar puntos cuyo tamaño es el volumen del día.
+ */
+export function matrizSemanal(sessions, todayIso, n = 6) {
+  const semanas = lastWeeks(todayIso, n + 1);
+  const filas = semanas.map((w) => ({ week: w, num: isoWeek(w), days: [0, 0, 0, 0, 0, 0, 0], total: 0, sesiones: 0, cambio: null }));
+  const por = Object.fromEntries(filas.map((f) => [f.week, f]));
+  for (const s of sessions) {
+    if (s.status !== 'done') continue;
+    const f = por[weekStart(s.date)];
+    if (!f) continue;
+    const [y, m, d] = s.date.split('-').map(Number);
+    const dia = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+    const v = (s.metrics || {}).totalVolumeKg || 0;
+    f.days[dia] += v; f.total += v; f.sesiones += 1;
+  }
+  filas.forEach((f, i) => {
+    f.total = Math.round(f.total);
+    const prev = i > 0 ? filas[i - 1].total : 0;
+    f.cambio = prev > 0 ? Math.round((f.total - prev) / prev * 100) : null;
+  });
+  const max = Math.max(1, ...filas.flatMap((f) => f.days));
+  // La semana actual aún no ha terminado: compararla con una completa engaña.
+  const ultima = filas[filas.length - 1];
+  ultima.enCurso = true; ultima.cambio = null;
+  return { filas: filas.slice(1), max };
+}
+
+/** Las `n` mejores marcas (1RM estimado) de un ejercicio, una por sesión, de la mejor a la peor. */
+export function records(sessions, exerciseId, n = 3) {
+  return e1rmSeries(sessions, exerciseId).sort((a, b) => b.value - a.value || (a.date < b.date ? -1 : 1)).slice(0, n);
+}
+
+/** Últimos 28 días frente a los 28 anteriores: volumen, sesiones y cambio del volumen en %. */
+export function comparativa(sessions, todayIso) {
+  const [y, m, d] = todayIso.split('-').map(Number);
+  const hace = (k) => new Date(Date.UTC(y, m - 1, d - k)).toISOString().slice(0, 10);
+  const a = hace(27); const b = hace(55);
+  const sum = (desde, hasta) => sessions.filter((s) => s.status === 'done' && s.date >= desde && s.date <= hasta)
+    .reduce((o, s) => ({ volumen: o.volumen + ((s.metrics || {}).totalVolumeKg || 0), sesiones: o.sesiones + 1 }), { volumen: 0, sesiones: 0 });
+  const ahora = sum(a, todayIso); const antes = sum(b, hace(28));
+  return { volumen: Math.round(ahora.volumen), sesiones: ahora.sesiones, volumenAntes: Math.round(antes.volumen), sesionesAntes: antes.sesiones,
+    cambio: antes.volumen > 0 ? Math.round((ahora.volumen - antes.volumen) / antes.volumen * 100) : null };
+}

@@ -1,6 +1,6 @@
 // Pantalla Carreras: pantallazo del reloj, lista de salidas y total semanal.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
 import { swr, borrar } from '../lib/cache.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
@@ -12,7 +12,7 @@ const dec = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
 
 export function render(el) {
   pantalla = 'inicio';
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Carreras'), h('h2', {}, 'Carreras'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Carreras'), h('h2', {}, 'Carreras'), cargando()));
   cargar(el);
 }
 

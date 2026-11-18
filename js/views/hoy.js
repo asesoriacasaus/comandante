@@ -1,10 +1,11 @@
 // Pantalla Hoy: bienvenida, primer ciclo y sesión del día.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { ACTIVE_KEY, CLAVE_VIVA } from './sesion.js';
 import { swr, borrar, leer, guardar } from '../lib/cache.js';
 import { renderOnboarding } from './bienvenida.js';
+import { figuraMusculos } from '../lib/musculos.js';
 
 const SLOW = { timeoutMs: 150000 };
 const AVISOS = {
@@ -22,7 +23,7 @@ const cabecera = (et, titulo) => [h('p', { class: 'etiqueta' }, et), h('h2', {},
 export function render(el) {
   el.replaceChildren(h('section', {}, ...cabecera('Hoy', 'Tu sesión'),
     h('p', { class: 'vacio' }, 'Preparando tu sesión de hoy…'),
-    h('p', { class: 'nota' }, 'Si es la primera vez que toca este tipo de sesión, el Comandante la diseña y puede tardar hasta un minuto. Puedes cambiar de sección: seguirá preparándose.')));
+    h('p', { class: 'nota' }, 'Si es la primera vez que toca este tipo de sesión, el Comandante la diseña y puede tardar hasta un minuto. Puedes cambiar de sección: seguirá preparándose.'), cargando('Preparando tu sesión de hoy…')));
   cargar(el);
 }
 
@@ -116,6 +117,7 @@ function renderSesion(el, s, deCache = false) {
         x.suggestVariant ? h('p', { class: 'nota' }, 'Lo has fallado dos veces seguidas: considera una variante.') : null)));
   el.replaceChildren(h('section', {},
     ...cabecera('Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date), groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
+    (s.groups || []).length ? figuraMusculos(s.groups, { ancho: 58, etiqueta: 'Hoy trabajas: ' + groupsEs(s.groups) }) : null,
     s.coachMessage ? h('blockquote', { class: 'mensaje' }, s.coachMessage) : null,
     ...avisos, lista,
     accion(el, s)));

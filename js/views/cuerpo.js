@@ -1,6 +1,6 @@
 // Pantalla Cuerpo: última medición, medir por voz o a mano, y acceso a la guía.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { formatCm, formatDateEs, todayIsoLocal, parseNum, formatDelta } from '../lib/format.js';
 import { MEASURES, measureLabel, summarize, latestWeight, SCALE_FIELDS, latestScale } from '../lib/measures.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
@@ -24,7 +24,7 @@ let pantalla = 'inicio';   // si el usuario está en una subpantalla, un dato nu
 
 export function render(el) {
   pantalla = 'inicio';
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Cuerpo'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Cuerpo'), h('h2', {}, 'Cuerpo'), cargando()));
   cargar(el);
 }
 

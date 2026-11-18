@@ -1,6 +1,6 @@
 // Recetas para cubrir lo que falta y lista de la compra (se abre desde Comida).
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { swr, guardar } from '../lib/cache.js';
 import { todayIsoLocal, formatDateEs } from '../lib/format.js';
 import { fmtInt, fmtDec, SECCIONES_ES, MOMENTOS_ES, listaEnTexto, claveCompra } from '../lib/nutrition.js';
@@ -18,7 +18,7 @@ function fijarMarcados(id, set) { try { localStorage.setItem('comandante.compra.
 export function pantallaRecetas(el, ctx) {
   const cab = (titulo) => [h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, titulo)];
   const volver = h('button', { type: 'button', class: 'btn btn-sec', onClick: ctx.volver }, 'Volver a Comida');
-  el.replaceChildren(h('section', {}, ...cab('Recetas'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, ...cab('Recetas'), cargando()));
 
   const generar = async (btn, estado) => {
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Buscando recetas para lo que te falta… puede tardar hasta un minuto. Puedes seguir usando la app.';
