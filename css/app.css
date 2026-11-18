@@ -158,8 +158,6 @@ h3.seccion { margin: 28px 0 12px; font-size: 24px; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--acento); z-index: 5; }
 .contenido { padding-top: calc(30px + env(safe-area-inset-top)); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips .btn { font-size: 13px; text-align: left; }
 
 /* Indicador global de actividad */
 .actividad { position: fixed; top: 6px; left: 0; right: 0; z-index: 6; pointer-events: none; }

@@ -12,8 +12,15 @@ function geminiKey_() {
 }
 
 function geminiModel_(tier) {
+  const props = PropertiesService.getScriptProperties();
+  // CLIP: el dictado de series. Usa GEMINI_MODEL_CLIP si existe (un modelo mejor con el audio ruidoso); si no, el rápido.
+  if (tier === 'CLIP') {
+    const clip = cleanModelName_(props.getProperty('GEMINI_MODEL_CLIP'));
+    if (clip) return clip;
+    tier = 'FAST';
+  }
   const name = tier === 'SMART' ? 'GEMINI_MODEL_SMART' : 'GEMINI_MODEL_FAST';
-  const m = cleanModelName_(PropertiesService.getScriptProperties().getProperty(name));
+  const m = cleanModelName_(props.getProperty(name));
   if (!m) throw { code: 'AI_CONFIG', message: 'Falta ' + name + ' en las Propiedades del script' };
   return m;
 }

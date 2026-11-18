@@ -23,7 +23,7 @@ export function pendienteDetalle(p, session) {
 export const ACTIVE_KEY = 'comandante.sessionId';
 export const CLAVE_VIVA = 'sesion-viva';   // copia local de la sesión en curso: se abre al instante y sin red
 const getActive = () => { try { return localStorage.getItem(ACTIVE_KEY) || ''; } catch (_) { return ''; } };
-const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
+const MOTIVOS = { unclear: 'No lo oí claro (ruido o pronunciación)', unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
   invalid_load: 'Carga imposible', no_exercise: 'No sé de qué ejercicio hablas', nothing_to_repeat: 'No hay serie anterior que repetir' };
 const FLAGS = { inherited_load: 'Carga heredada de la serie anterior', load_from_plan: 'Carga tomada del plan' };
 
@@ -216,6 +216,7 @@ function view(st, ctx) {
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
+    (s.clips || []).length < 2 ? h('p', { class: 'nota' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
     st.sinEnviar ? h('p', { class: 'aviso' }, st.sinEnviar === 1 ? '1 cambio sin enviar: se enviará solo al volver la conexión.'
       : st.sinEnviar + ' cambios sin enviar: se enviarán solos al volver la conexión.') : null,

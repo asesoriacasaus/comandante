@@ -8,7 +8,7 @@ import { valorDeCarga } from '../lib/serie.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
-const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
+const MOTIVOS = { unclear: 'No lo oí claro (ruido o pronunciación)', unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
   invalid_load: 'Carga imposible', no_exercise: 'No sé de qué ejercicio hablas', nothing_to_repeat: 'No había serie anterior que repetir' };
 
 export function render(el) {

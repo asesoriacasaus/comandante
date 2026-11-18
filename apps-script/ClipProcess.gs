@@ -17,6 +17,7 @@ const CLIP_SCHEMA_ = { type: 'OBJECT', properties: {
     perSideKg: NUM_NULL_, perHandKg: NUM_NULL_, totalKg: NUM_NULL_, stackKg: NUM_NULL_, addedKg: NUM_NULL_,
     count: { type: 'INTEGER', nullable: true },
     repeatLast: { type: 'BOOLEAN' },
+    unclear: { type: 'BOOLEAN', nullable: true },
     side: { type: 'STRING', nullable: true },
     text: { type: 'STRING', nullable: true }
   }, required: ['type', 'repeatLast'] } }
@@ -38,7 +39,18 @@ const CLIP_SYSTEM_ = 'Eres el asistente de un diario de entrenamiento de pesas. 
   '5) Si no nombra ejercicio, exerciseName es null (se asume el ejercicio en curso). Usa el nombre tal como lo dice. ' +
   '6) setType: "warmup" para calentamiento, "drop" para dropset o "bajé a", "failure" para al fallo, si no "working". ' +
   '7) implement: barbell, ezbar, dumbbell, kettlebell, machine, cable, bodyweight o smith, solo si se deduce; si no, null. ' +
-  '8) Si el audio no contiene ninguna serie, devuelve events vacío. Responde solo con el JSON pedido.';
+  '8) Si el audio no contiene ninguna serie, devuelve events vacío. ' +
+  '9) Gimnasio con ruido: hay música, otras voces, golpes de discos y máquinas. Ignora letras de canciones, anuncios y ' +
+  'conversaciones ajenas; transcribe solo a quien habla cerca del micrófono dictando su entrenamiento. ' +
+  '10) Habla andaluza: el usuario puede aspirar o comerse la s final y otras consonantes, sesear o cecear y abreviar. ' +
+  'Interprétalo así: "do", "doh" = dos; "tre", "treh" = tres; "sei", "seih" = seis; "die", "dieh", "dié" = diez; ' +
+  '"once", "doce", "quince", "veinte" igual aunque suenen recortados; "sinco", "zinco" = cinco; "kilo", "kilô", "kiloh" = kilos; ' +
+  '"repe", "repeh", "repetisione" = repeticiones; "pa", "pa\'l" = para; "na" = nada; "mancuerna" puede sonar "mancuenna"; ' +
+  '"polea" puede sonar "polé"; "me quedaban do" = RIR 2. Usa el contexto del plan (ejercicios y objetivos de reps y carga) ' +
+  'para decidir entre números que suenan parecido (por ejemplo "dos" o "doce", "seis" o "siete"). ' +
+  '11) Si un número o el ejercicio de una serie no se entiende con seguridad por el ruido o la pronunciación, NO lo adivines: ' +
+  'pon ese dato a null y marca la serie con "unclear": true. Es mejor que el usuario lo complete a que se guarde un dato falso. ' +
+  'Responde solo con el JSON pedido.';
 
 function validateClipResponse_(o) {
   const e = [];
@@ -63,7 +75,8 @@ function validateClipResponse_(o) {
 function buildClipUser_(session, library) {
   const planned = (session.plannedExercises || []).map((p) => {
     const d = exerciseById_(p.exerciseId, library);
-    return { id: p.exerciseId, nombre: p.name || (d && d.name), implementos: d ? d.implements : [] };
+    return { id: p.exerciseId, nombre: p.name || (d && d.name), implementos: d ? d.implements : [],
+      objetivo: { series: p.sets, reps: [p.repsMin, p.repsMax], carga: p.targetLoad || null } };
   });
   const exs = session.exercises || [];
   const cur = exs.length ? exs[exs.length - 1] : null;
@@ -116,6 +129,8 @@ function eventsToSets_(events, session, ctx) {
       if (np) { def = exerciseById_(np.exerciseId, lib); warnings.push('assumed_exercise:' + np.exerciseId); }
     }
     if (!def) { addPending('no_exercise', ev.text || '', null, ev); return; }
+    // La IA no lo oyó claro: mejor que el usuario lo complete con lo entendido a guardar un número falso.
+    if (ev.unclear === true) { addPending('unclear', def.name, { exerciseId: def.id }, ev); return; }
 
     const entry = exercises.find((x) => x.exerciseId === def.id) || null;
     const last = entry && entry.sets.length ? entry.sets[entry.sets.length - 1] : null;

@@ -1178,6 +1178,16 @@ function test_pure_friendly_errors() {
   return 'ok';
 }
 
+function test_pure_clip_ruido() {
+  const r = eventsToSets_([ev_({ exerciseName: 'press banca', implement: 'barbell', perSideKg: 20, reps: null, unclear: true })], sess_(), ctx_());
+  assert_(r.exercises.length === 0 && r.pending.length === 1 && r.pending[0].reason === 'unclear', 'una serie dudosa va a pendientes');
+  assert_(r.pending[0].heard.perSideKg === 20 && r.pending[0].exerciseId === 'press_banca', 'con lo que sí se entendió, para completarla');
+  assert_(CLIP_SYSTEM_.indexOf('andaluza') > 0 && CLIP_SYSTEM_.indexOf('música') > 0, 'instrucciones de ruido y acento');
+  const u = buildClipUser_({ plannedExercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: 4, repsMin: 8, repsMax: 10, targetLoad: bb_(15) }], exercises: [] }, ctx_().library);
+  assert_(u.planDeHoy[0].objetivo.reps[1] === 10 && u.planDeHoy[0].objetivo.carga.perSideKg === 15, 'el contexto lleva los objetivos para desempatar números');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1227,7 +1237,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

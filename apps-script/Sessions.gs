@@ -90,7 +90,7 @@ function clipProcess(p) {
 
   const settings = getSettings();
   const library = exerciseSeed_();
-  const ai = callJson_('FAST', CLIP_SYSTEM_, buildClipUser_(session, library), CLIP_SCHEMA_, validateClipResponse_,
+  const ai = callJson_('CLIP', CLIP_SYSTEM_, buildClipUser_(session, library), CLIP_SCHEMA_, validateClipResponse_,
     [{ inlineData: { mimeType: mime, data: p.data } }]);
 
   const updated = mutateSession_(p.sessionId, (s) => {
