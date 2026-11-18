@@ -5,11 +5,11 @@ import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTr
 import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
-import { botonEscuchar } from '../lib/voz.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
+import { bloqueResumen } from './resumen-hablado.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
-const MOTIVOS = { unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
+const MOTIVOS = { unclear: 'No lo oí claro (ruido o pronunciación)', unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
   invalid_load: 'Carga imposible', no_exercise: 'No sé de qué ejercicio hablas', nothing_to_repeat: 'No había serie anterior que repetir' };
 
 export function render(el) {
@@ -58,9 +58,6 @@ function pedirMensajeCierre(el, st, clave) {
     if (!vigente(el)) return;
     const q = el.querySelector('.mensaje');
     if (q) q.textContent = m;
-    const v = el.querySelector('.voz');
-    const nuevo = botonEscuchar(m);
-    if (v && nuevo) v.replaceWith(nuevo);
   }).catch((err) => console.error(err));   // se queda el mensaje neutro
 }
 
@@ -87,12 +84,18 @@ function vista(st, ctx) {
     h('p', { class: 'etiqueta' }, 'Revisión · ' + formatDateEs(s.date)),
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase()))
   ];
-  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
+  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
 
   const m = r.summary;
   nodes.push(h('div', { class: 'resumen' },
     dato(String(m.workingSets), 'series'), dato(String(Math.round(m.totalVolumeKg)), 'kg de volumen'),
     dato(m.durationMin === null ? '–' : String(m.durationMin), 'minutos')));
+  // Resumen hablado: al guardarlo, las molestias que cuente pasan a la revisión.
+  nodes.push(bloqueResumen(s, async (nueva) => {
+    st.session = nueva;
+    try { await ctx.load(); } catch (err) { console.error(err); }
+    ctx.paint();
+  }));
 
   const abrir = (cfg) => abrirFormulario(st, cfg, ctx.paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
   const guardarSerie = async (payload, pendiente) => {

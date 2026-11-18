@@ -1,5 +1,4 @@
 // Bootstrap y router de vistas por hash. Cada pantalla se carga solo cuando se abre (el Service Worker las tiene en caché).
-import { detenerVoz } from './lib/voz.js';
 import { onActividad, call } from './api.js';
 import { getConfig } from './state.js';
 import { mensajeActividad } from './lib/actividad.js';
@@ -8,12 +7,11 @@ const LOADERS = {
   hoy: () => import('./views/hoy.js'), diario: () => import('./views/diario.js'), cuerpo: () => import('./views/cuerpo.js'),
   comida: () => import('./views/comida.js'), mas: () => import('./views/mas.js'), ajustes: () => import('./views/ajustes.js'),
   prueba: () => import('./views/prueba.js'), sesion: () => import('./views/sesion.js'), revision: () => import('./views/revision.js'),
-  guia: () => import('./views/guia.js'), carreras: () => import('./views/carreras.js'), progreso: () => import('./views/progreso.js'),
-  chat: () => import('./views/chat.js')
+  guia: () => import('./views/guia.js'), carreras: () => import('./views/carreras.js'), progreso: () => import('./views/progreso.js')
 };
 const cargados = {};
 // Ajustes y prueba cuelgan de "Más".
-const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas', chat: 'mas' };
+const TAB_OF = { ajustes: 'mas', prueba: 'mas', sesion: 'hoy', revision: 'hoy', guia: 'cuerpo', carreras: 'mas', progreso: 'mas' };
 const view = document.getElementById('view');
 
 function currentRoute() {
@@ -22,7 +20,6 @@ function currentRoute() {
 }
 
 async function render() {
-  detenerVoz();   // la voz se corta al cambiar de pantalla
   const key = currentRoute();
   // Las vistas asíncronas comprueban este valor antes de dibujar, para no
   // pisar otra sección si el usuario ya ha navegado.

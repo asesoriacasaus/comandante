@@ -4,8 +4,6 @@ import { parseNum } from '../lib/format.js';
 import { limpiarCache } from '../lib/cache.js';
 import { ping, call, getUltimoTiempo } from '../api.js';
 import { BUILD } from '../version.js';
-import { botonEscuchar } from '../lib/voz.js';
-import { vozYChatActivos, fijarVozYChat } from '../lib/prefs.js';
 
 export function render(el) {
   el.innerHTML = `
@@ -38,20 +36,19 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h3 class="seccion">Comida</h3>
+      <form id="form-comida" class="card" novalidate>
+        <label>Lo que no comes, alergias o preferencias (para las recetas)
+          <textarea id="c-notas" rows="3" maxlength="300" placeholder="Ej.: no me gusta el pescado azul; sin lactosa; poco tiempo para cocinar entre semana"></textarea>
+        </label>
+        <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
+        <p id="estado-comida" class="estado" role="status" aria-live="polite"></p>
+      </form>
       <h3 class="seccion">Velocidad</h3>
       <div class="card">
         <p class="nota">Mide cuánto tarda cada paso: «Total» es lo que esperas tú; «servidor» es el tiempo dentro del servidor. La diferencia es la red y el arranque en frío. Si ves tiempos altos, mándamelos.</p>
         <div class="acciones"><button type="button" id="btn-velocidad" class="btn btn-sec">Medir velocidad</button></div>
         <pre id="vista-velocidad" class="salida" hidden></pre>
-      </div>
-      <h3 class="seccion">Voz y chat</h3>
-      <div class="card">
-        <label class="casilla"><input type="checkbox" id="chk-vozchat"> Mostrar «Escuchar» y el chat con el Comandante</label>
-        <p class="nota">No ralentizan la app: solo funcionan cuando los pulsas. Si no los usas, puedes ocultarlos para tener la app más despejada.</p>
-      </div>
-      <h3 class="seccion">Voz del Comandante</h3>
-      <div class="card" id="caja-voz">
-        <p class="nota">Cada mensaje del Comandante tiene un botón "Escuchar" con una voz de orador. Prueba aquí que funciona.</p>
       </div>
       <h3 class="seccion">Correo semanal</h3>
       <div class="card">
@@ -116,12 +113,9 @@ export function render(el) {
       if (el.dataset.route !== 'ajustes') return;
       for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
+      el.querySelector('#c-notas').value = (s.nutrition && s.nutrition.foodNotes) || '';
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
-  el.querySelector('#caja-voz').append(botonEscuchar('¡Compatriota! A la carga: la revolución empieza por el cuerpo.', 'Probar la voz'));
-  const chk = el.querySelector('#chk-vozchat');
-  chk.checked = vozYChatActivos();
-  chk.addEventListener('change', () => { fijarVozYChat(chk.checked); });
   el.querySelector('#btn-velocidad').addEventListener('click', async (ev) => {
     const salida = el.querySelector('#vista-velocidad');
     const btn = ev.currentTarget; btn.disabled = true; salida.hidden = false; salida.textContent = 'Midiendo…';
@@ -185,6 +179,13 @@ export function render(el) {
     const e = el.querySelector('#estado-coach');
     e.textContent = 'Guardando…'; e.className = 'estado';
     try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
+    catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
+  });
+  el.querySelector('#form-comida').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const e = el.querySelector('#estado-comida');
+    e.textContent = 'Guardando…'; e.className = 'estado';
+    try { await call('settings.update', { patch: { nutrition: { foodNotes: el.querySelector('#c-notas').value.trim().slice(0, 300) } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado. Se tendrá en cuenta en las próximas recetas.'; e.className = 'estado ok'; }
     catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
   });
   el.querySelector('#form-material').addEventListener('submit', async (ev) => {

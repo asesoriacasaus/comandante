@@ -269,7 +269,7 @@ Los identificadores de modelo **no van en el código**: se leen de Propiedades d
 
 - `GEMINI_MODEL_FAST`: el modelo Flash vigente. Transcripción, interpretación de clips, comidas, pantallazos.
 - `GEMINI_MODEL_SMART`: el modelo Pro vigente. Plan de la sesión, consolidación de la sesión, revisión semanal.
-- `GEMINI_MODEL_TTS`: el modelo de síntesis de voz vigente (por ejemplo, el "flash tts" de la lista de modelos). Solo para el botón "Escuchar". `TTS_VOICE` (opcional) elige una de las 30 voces predefinidas; por defecto `Orus`. `TTS_STYLE` (opcional): `director` (por defecto: notas de estilo separadas de la transcripción), `prefix` (una frase corta de estilo delante) o `none` (solo el texto, sin estilo).
+- `GEMINI_MODEL_CLIP` (opcional): modelo para el dictado de series y el resumen hablado del entreno. Si no existe se usa `GEMINI_MODEL_FAST`. Conviene un modelo mejor con audio ruidoso (por ejemplo, el Flash no "lite" o el Pro) si el dictado falla con música de fondo o acento andaluz.
 
 En la Fase 0 se consultan los identificadores actuales en la documentación oficial y se fijan.
 
@@ -283,9 +283,10 @@ Todas desde Apps Script (`UrlFetchApp`) a `generateContent`, con `responseMimeTy
 | `session.review` (sustituye a `session.consolidate`) | FAST (solo el mensaje) | Resumen calculado por el código: plan, última vez y avisos | Mensaje de cierre. La sesión ya se estructura en `clip.process`; la revisión es determinista (`buildReview_`) para que ningún número dependa de la IA. Si la IA falla, texto neutro con datos reales |
 | `plan.cycle.propose` | SMART | Preferencias de entrenamiento | Ciclo de sesiones A-D (validado por `validateCycle_`) |
 | `session.plan` | SMART | Grupos de hoy, referencia de fuerza y lista de ejercicios permitidos. **Solo la primera vez que toca esa sesión del ciclo**; después el plan es determinista (mismos ejercicios, cargas por progresión) | Ejercicios, series, rangos y una estimación de 10RM por ejercicio. El código calcula las cargas (85 % hacia abajo, RIR 3) y aplica `applyPlanRules_` |
-| `coach.chat` | FAST (o SMART con la Propiedad `CHAT_TIER` = `SMART`) | Últimos turnos de la conversación (o un audio) y un **resumen de tus datos** como primer turno, marcado como datos y no como instrucciones: plan de hoy, últimas sesiones, semana, peso y cintura, comida del día frente al objetivo y carreras recientes | `reply` (2 a 4 párrafos con el estilo de la personalidad) y, si la pregunta fue un audio, su `transcript`. No puede cambiar el plan ni inventar cifras; ante dolor recomienda parar y consultar a un profesional. El historial vive solo en el móvil (sesión del navegador); el servidor no lo guarda |
 | `coach.message` | FAST | Grupos de hoy, avisos y `PERSONA_PROMPT` | Mensaje breve; si falla o se bloquea, texto neutro |
 | `meal.process` | FAST | Audio o texto | Ítems con cantidades, macros, micros y confianza |
+| `nutrition.suggest` | SMART | Lo que falta, calculado por el código (`nutritionGaps_`: macros que quedan hoy, proteína media y micronutrientes por debajo del 80 % en la media de 7 días), lo que sobra, los 15 alimentos más repetidos en 14 días y las notas de Ajustes > Comida | 3 recetas (momento, minutos, raciones, qué cubre, por qué, macros por ración, ingredientes con sección del súper y pasos). La lista de la compra la suma el código (`shoppingList_`). Se guarda en `nutrition/suggestions.json`; `nutrition.suggestions` la lee sin llamar a la IA |
+| `session.debrief` | CLIP | Audio del usuario al terminar ("cómo ha ido") | `transcript`, resumen de 2-3 frases, energía 1-5, sensación, molestias y qué cambiar la próxima vez. Se guarda en `session.debrief`; las molestias pasan a `painFlags` (con `source: 'debrief'`) y aparecen en la revisión y en el correo semanal |
 | `run.extract` | FAST | Pantallazo del reloj | Campos de carrera (6.4) |
 | `body.extract` | FAST | Pantallazo de la báscula o dictado de medidas | Campos de cuerpo (6.4) |
 | `weekly.review` | SMART | Semana completa (pesas, carreras, comidas, cuerpo) | Balance, ajustes del plan, texto del correo |
@@ -294,6 +295,7 @@ Todas desde Apps Script (`UrlFetchApp`) a `generateContent`, con `responseMimeTy
 
 Reglas que van en las instrucciones de `clip.process`:
 
+- **Ruido y acento (18 de noviembre de 2026):** se ignoran música, letras de canciones y voces ajenas; se interpreta el habla andaluza (s aspirada, seseo y ceceo, consonantes finales perdidas: "do" = dos, "die" = diez, "kilô" = kilos); el contexto lleva los objetivos del plan para desempatar números parecidos. Si un dato no se entiende con seguridad, la serie se marca `unclear` y va a pendientes ("No lo oí claro") con lo que sí se entendió, en vez de guardar un número falso. El móvil graba con supresión de ruido, cancelación de eco y control de ganancia si los ofrece.
 - Entiende jerga de gimnasio en español: "a cada lado", "la barra sola", "mancuernas de 15", "otra igual", "lo mismo", "me quedaban dos", "al fallo", "bajé a 50", "dropset".
 - "Otra igual", "lo mismo": repite la última serie del ejercicio en curso.
 - RIR: "me quedaban dos" → 2; "al fallo" → 0; sin mención → `null` (nunca inventarlo).
@@ -312,7 +314,7 @@ El usuario eligió una personalidad concreta y marcada para el entrenador. **La 
 - Las instrucciones piden hablar "al estilo de" la personalidad, no afirmar ser una persona real. Si Gemini bloquea o suaviza la respuesta, se muestra un texto neutro y se registra el código.
 - Seguridad física por encima del personaje: ante dolor o lesión, el mensaje recomienda parar o ajustar.
 - Si `PERSONA_PROMPT` está vacía, el entrenador habla en tono neutro y directo.
-- **Voz (botón "Escuchar")**: los mensajes del Comandante (Hoy, revisión y Diario) se pueden oír con una **voz original de orador**: acento venezolano, enérgica, con ritmo de arenga. El estilo se pide como acento y manera de decir; **nunca se imita ni se clona la voz de una persona real** ni se genera audio atribuido a ella (hay un test que lo vigila). Los modelos de voz leen todo lo que reciben, así que el estilo va separado de la transcripción y, si el audio dura demasiado para el texto (señal de que ha leído también las indicaciones), el servidor lo repite automáticamente sin estilo. Máximo 1.200 caracteres por lectura; el audio se guarda en memoria mientras la app está abierta para no pagar dos veces lo mismo; se corta al cambiar de pantalla.
+- **Sin voz ni chat:** el 18 de noviembre de 2026 se quitaron el botón "Escuchar" (síntesis de voz) y el chat con el Comandante a petición del usuario, para aligerar la app. La personalidad queda solo en los mensajes escritos de Hoy y de la revisión.
 
 ---
 
@@ -379,7 +381,6 @@ Disparador de tiempo en Apps Script: `weekly.review` → actualiza `plan/current
 | **Revisión** | Sesión consolidada por la IA, editable, con comparación frente al plan y frente a la última vez. "Guardar" |
 | **Diario** | Historial de sesiones por fecha; detalle con series, volumen y mensaje |
 | **Cuerpo** | Peso con media de 7 días, grasa, músculo, cintura y medidas; botón "Subir pantallazo de la báscula" y "Medir por voz" (con revisión antes de guardar y aviso si una medida cambia más del 10 %), "Anotar a mano"; progreso hacia el objetivo |
-| **Chat** | Conversación con el Comandante, escrita o dictada, con preguntas rápidas; cada respuesta se puede escuchar. Cuelga de Más y de Hoy |
 | **Guía** | Cómo medirse con cinta de sastre: figura con la cinta colocada, dónde y cómo para cada parte, consejos y frase de ejemplo para dictar. Cuelga de Cuerpo |
 | **Comida** | Comidas del día por voz; totales de macros frente al objetivo; micronutrientes aproximados; semana |
 | **Carreras** | Lista de carreras; "Subir pantallazo del reloj" |
@@ -406,8 +407,10 @@ Regla general: **nada que dependa de la IA puede bloquear una pantalla**, y el u
 - **Diario y Progreso ligeros:** `sessions.summary` devuelve por sesión solo fecha, grupos, métricas, nº de molestias y por ejercicio el nº de series y el mejor 1RM estimado (unos cientos de bytes en vez de 10-15 KB; sin clips ni series). Las dos pantallas comparten la misma petición y caché local. El detalle de una sesión se pide con `session.get` al abrirla y queda guardado en el dispositivo.
 - **Sesión en el gimnasio:** "Empezar sesión" entra al instante (el servidor la marca como empezada en segundo plano). Cada ejercicio enseña su objetivo ("Serie 3 de 4 · objetivo 8-10 rep · RIR 2 · 15 kg por lado"). Cada serie guarda su hora (`at`, la del clip o la del móvil si es razonable): el descanso cuenta también tras las series a mano, avisa con "Listo" al cumplir el objetivo y deja de contar pasados 15 min. Mientras hay clips en cola se ve "Procesando…" arriba, junto al botón de grabar. La sesión en curso se guarda en el móvil y se abre desde esa copia aunque no haya red.
 - **Sin conexión en el gimnasio:** las series a mano, "Otra serie igual", las correcciones y los descartes se guardan en el móvil si no hay red, se ven al momento (marcados "Sin enviar todavía", con el total aproximado) y se envían solos y en orden al volver la conexión. Cada edición lleva un `opId` y el servidor la aplica una sola vez (`appliedOps`, últimas 200), así un reintento no duplica series. Si el servidor rechaza una, se quita y se explica. No se puede terminar la sesión con cambios sin enviar. La lista de ejercicios se descarga al abrir la app para que el formulario funcione sin red.
+- **Vitaminas y minerales (Comida):** bloque visible (no plegado) con vista "Media 7 días" u "Hoy"; contadores de "a reforzar", "a vigilar" y "bien"; por nutriente, una barra hasta el 150 % con marca en la referencia, el porcentaje, el valor y, si va bajo, alimentos que lo aportan. Un nutriente "a llegar" va bajo por debajo del 80 %; uno "a no pasar" va alto por encima del 110 %. Lleva a "Recetas para cubrirlo". Primera versión: se mejorará con las capturas de otras apps que mande el usuario.
+- **Recetas y lista de la compra (Comida):** 3 recetas para lo que falta; lista sumada y agrupada por sección del súper, con casillas (guardadas en el móvil) y "Compartir o copiar" solo lo que falta. Ajustes > Comida guarda lo que no se come o sienta mal (`nutrition.foodNotes`, 300 caracteres).
+- **Resumen hablado del entreno:** en la revisión y en el detalle del Diario, "Grabar resumen" (hasta 75 s). Si el envío falla, la grabación se conserva para reintentar.
 - **Revisión al instante:** se enseña la última revisión vista de esa sesión y el servidor la confirma en segundo plano; el mensaje de cierre con la personalidad (`session.reviewMessage`) llega después, sin bloquear. La copia se borra al guardar, descartar o seguir grabando.
-- **Voz y chat:** se pueden ocultar desde Ajustes (preferencia del dispositivo).
 - **Series a mano:** durante la sesión y en la revisión se puede añadir una serie pulsando el ejercicio, completar un pendiente con lo que la IA entendió, o añadir un ejercicio de la biblioteca. El formulario conserva lo escrito aunque la pantalla se repinte.
 - **Cargas dictadas:** el mismo número se acepta dicho como "por lado", "por mano", "total" o "de la pila" según el implemento; "barra con 15 kilos" con una barra de 20 se entiende como barra de 15 y se avisa en la revisión.
 
@@ -572,6 +575,8 @@ Todo el código de las fases 0 a 5 está escrito y probado en Node y en Chromium
 7. **Personalidad:** pegar `PERSONA_PROMPT` en las Propiedades del script y comprobar el tono en Hoy y en la revisión.
 
 8. **Auditoría de fluidez (16 de noviembre):** empezar sesión sin esperar; registrar una serie con el móvil en modo avión y comprobar que se envía sola al volver la red; ver "Listo" en el descanso; abrir Diario y Progreso (deben ir mucho más rápido) y abrir una sesión del Diario.
+
+9. **Novedades del 18 de noviembre:** dictar series con música de fondo (deben salir bien o como "No lo oí claro", nunca con números inventados); grabar el resumen hablado al terminar; en Comida, ver el bloque de vitaminas y minerales, pedir recetas y compartir la lista de la compra.
 
 Decisiones abiertas que tendrá que confirmar el usuario: bíceps relajado (no contraído), punto de la cintura por la parte más ancha, modelos `GEMINI_MODEL_FAST` y `GEMINI_MODEL_SMART` tras probar con audio real, y qué hacer con las sesiones de prueba.
 

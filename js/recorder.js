@@ -47,7 +47,8 @@ export function createRecorder({ onTick = () => {}, onAutoStop = () => {} } = {}
   async function acquireMic() {
     if (stream && stream.getTracks().every((t) => t.readyState === 'live')) return;
     if (!navigator.mediaDevices || !globalThis.MediaRecorder) throw Object.assign(new Error('Este navegador no puede grabar'), { code: 'UNSUPPORTED' });
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+    // Filtros del propio móvil contra el ruido del gimnasio (música, eco): se piden; si no los hay, se ignoran.
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
   }
 
   function releaseMic() {

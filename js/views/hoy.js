@@ -3,9 +3,7 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatReps, formatRest, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { ACTIVE_KEY, CLAVE_VIVA } from './sesion.js';
-import { botonEscuchar } from '../lib/voz.js';
 import { swr, borrar, leer, guardar } from '../lib/cache.js';
-import { vozYChatActivos } from '../lib/prefs.js';
 import { renderOnboarding } from './bienvenida.js';
 
 const SLOW = { timeoutMs: 150000 };
@@ -72,9 +70,6 @@ function pedirMensaje(el, s) {
     if (!vigente(el) || !m) return;
     const q = el.querySelector('.mensaje');
     if (q) q.textContent = m;
-    const v = el.querySelector('.voz');
-    const nuevo = botonEscuchar(m);
-    if (v && nuevo) v.replaceWith(nuevo);
   }).catch(() => { /* se queda el mensaje neutro */ }).finally(() => pidiendoMensaje.delete(s.id));
 }
 
@@ -122,10 +117,8 @@ function renderSesion(el, s, deCache = false) {
   el.replaceChildren(h('section', {},
     ...cabecera('Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date), groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     s.coachMessage ? h('blockquote', { class: 'mensaje' }, s.coachMessage) : null,
-    s.coachMessage ? botonEscuchar(s.coachMessage) : null,
     ...avisos, lista,
-    accion(el, s),
-    vozYChatActivos() ? h('div', { class: 'acciones fin' }, h('a', { class: 'btn btn-sec', href: '#chat' }, 'Habla con el Comandante')) : null));
+    accion(el, s)));
   pedirMensaje(el, s);
 }
 

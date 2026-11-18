@@ -1,8 +1,9 @@
 // Diario: historial de sesiones guardadas, con el detalle de cada una.
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
-import { botonEscuchar } from '../lib/voz.js';
 import { resumenSesiones, detalleSesion } from '../lib/sesiones-datos.js';
+import { guardar } from '../lib/cache.js';
+import { bloqueResumen } from './resumen-hablado.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
 const vigente = (el) => el.dataset.route === 'diario';
@@ -59,7 +60,8 @@ function pintar(el, sesiones, hoy) {
 async function abrir(s, cuerpo) {
   cuerpo.replaceChildren(h('p', { class: 'vacio' }, 'Cargando el detalle…'));
   try {
-    cuerpo.replaceChildren(...detalle(await detalleSesion(s.id)));
+    const pintar = (ses) => cuerpo.replaceChildren(...detalle(ses), bloqueResumen(ses, (nueva) => { guardar('sesion-' + nueva.id, nueva); pintar(nueva); }));
+    pintar(await detalleSesion(s.id));
   } catch (err) {
     cuerpo.replaceChildren(h('p', { class: 'estado error' }, err.message),
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir(s, cuerpo) }, 'Reintentar'));
@@ -70,8 +72,8 @@ function dato(valor, etiqueta) { return h('div', { class: 'dato' }, h('span', { 
 
 function detalle(s) {
   const nodos = [];
-  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
-  (s.painFlags || []).forEach((p) => nodos.push(h('p', { class: 'aviso peligro' }, 'Molestia anotada: ' + (p.text || 'sin detalle'))));
+  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
+  (s.painFlags || []).filter((p) => p.source !== 'debrief').forEach((p) => nodos.push(h('p', { class: 'aviso peligro' }, 'Molestia anotada: ' + (p.text || 'sin detalle'))));
   (s.exercises || []).forEach((x) => {
     nodos.push(h('div', { class: 'bloque' }, h('h3', {}, x.name),
       h('ul', { class: 'series' }, x.sets.map((set) => h('li', { class: 'serie-solo' },
