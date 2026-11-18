@@ -38,3 +38,61 @@ export function sumItems(items) {
 
 export const fmtInt = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 export const fmtDec = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
+
+// ---------- Micronutrientes: estado frente a la referencia ----------
+
+/** Alimentos de supermercado español ricos en cada nutriente (orientativo, para el consejo rápido). */
+export const FUENTES = {
+  fiberG: 'legumbres, avena, fruta con piel, verduras',
+  potassiumMg: 'plátano, patata, legumbres, tomate',
+  calciumMg: 'lácteos, sardinas en lata, almendras, brócoli',
+  ironMg: 'lentejas, carne roja, almejas, espinacas',
+  magnesiumMg: 'frutos secos, cacao puro, legumbres, integrales',
+  zincMg: 'carne, marisco, huevos, pipas de calabaza',
+  vitAUg: 'zanahoria, boniato, espinacas, huevo',
+  vitCMg: 'pimiento, naranja, kiwi, fresas',
+  vitDUg: 'pescado azul, huevo, sol al mediodía',
+  vitEMg: 'aceite de oliva, almendras, pipas de girasol',
+  vitKUg: 'espinacas, brócoli, lechuga, acelgas',
+  b1Mg: 'cerdo, legumbres, integrales',
+  b2Mg: 'lácteos, huevo, almendras',
+  b3Mg: 'pollo, atún, cacahuetes',
+  b6Mg: 'pollo, plátano, garbanzos',
+  folateUg: 'legumbres, espinacas, espárragos',
+  b12Ug: 'carne, pescado, huevo, lácteos',
+  omega3G: 'sardinas, caballa, salmón, nueces'
+};
+
+/** Clasifica cada micronutriente: 'bajo' (<80 % de lo que conviene llegar), 'alto' (>110 % de un máximo), 'ok' o 'sin_dato'. */
+export function estadoMicros(micros, valores) {
+  return (micros || []).map((m) => {
+    const v = valores ? valores[m.key] : undefined;
+    if (typeof v !== 'number') return Object.assign({}, m, { value: null, pct: null, estado: 'sin_dato' });
+    const p = pct(v, m.ref);
+    const estado = m.kind === 'max' ? (p > 110 ? 'alto' : 'ok') : (p < 80 ? 'bajo' : 'ok');
+    return Object.assign({}, m, { value: v, pct: p, estado });
+  });
+}
+
+/** Agrupa para la pantalla: lo que falta (del más bajo al menos), lo que sobra, lo cubierto y lo que no tiene dato. */
+export function agruparMicros(lista) {
+  const por = (e) => lista.filter((m) => m.estado === e);
+  return { bajos: por('bajo').sort((a, b) => a.pct - b.pct), altos: por('alto').sort((a, b) => b.pct - a.pct), ok: por('ok'), sinDato: por('sin_dato') };
+}
+
+export const SECCIONES_ES = { fruta_verdura: 'Fruta y verdura', carne_pescado: 'Carne y pescado', lacteos_huevos: 'Lácteos y huevos',
+  panaderia: 'Panadería', despensa: 'Despensa', congelados: 'Congelados', otros: 'Otros' };
+export const MOMENTOS_ES = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack', post_entreno: 'Después de entrenar' };
+
+/** Lista de la compra en texto, para copiar o compartir. */
+export function listaEnTexto(lista, marcados = new Set()) {
+  const lineas = [];
+  let seccion = null;
+  for (const it of lista || []) {
+    if (marcados.has(claveCompra(it))) continue;
+    if (it.section !== seccion) { seccion = it.section; lineas.push((lineas.length ? '\n' : '') + (SECCIONES_ES[seccion] || 'Otros') + ':'); }
+    lineas.push('- ' + it.name + ' (' + fmtDec(it.quantity) + ' ' + it.unit + ')');
+  }
+  return lineas.join('\n');
+}
+export const claveCompra = (it) => it.name.toLowerCase() + '|' + it.unit;

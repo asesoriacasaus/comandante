@@ -189,3 +189,39 @@ input[type="checkbox"] { width: 28px; height: 28px; min-height: 28px; margin: 0;
 .resumen-hablado p { margin: 0 0 10px; }
 .chips-datos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
 .chip { display: inline-block; padding: 4px 10px; border: 2px solid var(--tinta); background: var(--blanco); font: 700 12px var(--sans); }
+
+/* Comida: vitaminas y minerales */
+.segmentos { display: inline-flex; border: 2px solid var(--tinta); margin: 0 0 14px; }
+.segmento { min-height: 44px; padding: 8px 14px; border: 0; background: var(--blanco); color: var(--tinta); font: 700 13px var(--sans); cursor: pointer; }
+.segmento + .segmento { border-left: 2px solid var(--tinta); }
+.segmento.activo { background: var(--tinta); color: var(--lino); }
+.micros .dato.bajo .valor, .micros .dato.alto .valor { color: var(--error); }
+.micros .dato.ok .valor { color: var(--oliva); }
+.micros details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font: 600 14px var(--sans); }
+.micro-grupo { margin: 18px 0 8px; font: 800 15px var(--display); letter-spacing: .08em; text-transform: uppercase; }
+.micro-lista { list-style: none; margin: 0; padding: 0; }
+.micro { padding: 10px 0; border-bottom: 1px solid rgba(0, 0, 0, .15); }
+.micro-cab { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+.micro-nombre { flex: 1; font: 700 15px var(--sans); }
+.micro-pct { font: 800 15px var(--sans); }
+.micro.bajo .micro-pct, .micro.alto .micro-pct { color: var(--error); }
+.micro.ok .micro-pct { color: var(--oliva); }
+.micro-valor { min-width: 84px; text-align: right; font-size: 13px; color: var(--tinta-2); }
+.micro-barra { position: relative; height: 10px; margin: 6px 0 0; background: rgba(0, 0, 0, .1); }
+.micro-relleno { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--oliva); }
+.micro.bajo .micro-relleno, .micro.alto .micro-relleno { background: var(--error); }
+.micro-ref { position: absolute; top: -3px; bottom: -3px; left: 66.67%; width: 2px; background: var(--tinta); }
+.micro-fuentes { margin: 6px 0 0; font-size: 13px; color: var(--tinta-2); }
+
+/* Recetas y lista de la compra */
+.receta { margin: 0 0 16px; padding: 14px; background: var(--blanco); border: 2px solid var(--tinta); box-shadow: 4px 4px 0 var(--tinta); }
+.receta h3 { margin: 4px 0 8px; }
+.receta p { margin: 0 0 10px; }
+.receta-meta { font: 700 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--acento); }
+.receta details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font: 700 14px var(--sans); }
+.ingredientes, .pasos { margin: 0 0 10px; padding-left: 20px; font-size: 15px; }
+.ingredientes li, .pasos li { margin: 0 0 6px; }
+.compra { list-style: none; margin: 0 0 8px; padding: 0; }
+.compra li { border-bottom: 1px solid rgba(0, 0, 0, .15); }
+.compra label.casilla span:first-of-type { flex: 1; }
+.compra input:checked ~ span { text-decoration: line-through; color: var(--tinta-2); }

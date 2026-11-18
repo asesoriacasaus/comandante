@@ -5,7 +5,7 @@ import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
 import { blobToBase64 } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar } from '../lib/cache.js';
-import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec } from '../lib/nutrition.js';
+import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
@@ -64,25 +64,64 @@ function inicio(el, st) {
     ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Comidas'), ...st.meals.map((m) => comidaNodo(el, st, m)))
     : h('p', { class: 'vacio' }, 'Aún no has apuntado nada ' + (esHoy ? 'hoy' : 'ese día') + '.');
 
-  const alertas = (st.week.alerts || []).map((a) => {
-    const m = st.micros.find((x) => x.key === a.key);
-    return h('p', { class: 'aviso' }, a.level === 'low' ? 'Media de 7 días: poco ' + m.label.toLowerCase() + ' (' + a.pct + ' % de la referencia).'
-      : 'Media de 7 días: mucho ' + m.label.toLowerCase() + ' (' + a.pct + ' % del máximo recomendado).');
-  });
-
-  const micros = h('details', { class: 'bloque' }, h('summary', {}, 'Micronutrientes del día (aproximados)'),
-    h('p', { class: 'nota' }, 'Son estimaciones de la IA: sirven para ver tendencias, no para medir al miligramo. Referencia: valores de la UE para un adulto.'),
-    h('ul', { class: 'lista' }, st.micros.map((m) => {
-      const v = st.totals[m.key];
-      return h('li', { class: 'fila medida' }, h('span', {}, m.label), h('span', { class: 'valor-medida' },
-        v === undefined ? '–' : '≈ ' + fmtDec(v) + ' ' + m.unit, h('small', {}, v === undefined ? '' : ' · ' + pct(v, m.ref) + ' %')));
-    })));
+  const micros = bloqueMicros(el, st);
 
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), nav,
     h('div', { class: 'acciones' },
       h('button', { type: 'button', class: 'btn', onClick: () => pantallaVoz(el, st) }, 'Dictar comida'),
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => pantallaTexto(el, st) }, 'Escribir comida')),
-    objetivos, ...alertas, comidas, micros));
+    objetivos, micros, comidas,
+    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrirRecetas(el, st) }, 'Recetas y lista de la compra'))));
+}
+
+// ---------- Micronutrientes ----------
+
+let vistaMicros = null;   // 'semana' | 'hoy': se recuerda mientras la app está abierta
+
+/** Una fila con barra: la marca vertical es la referencia (100 %); la barra llega hasta el 150 %. */
+function filaMicro(m) {
+  const ancho = Math.min(m.pct, 150) / 150 * 100;
+  const valor = (m.value >= 100 ? fmtInt(m.value) : fmtDec(m.value)) + ' ' + m.unit;
+  return h('li', { class: 'micro ' + m.estado },
+    h('div', { class: 'micro-cab' }, h('span', { class: 'micro-nombre' }, m.label),
+      h('span', { class: 'micro-pct' }, m.pct + ' %'), h('span', { class: 'micro-valor' }, '≈ ' + valor)),
+    h('div', { class: 'micro-barra', role: 'img', 'aria-label': m.label + ': ' + m.pct + ' % de la referencia' },
+      h('span', { class: 'micro-relleno', 'data-ancho': String(Math.round(ancho)) }), h('span', { class: 'micro-ref' })),
+    m.estado === 'bajo' && FUENTES[m.key] ? h('p', { class: 'micro-fuentes' }, 'Lo tienes en: ' + FUENTES[m.key]) : null,
+    m.estado === 'alto' ? h('p', { class: 'micro-fuentes' }, 'Conviene no pasar de ' + fmtInt(m.ref) + ' ' + m.unit + ' al día') : null);
+}
+
+function bloqueMicros(el, st) {
+  const hayHoy = Object.keys(st.totals || {}).length > 0;
+  const haySemana = st.week && st.week.days > 0;
+  if (!hayHoy && !haySemana) return null;
+  const modo = vistaMicros || (haySemana ? 'semana' : 'hoy');
+  const valores = modo === 'semana' ? st.week.avg : st.totals;
+  const g = agruparMicros(estadoMicros(st.micros, valores));
+  const pestaña = (m, texto) => h('button', { type: 'button', class: 'segmento' + (modo === m ? ' activo' : ''), 'aria-pressed': String(modo === m),
+    onClick: () => { vistaMicros = m; inicio(el, st); } }, texto);
+  const contador = (n, texto, clase) => h('div', { class: 'dato ' + clase }, h('span', { class: 'valor' }, String(n)), h('span', { class: 'etiqueta' }, texto));
+
+  const caja = h('div', { class: 'bloque micros' },
+    h('p', { class: 'etiqueta' }, 'Vitaminas y minerales'),
+    h('div', { class: 'segmentos', role: 'group', 'aria-label': 'Periodo' }, pestaña('semana', 'Media 7 días'), pestaña('hoy', 'Hoy')),
+    h('div', { class: 'resumen' }, contador(g.bajos.length, 'a reforzar', 'bajo'), contador(g.altos.length, 'a vigilar', 'alto'), contador(g.ok.length, 'bien', 'ok')),
+    g.bajos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A reforzar'), h('ul', { class: 'micro-lista' }, g.bajos.map(filaMicro))) : null,
+    g.altos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A vigilar'), h('ul', { class: 'micro-lista' }, g.altos.map(filaMicro))) : null,
+    g.ok.length ? h('details', {}, h('summary', {}, 'Bien cubiertos (' + g.ok.length + ')'), h('ul', { class: 'micro-lista' }, g.ok.map(filaMicro))) : null,
+    g.bajos.length ? h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: () => abrirRecetas(el, st) }, 'Recetas para cubrirlo')) : null,
+    h('p', { class: 'nota' }, (modo === 'semana' ? 'Media de los ' + st.week.days + ' días con comidas de la última semana' + (st.week.days < 3 ? ' (con tan pocos días es orientativa)' : '') + '. '
+      : 'Solo lo apuntado hoy. ') + 'Son estimaciones de la IA a partir de lo que dictas: sirven para ver tendencias. Referencia: valores de la UE para un adulto.' +
+      (g.sinDato.length ? ' Sin dato: ' + g.sinDato.map((m) => m.label.toLowerCase()).join(', ') + '.' : '')));
+  // El ancho de las barras se pone por JavaScript: la política de seguridad no permite estilos en línea en el HTML.
+  caja.querySelectorAll('.micro-relleno').forEach((n) => { n.style.width = n.dataset.ancho + '%'; });
+  return caja;
+}
+
+function abrirRecetas(el, st) {
+  pantalla = 'otra';
+  import('./recetas.js').then((m) => m.pantallaRecetas(el, { volver: () => inicio(el, st) }))
+    .catch((err) => { console.error(err); pantalla = 'inicio'; });
 }
 
 function comidaNodo(el, st, m) {

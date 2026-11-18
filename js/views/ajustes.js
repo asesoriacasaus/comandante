@@ -36,6 +36,14 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h3 class="seccion">Comida</h3>
+      <form id="form-comida" class="card" novalidate>
+        <label>Lo que no comes, alergias o preferencias (para las recetas)
+          <textarea id="c-notas" rows="3" maxlength="300" placeholder="Ej.: no me gusta el pescado azul; sin lactosa; poco tiempo para cocinar entre semana"></textarea>
+        </label>
+        <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
+        <p id="estado-comida" class="estado" role="status" aria-live="polite"></p>
+      </form>
       <h3 class="seccion">Velocidad</h3>
       <div class="card">
         <p class="nota">Mide cuánto tarda cada paso: «Total» es lo que esperas tú; «servidor» es el tiempo dentro del servidor. La diferencia es la red y el arranque en frío. Si ves tiempos altos, mándamelos.</p>
@@ -105,6 +113,7 @@ export function render(el) {
       if (el.dataset.route !== 'ajustes') return;
       for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
+      el.querySelector('#c-notas').value = (s.nutrition && s.nutrition.foodNotes) || '';
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
   el.querySelector('#btn-velocidad').addEventListener('click', async (ev) => {
@@ -170,6 +179,13 @@ export function render(el) {
     const e = el.querySelector('#estado-coach');
     e.textContent = 'Guardando…'; e.className = 'estado';
     try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
+    catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
+  });
+  el.querySelector('#form-comida').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const e = el.querySelector('#estado-comida');
+    e.textContent = 'Guardando…'; e.className = 'estado';
+    try { await call('settings.update', { patch: { nutrition: { foodNotes: el.querySelector('#c-notas').value.trim().slice(0, 300) } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado. Se tendrá en cuenta en las próximas recetas.'; e.className = 'estado ok'; }
     catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
   });
   el.querySelector('#form-material').addEventListener('submit', async (ev) => {
