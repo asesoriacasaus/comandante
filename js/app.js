@@ -76,6 +76,14 @@ if (barra) {
 
 // Safari en iPhone solo aplica :active (el botón que se hunde al pulsarlo) si la página escucha los toques.
 document.addEventListener('touchstart', () => {}, { passive: true });
+// Una etiqueta pequeña con el mismo texto que el título grande sobra: se quita (queda solo el título, como en iOS).
+function quitarRepetidos() {
+  const sec = view.firstElementChild;
+  if (!sec) return;
+  const e = sec.firstElementChild; const t = e && e.nextElementSibling;
+  if (e && t && e.classList.contains('etiqueta') && t.tagName === 'H2' && e.textContent.trim().toLowerCase() === t.textContent.trim().toLowerCase()) e.remove();
+}
+new MutationObserver(quitarRepetidos).observe(view, { childList: true });
 window.addEventListener('hashchange', render);
 view.addEventListener('animationend', (e) => { if (e.target.parentElement === view) view.classList.remove('entrando'); });
 // Pulsar la pestaña en la que ya estás sube al principio, como en las apps nativas.

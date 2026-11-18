@@ -1,14 +1,15 @@
 
+import { h } from '../lib/dom.js';
+
+const FILAS = [
+  ['#progreso', 'Progreso', 'Fuerza, volumen semanal y tus récords'],
+  ['#carreras', 'Carreras', 'Tus salidas a correr y su ritmo'],
+  ['#ajustes', 'Ajustes', 'Conexión, material, comida y correo semanal'],
+  ['#prueba', 'Prueba de voz y pantallazo', 'Comprobar el micrófono y la lectura de imágenes']
+];
+
 export function render(el) {
-  el.innerHTML = `
-    <section>
-      <p class="etiqueta">Más</p>
-      <h2>Más</h2>
-      <ul class="lista">
-        <li><a href="#progreso">Progreso <span>›</span></a></li>
-        <li><a href="#carreras">Carreras <span>›</span></a></li>
-        <li><a href="#ajustes">Ajustes <span>›</span></a></li>
-        <li><a href="#prueba">Prueba de voz y pantallazo <span>›</span></a></li>
-      </ul>
-    </section>`;
+  el.replaceChildren(h('section', {}, h('h2', {}, 'Más'),
+    h('ul', { class: 'lista lista-doble' }, FILAS.map(([href, titulo, sub]) => h('li', {},
+      h('a', { href }, h('div', {}, h('b', {}, titulo), h('small', {}, sub)), h('span', { 'aria-hidden': 'true' }, '›')))))));
 }

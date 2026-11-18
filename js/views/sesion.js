@@ -216,7 +216,7 @@ function view(st, ctx) {
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
-    (s.clips || []).length < 2 ? h('p', { class: 'nota' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
+    (s.clips || []).length < 2 ? h('p', { class: 'pista' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
     st.sinEnviar ? h('p', { class: 'aviso' }, st.sinEnviar === 1 ? '1 cambio sin enviar: se enviará solo al volver la conexión.'
       : st.sinEnviar + ' cambios sin enviar: se enviarán solos al volver la conexión.') : null,

@@ -415,18 +415,17 @@ Regla general: **nada que dependa de la IA puede bloquear una pantalla**, y el u
 - **Series a mano:** durante la sesión y en la revisión se puede añadir una serie pulsando el ejercicio, completar un pendiente con lo que la IA entendió, o añadir un ejercicio de la biblioteca. El formulario conserva lo escrito aunque la pantalla se repinte.
 - **Cargas dictadas:** el mismo número se acepta dicho como "por lado", "por mano", "total" o "de la pila" según el implemento; "barra con 15 kilos" con una barra de 20 se entiende como barra de 15 y se avisa en la revisión.
 
-### 9.3 Dirección visual (cartel revolucionario y militar)
+### 9.3 Dirección visual (moderna, con la marca del Comandante)
 
-Cambiada el 15 de noviembre de 2026: sustituye a la dirección editorial clara (Zara Home / Massimo Dutti) para que la estética coincida con el entrenador.
+Rehecha el 18 de noviembre de 2026: la dirección de "cartel" (bordes negros de 2 px, sombras duras, todo en mayúsculas condensadas, botones rectangulares sobre papel crema) resultaba de los años 80 y 90. Se sustituye por el lenguaje de las apps de fitness actuales (Apple Fitness, Huawei Salud, Strava, Gentler Streak), conservando la identidad: rojo revolucionario, verde oliva, negro y la estrella.
 
-- Papel de cartel crema (`--lino`), tinta casi negra, rojo revolucionario (`--acento`) y verde oliva militar (`--oliva`). El ámbar quemado (`--error`) es distinto del rojo de marca para no confundir un fallo con un elemento de la interfaz.
-- Titulares y botones en tipografía condensada en mayúsculas (Avenir Next Condensed o DIN Condensed en iOS, con Impact y Arial Narrow de respaldo); texto en sans limpia, números tabulares.
-- Etiquetas con una estrella roja; botones rectangulares con borde negro y sombra dura; tarjetas con borde negro; franja roja superior; barra inferior negra con la pestaña activa en rojo.
-- Texto de la IA siempre legible: los mensajes del Comandante no se ponen en mayúsculas.
-- Contraste mínimo AA y objetivos táctiles de al menos 44 px; el botón de grabar, mucho mayor (se usa con las manos ocupadas).
-- Tokens de color y tipografía definidos en `:root`. Solo tema claro (papel de cartel).
-
-- **Lo tomado de otras apps (18 de noviembre de 2026), siempre en clave de cartel:** barra inferior flotante con iconos y la pestaña activa como brazalete rojo (Apple Fitness, Huawei Salud); cabecera de victoria al terminar ("¡Misión cumplida!", cifras grandes de duración, series y volumen y figura de frente y espalda con los músculos trabajados en rojo, también en Hoy) (Fitness Park); anillos de calorías y proteína con cifras grandes "1.450/2.400 KCAL" (Apple); escala por tramos con un triángulo que marca dónde estás en cada micronutriente (Huawei); en Progreso, "Tu progreso de un vistazo" con el cambio frente a las 4 semanas anteriores y medallas de oro, plata y bronce con las mejores marcas por ejercicio (Strava), y la matriz de semanas con un punto por día cuyo tamaño es el volumen y el cambio frente a la semana anterior (Gentler Streak; la semana en curso no se compara). El rojo sobre negro usa `--rojo-noche` para tener contraste suficiente.
+- **Claro y oscuro:** sigue el modo del iPhone (`color-scheme: light dark`, tokens en `:root` y en `prefers-color-scheme: dark`). Fondo neutro cálido, tarjetas blancas (o grafito) elevadas con sombra suave.
+- **Forma:** tarjetas con esquinas de 22 px, campos y botones en píldora o con esquinas de 14 px, sin bordes gruesos. Tarjetas heroicas oscuras con un resplandor rojo para lo importante: la sesión de hoy con el botón de empezar y los músculos, "¡Misión cumplida!" al terminar, y los anillos de Comida.
+- **Tipografía:** la del sistema (SF), títulos grandes en minúscula y sin etiquetas repetidas, números muy grandes para las cifras, texto en minúscula en botones y pestañas. Nada de mayúsculas forzadas.
+- **Navegación:** barra inferior de cristal esmerilado flotante con iconos y la pestaña activa en píldora tintada. "Más" es una lista de ajustes con subtítulos, como la de iOS.
+- **Controles:** control segmentado en píldora, casillas redondeadas, botón de grabar circular con latido mientras graba, escalas de micronutrientes por tramos con marcador.
+- **Accesibilidad:** contraste AA medido en todas las pantallas en claro y en oscuro (el relleno de los botones es `--boton`, un rojo más profundo, para que el texto blanco cumpla), objetivos táctiles de al menos 44 px, y se respeta "reducir movimiento".
+- **Lo tomado de otras apps (18 de noviembre de 2026):** barra inferior flotante con iconos y la pestaña activa como brazalete rojo (Apple Fitness, Huawei Salud); cabecera de victoria al terminar ("¡Misión cumplida!", cifras grandes de duración, series y volumen y figura de frente y espalda con los músculos trabajados en rojo, también en Hoy) (Fitness Park); anillos de calorías y proteína con cifras grandes "1.450/2.400 KCAL" (Apple); escala por tramos con un triángulo que marca dónde estás en cada micronutriente (Huawei); en Progreso, "Tu progreso de un vistazo" con el cambio frente a las 4 semanas anteriores y medallas de oro, plata y bronce con las mejores marcas por ejercicio (Strava), y la matriz de semanas con un punto por día cuyo tamaño es el volumen y el cambio frente a la semana anterior (Gentler Streak; la semana en curso no se compara). El rojo sobre negro usa `--rojo-noche` para tener contraste suficiente.
 
 ---
 
