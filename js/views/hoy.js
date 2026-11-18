@@ -115,12 +115,20 @@ function renderSesion(el, s, deCache = false) {
         h('p', { class: 'detalle' }, x.sets + ' × ' + formatReps(x) + ' · RIR ' + x.targetRir + (x.restSec ? ' · descanso ' + formatRest(x.restSec) : '')),
         h('p', { class: 'carga' }, formatLoad(x.targetLoad)),
         x.suggestVariant ? h('p', { class: 'nota' }, 'Lo has fallado dos veces seguidas: considera una variante.') : null)));
-  el.replaceChildren(h('section', {},
-    ...cabecera('Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date), groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
-    (s.groups || []).length ? figuraMusculos(s.groups, { ancho: 58, etiqueta: 'Hoy trabajas: ' + groupsEs(s.groups) }) : null,
+  const nEj = (s.plannedExercises || []).length;
+  const nSeries = (s.plannedExercises || []).reduce((t, x) => t + (x.sets || 0), 0);
+  // Tarjeta principal: qué toca hoy, qué músculos y el botón de empezar, todo junto.
+  const hero = h('div', { class: 'hero' },
+    h('div', { class: 'hero-fila' },
+      h('div', { class: 'hero-texto' },
+        h('p', { class: 'etiqueta' }, 'Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date)),
+        h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
+        s.status === 'done' ? h('p', { class: 'hero-meta' }, 'Sesión completada') : nEj ? h('p', { class: 'hero-meta' }, nEj + (nEj === 1 ? ' ejercicio' : ' ejercicios') + ' · ' + nSeries + ' series') : null),
+      (s.groups || []).length ? figuraMusculos(s.groups, { ancho: 64, etiqueta: 'Hoy trabajas: ' + groupsEs(s.groups) }) : null),
+    accion(el, s));
+  el.replaceChildren(h('section', {}, hero,
     s.coachMessage ? h('blockquote', { class: 'mensaje' }, s.coachMessage) : null,
-    ...avisos, lista,
-    accion(el, s)));
+    ...avisos, lista));
   pedirMensaje(el, s);
 }
 

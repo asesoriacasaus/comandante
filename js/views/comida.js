@@ -72,10 +72,10 @@ function inicio(el, st) {
     h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Día siguiente', disabled: esHoy, onClick: () => { fecha = sumarDias(st.date, 1); render(el); } }, '›'));
 
   const objetivos = t
-    ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Objetivo del día'),
-        anillos(st.totals, t),
-        h('div', { class: 'rejilla' }, barra('Hidratos', st.totals.carbsG, t.carbsG, 'g'), barra('Grasa', st.totals.fatG, t.fatG, 'g')),
-        h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.'))
+    ? h('div', {}, anillos(st.totals, t),
+        h('div', { class: 'bloque' },
+          h('div', { class: 'rejilla' }, barra('Hidratos', st.totals.carbsG, t.carbsG, 'g'), barra('Grasa', st.totals.fatG, t.fatG, 'g')),
+          h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.')))
     : h('p', { class: 'aviso' }, 'Para calcular tus objetivos faltan tus datos: completa la bienvenida desde Hoy.');
 
   const comidas = st.meals.length
