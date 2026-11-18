@@ -1,7 +1,6 @@
 // Diario: historial de sesiones guardadas, con el detalle de cada una.
 import { h } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
-import { botonEscuchar } from '../lib/voz.js';
 import { resumenSesiones, detalleSesion } from '../lib/sesiones-datos.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
@@ -70,7 +69,7 @@ function dato(valor, etiqueta) { return h('div', { class: 'dato' }, h('span', { 
 
 function detalle(s) {
   const nodos = [];
-  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
+  if (s.reviewMessage) nodos.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
   (s.painFlags || []).forEach((p) => nodos.push(h('p', { class: 'aviso peligro' }, 'Molestia anotada: ' + (p.text || 'sin detalle'))));
   (s.exercises || []).forEach((x) => {
     nodos.push(h('div', { class: 'bloque' }, h('h3', {}, x.name),

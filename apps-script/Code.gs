@@ -33,8 +33,6 @@ function doPost(e) {
   const handlers = {
     ping: () => ({ version: CONFIG.VERSION, time: new Date().toISOString() }),
     'ping.ai': () => pingAi(),
-    'tts.speak': () => ttsSpeak(payload),
-    'coach.chat': () => coachChat(payload),
     'ai.models': () => ({ models: listGeminiModels_() }),
     'ai.probe': () => aiProbe(payload),
     'plan.state': () => planState(),

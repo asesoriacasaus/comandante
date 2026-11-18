@@ -158,17 +158,6 @@ h3.seccion { margin: 28px 0 12px; font-size: 24px; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--acento); z-index: 5; }
 .contenido { padding-top: calc(30px + env(safe-area-inset-top)); }
 
-.voz { margin: 0 0 16px; }
-.voz .estado { min-height: 0; margin: 6px 0 0; }
-
-/* Chat con el Comandante */
-.chat-lista { display: flex; flex-direction: column; gap: 12px; margin: 0 0 16px; }
-.burbuja { max-width: 92%; padding: 12px 14px; border: 2px solid var(--tinta); font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
-.burbuja p { margin: 0 0 8px; }
-.burbuja.usuario { align-self: flex-end; background: var(--tinta); color: var(--lino); }
-.burbuja.comandante { align-self: flex-start; background: var(--blanco); box-shadow: 3px 3px 0 var(--acento); }
-.burbuja.pensando { color: var(--tinta-2); font-style: italic; }
-.burbuja .voz { margin: 4px 0 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips .btn { font-size: 13px; text-align: left; }
 

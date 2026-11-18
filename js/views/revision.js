@@ -5,7 +5,6 @@ import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTr
 import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
-import { botonEscuchar } from '../lib/voz.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
@@ -58,9 +57,6 @@ function pedirMensajeCierre(el, st, clave) {
     if (!vigente(el)) return;
     const q = el.querySelector('.mensaje');
     if (q) q.textContent = m;
-    const v = el.querySelector('.voz');
-    const nuevo = botonEscuchar(m);
-    if (v && nuevo) v.replaceWith(nuevo);
   }).catch((err) => console.error(err));   // se queda el mensaje neutro
 }
 
@@ -87,7 +83,7 @@ function vista(st, ctx) {
     h('p', { class: 'etiqueta' }, 'Revisión · ' + formatDateEs(s.date)),
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase()))
   ];
-  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage), botonEscuchar(s.reviewMessage));
+  if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
 
   const m = r.summary;
   nodes.push(h('div', { class: 'resumen' },
