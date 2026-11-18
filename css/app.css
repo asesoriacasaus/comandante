@@ -184,3 +184,8 @@ input[type="checkbox"] { width: 28px; height: 28px; min-height: 28px; margin: 0;
 @media (prefers-reduced-motion: reduce) { .procesando::after { animation: none; width: 100%; opacity: .55; } }
 .acciones.compactas { gap: 8px; }
 .btn-mini { min-height: 44px; padding: 8px 12px; font-size: 12px; letter-spacing: .06em; }
+
+/* Resumen hablado del entreno */
+.resumen-hablado p { margin: 0 0 10px; }
+.chips-datos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.chip { display: inline-block; padding: 4px 10px; border: 2px solid var(--tinta); background: var(--blanco); font: 700 12px var(--sans); }

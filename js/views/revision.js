@@ -6,6 +6,7 @@ import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
+import { bloqueResumen } from './resumen-hablado.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unclear: 'No lo oí claro (ruido o pronunciación)', unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -89,6 +90,12 @@ function vista(st, ctx) {
   nodes.push(h('div', { class: 'resumen' },
     dato(String(m.workingSets), 'series'), dato(String(Math.round(m.totalVolumeKg)), 'kg de volumen'),
     dato(m.durationMin === null ? '–' : String(m.durationMin), 'minutos')));
+  // Resumen hablado: al guardarlo, las molestias que cuente pasan a la revisión.
+  nodes.push(bloqueResumen(s, async (nueva) => {
+    st.session = nueva;
+    try { await ctx.load(); } catch (err) { console.error(err); }
+    ctx.paint();
+  }));
 
   const abrir = (cfg) => abrirFormulario(st, cfg, ctx.paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
   const guardarSerie = async (payload, pendiente) => {
