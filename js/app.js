@@ -19,8 +19,16 @@ function currentRoute() {
   return Object.prototype.hasOwnProperty.call(LOADERS, key) ? key : 'hoy';
 }
 
+// Cada sección recuerda dónde se quedó el desplazamiento: al volver a ella se recupera; al entrar en una nueva, arriba.
+const scrolls = {};
+let rutaAnterior = null;
+const TABS = new Set(['hoy', 'diario', 'cuerpo', 'comida', 'mas', 'progreso', 'carreras', 'ajustes', 'guia']);
+
 async function render() {
   const key = currentRoute();
+  if (rutaAnterior) scrolls[rutaAnterior] = window.scrollY;
+  const cambia = rutaAnterior !== key;
+  rutaAnterior = key;
   // Las vistas asíncronas comprueban este valor antes de dibujar, para no
   // pisar otra sección si el usuario ya ha navegado.
   view.dataset.route = key;
@@ -34,6 +42,12 @@ async function render() {
     cargados[key] = cargados[key] || await LOADERS[key]();
     if (view.dataset.route !== key) return;   // el usuario ya se ha ido a otra pantalla
     cargados[key].render(view);
+    if (cambia) {
+      // Animación de entrada solo al cambiar de sección (los repintados de la misma pantalla no parpadean).
+      view.classList.remove('entrando'); void view.offsetWidth; view.classList.add('entrando');
+      const y = TABS.has(key) ? (scrolls[key] || 0) : 0;
+      requestAnimationFrame(() => window.scrollTo(0, Math.min(y, document.documentElement.scrollHeight)));
+    }
   } catch (err) {
     console.error(err);
     view.textContent = 'Error al mostrar la sección';
@@ -60,7 +74,14 @@ if (barra) {
   });
 }
 
+// Safari en iPhone solo aplica :active (el botón que se hunde al pulsarlo) si la página escucha los toques.
+document.addEventListener('touchstart', () => {}, { passive: true });
 window.addEventListener('hashchange', render);
+view.addEventListener('animationend', (e) => { if (e.target.parentElement === view) view.classList.remove('entrando'); });
+// Pulsar la pestaña en la que ya estás sube al principio, como en las apps nativas.
+document.querySelectorAll('.tabs a').forEach((a) => a.addEventListener('click', () => {
+  if (a.getAttribute('aria-current') === 'page' && location.hash === a.getAttribute('href')) window.scrollTo({ top: 0, behavior: 'smooth' });
+}));
 render();
 
 // Despierta al servidor nada más abrir la app: la primera llamada de verdad no paga el arranque en frío.

@@ -1,6 +1,6 @@
 // Pantalla Sesión: grabar clips, lista viva de series editable, descanso y cierre.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
 import { borrar, leer, guardar } from '../lib/cache.js';
@@ -107,7 +107,7 @@ export function render(el) {
 
   const local = leer(CLAVE_VIVA);
   if (local && local.data && local.data.id === id) { st.session = local.data; paint(); }
-  else el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Cargando…')));
+  else el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Sesión'), h('h2', {}, 'Sesión'), cargando()));
   (async () => {
     try {
       st.queueInfo = await queue.counts(id);

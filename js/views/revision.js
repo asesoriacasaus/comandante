@@ -1,12 +1,13 @@
 // Pantalla Revisión: lo hecho frente al plan y a la última vez, avisos, edición y guardado.
 import { call } from '../api.js';
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, formatDelta, describeIssue, quoteTranscript } from '../lib/format.js';
 import { ACTIVE_KEY, serieNodo, pendienteDetalle, cfgPendiente } from './sesion.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
 import { bloqueResumen } from './resumen-hablado.js';
+import { figuraMusculos } from '../lib/musculos.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
 const MOTIVOS = { unclear: 'No lo oí claro (ruido o pronunciación)', unknown_exercise: 'Ejercicio que no conozco', missing_reps: 'Faltan las repeticiones', missing_load: 'Falta la carga',
@@ -19,7 +20,7 @@ export function render(el) {
     el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Revisión'), h('h2', {}, 'Nada que revisar'), h('a', { class: 'btn', href: '#hoy' }, 'Ir a Hoy')));
     return;
   }
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Revisión'), h('h2', {}, 'Preparando la revisión…'), h('p', { class: 'vacio' }, 'Puede tardar unos segundos.')));
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Revisión'), h('h2', {}, 'Preparando la revisión…'), h('p', { class: 'vacio' }, 'Puede tardar unos segundos.'), cargando()));
   const st = { id, session: null, review: null, editing: null, msg: '', msgType: '', busy: false, formulario: null, ejercicios: null, scrollForm: false };
 
   const clave = 'revision-' + id;
@@ -80,16 +81,25 @@ function vista(st, ctx) {
     ctx.paint();
   });
 
+  const m = r.summary;
+  const grupos = s.groups || [];
+  const cifra = (num, unidad, que) => h('div', { class: 'cifra' }, h('span', { class: 'num' }, num, unidad ? h('small', {}, unidad) : null), h('span', { class: 'que' }, que));
+  const volumen = Math.round(m.totalVolumeKg);
   const nodes = [
-    h('p', { class: 'etiqueta' }, 'Revisión · ' + formatDateEs(s.date)),
-    h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase()))
+    // Cabecera de victoria: lo hecho, en grande, y los músculos trabajados.
+    h('div', { class: 'victoria' },
+      h('p', { class: 'etiqueta' }, 'Revisión · ' + formatDateEs(s.date)),
+      h('h2', { class: 'grito' }, '¡Misión cumplida!'),
+      h('p', { class: 'sub' }, 'Sesión de ' + groupsEs(grupos) + ' terminada. Revisa y guarda.'),
+      h('div', { class: 'cifras' },
+        cifra(m.durationMin === null ? '–' : String(m.durationMin), m.durationMin === null ? '' : 'min', 'duración'),
+        cifra(String(m.workingSets), '', 'series'),
+        cifra(volumen >= 10000 ? (Math.round(volumen / 100) / 10).toString().replace('.', ',') : String(volumen), volumen >= 10000 ? 't' : 'kg', 'de volumen')),
+      grupos.length ? h('div', { class: 'chips-datos' }, ...grupos.map((g) => h('span', { class: 'chip' }, groupsEs([g])))) : null,
+      grupos.length ? figuraMusculos(grupos, { ancho: 96, etiqueta: 'Músculos trabajados: ' + groupsEs(grupos) }) : null)
   ];
   if (s.reviewMessage) nodes.push(h('blockquote', { class: 'mensaje' }, s.reviewMessage));
 
-  const m = r.summary;
-  nodes.push(h('div', { class: 'resumen' },
-    dato(String(m.workingSets), 'series'), dato(String(Math.round(m.totalVolumeKg)), 'kg de volumen'),
-    dato(m.durationMin === null ? '–' : String(m.durationMin), 'minutos')));
   // Resumen hablado: al guardarlo, las molestias que cuente pasan a la revisión.
   nodes.push(bloqueResumen(s, async (nueva) => {
     st.session = nueva;
@@ -165,4 +175,3 @@ function vista(st, ctx) {
   return h('section', {}, nodes);
 }
 
-function dato(valor, etiqueta) { return h('div', { class: 'dato' }, h('span', { class: 'valor' }, valor), h('span', { class: 'etiqueta' }, etiqueta)); }

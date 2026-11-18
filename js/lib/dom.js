@@ -15,3 +15,9 @@ export function h(tag, props = {}, ...children) {
 }
 
 export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+/** Esqueleto de carga: reserva el sitio del contenido (sin saltos al llegar los datos) y anuncia la espera. */
+export function cargando(texto = 'Cargando…') {
+  const n = h('div', { class: 'esqueleto', role: 'status', 'aria-label': texto }, h('span', {}), h('span', {}), h('span', {}), h('span', {}));
+  return n;
+}

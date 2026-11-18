@@ -46,3 +46,20 @@ test('Progreso funciona igual con el resumen ligero del servidor (e1rm ya calcul
   assert.deepEqual(e1rmSeries(resumen, 'pb'), [{ date: '2026-11-03', value: 76 }, { date: '2026-11-10', value: 80 }]);
   assert.equal(bestOf({ sets: [{ type: 'working', reps: 1, load: { implement: 'barbell', totalKg: 100 } }] }), 100, 'formato completo sigue valiendo');
 });
+
+test('matriz semanal, récords y comparativa de 4 semanas', async () => {
+  const { matrizSemanal, records, comparativa, isoWeek } = await import('../js/lib/progress.js');
+  assert.equal(isoWeek('2026-11-16'), 47); assert.equal(isoWeek('2026-01-01'), 1); assert.equal(isoWeek('2027-01-01'), 53);
+  const S = (date, vol, e1rm) => ({ date, status: 'done', metrics: { totalVolumeKg: vol }, exercises: [{ exerciseId: 'pb', name: 'Press banca', e1rm }] });
+  const ses = [S('2026-11-09', 1000, 70), S('2026-11-11', 3000, 75), S('2026-11-16', 2000, 72), S('2026-11-18', 4000, 78), S('2026-10-01', 500, 60), S('2026-10-20', 1500, 74)];
+  const m = matrizSemanal(ses, '2026-11-18', 3);
+  assert.deepEqual(m.filas.map((f) => f.week), ['2026-11-02', '2026-11-09', '2026-11-16']);
+  assert.deepEqual(m.filas[2].days, [2000, 0, 4000, 0, 0, 0, 0]);
+  assert.equal(m.filas[2].cambio, null, 'la semana en curso no se compara'); assert.equal(m.filas[2].enCurso, true);
+  assert.equal(matrizSemanal(ses, '2026-11-22', 3).filas[2].total, 6000);
+  assert.equal(matrizSemanal(ses, '2026-11-25', 3).filas[1].cambio, 50, 'semana cerrada frente a la anterior'); assert.equal(m.filas[1].cambio, null, 'sin semana anterior con volumen');
+  assert.equal(m.max, 4000);
+  assert.deepEqual(records(ses, 'pb').map((r) => r.value), [78, 75, 74]);
+  const c = comparativa(ses, '2026-11-18');
+  assert.deepEqual([c.volumen, c.sesiones, c.volumenAntes, c.sesionesAntes, c.cambio], [10000, 4, 2000, 2, 400]);
+});

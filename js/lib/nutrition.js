@@ -96,3 +96,21 @@ export function listaEnTexto(lista, marcados = new Set()) {
   return lineas.join('\n');
 }
 export const claveCompra = (it) => it.name.toLowerCase() + '|' + it.unit;
+
+/** Tramos de la escala de un micronutriente (0 a 150 % de la referencia) y posición de la marca, en %. */
+export function escalaMicro(m) {
+  const tramos = m.kind === 'max'
+    ? [{ hasta: 100, clase: 'bien' }, { hasta: 130, clase: 'alto' }, { hasta: 150, clase: 'muy-alto' }]
+    : [{ hasta: 50, clase: 'muy-bajo' }, { hasta: 80, clase: 'bajo' }, { hasta: 150, clase: 'bien' }];
+  let desde = 0;
+  const zonas = tramos.map((t) => { const z = { ancho: Math.round((t.hasta - desde) / 150 * 1000) / 10, clase: t.clase }; desde = t.hasta; return z; });
+  const marca = Math.round(Math.min(Math.max(m.pct || 0, 0), 150) / 150 * 1000) / 10;
+  return { zonas, marca, extremos: m.kind === 'max' ? ['Bien', 'Excesivo'] : ['Bajo', 'Bien'] };
+}
+
+/** Longitud de trazo de un anillo de progreso (circunferencia y parte llena), con el progreso entre 0 y 1. */
+export function anillo(valor, objetivo, radio) {
+  const c = 2 * Math.PI * radio;
+  const f = objetivo > 0 && typeof valor === 'number' ? Math.min(Math.max(valor / objetivo, 0), 1) : 0;
+  return { circunferencia: Math.round(c * 100) / 100, lleno: Math.round(c * f * 100) / 100 };
+}

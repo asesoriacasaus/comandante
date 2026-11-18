@@ -1,5 +1,5 @@
 // Diario: historial de sesiones guardadas, con el detalle de cada una.
-import { h } from '../lib/dom.js';
+import { h, cargando } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { resumenSesiones, detalleSesion } from '../lib/sesiones-datos.js';
 import { guardar } from '../lib/cache.js';
@@ -10,7 +10,7 @@ const vigente = (el) => el.dataset.route === 'diario';
 const TIPOS = { warmup: 'calentamiento', drop: 'dropset', failure: 'al fallo' };
 
 export function render(el) {
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Diario'), h('h2', {}, 'Diario'), h('p', { class: 'vacio' }, 'Cargando…')));
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Diario'), h('h2', {}, 'Diario'), cargando()));
   cargar(el);
 }
 
@@ -58,7 +58,7 @@ function pintar(el, sesiones, hoy) {
 }
 
 async function abrir(s, cuerpo) {
-  cuerpo.replaceChildren(h('p', { class: 'vacio' }, 'Cargando el detalle…'));
+  cuerpo.replaceChildren(cargando('Cargando el detalle…'));
   try {
     const pintar = (ses) => cuerpo.replaceChildren(...detalle(ses), bloqueResumen(ses, (nueva) => { guardar('sesion-' + nueva.id, nueva); pintar(nueva); }));
     pintar(await detalleSesion(s.id));

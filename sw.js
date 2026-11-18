@@ -42,6 +42,7 @@ const SHELL = [
   './js/views/progreso.js',
   './js/views/carreras.js',
   './js/lib/figure.js',
+  './js/lib/musculos.js',
   './js/lib/format.js',
   './js/views/bienvenida.js',
   './js/views/hoy.js',
