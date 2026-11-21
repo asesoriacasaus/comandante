@@ -4,6 +4,9 @@ import { parseNum } from '../lib/format.js';
 import { limpiarCache } from '../lib/cache.js';
 import { ping, call, getUltimoTiempo } from '../api.js';
 import { BUILD } from '../version.js';
+import { resumenUso } from '../lib/uso-ia.js';
+import { leerAhorroLocal } from '../lib/alimentos.js';
+import { h } from '../lib/dom.js';
 
 export function render(el) {
   el.innerHTML = `
@@ -33,6 +36,12 @@ export function render(el) {
             <option value="alta">Alta: enérgica y combativa</option>
           </select>
         </label>
+        <label>Mensajes del Comandante
+          <select id="c-mensajes">
+            <option value="ahorro">Ahorro: frases guardadas y tus datos (casi sin gastar IA)</option>
+            <option value="ia">A medida: un mensaje nuevo de la IA en cada sesión</option>
+          </select>
+        </label>
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-coach" class="estado" role="status" aria-live="polite"></p>
       </form>
@@ -44,6 +53,10 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-comida" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h3 class="seccion">Uso de la IA</h3>
+      <div class="card" id="caja-uso">
+        <p class="nota">Cargando…</p>
+      </div>
       <h3 class="seccion">Velocidad</h3>
       <div class="card">
         <p class="nota">Mide cuánto tarda cada paso: «Total» es lo que esperas tú; «servidor» es el tiempo dentro del servidor. La diferencia es la red y el arranque en frío. Si ves tiempos altos, mándamelos.</p>
@@ -113,9 +126,26 @@ export function render(el) {
       if (el.dataset.route !== 'ajustes') return;
       for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
+      el.querySelector('#c-mensajes').value = (s.coach && s.coach.messages) || 'ahorro';
       el.querySelector('#c-notas').value = (s.nutrition && s.nutrition.foodNotes) || '';
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
+  // Uso de la IA del mes: llamadas hechas y ahorradas (servidor y este móvil).
+  const cajaUso = el.querySelector('#caja-uso');
+  const pintarUso = (servidor) => {
+    const r = resumenUso(servidor, leerAhorroLocal(localStorage), new Date().toISOString().slice(0, 7));
+    const filas = (lista) => h('ul', { class: 'lista-uso' }, lista.map(([n, v]) => h('li', {}, h('span', {}, n), h('b', {}, String(v)))));
+    cajaUso.replaceChildren(
+      h('div', { class: 'resumen' },
+        h('div', { class: 'dato' }, h('span', { class: 'valor' }, String(r.llamadas)), h('span', { class: 'dato-que' }, 'llamadas a la IA')),
+        h('div', { class: 'dato' }, h('span', { class: 'valor' }, String(r.ahorradas)), h('span', { class: 'dato-que' }, 'ahorradas')),
+        h('div', { class: 'dato' }, h('span', { class: 'valor' }, r.pct + '\u00a0%'), h('span', { class: 'dato-que' }, 'sin gastar'))),
+      r.vias.length ? h('div', {}, h('p', { class: 'etiqueta' }, 'Cómo se ha ahorrado'), filas(r.vias)) : null,
+      r.modelos.length ? h('div', {}, h('p', { class: 'etiqueta' }, 'Llamadas por modelo'), filas(r.modelos)) : null,
+      h('p', { class: 'nota' }, 'Este mes. Las comidas con alimentos que ya conoces, las repetidas, los suplementos comunes y las peticiones repetidas no gastan IA; los audios, las fotos y lo nuevo sí.'));
+  };
+  pintarUso(null);
+  if (cfg.apiUrl && cfg.token) call('ai.usage', {}, { timeoutMs: 30000, silent: true }).then((r) => { if (el.dataset.route === 'ajustes') pintarUso(r.uso); }).catch(() => {});
   el.querySelector('#btn-velocidad').addEventListener('click', async (ev) => {
     const salida = el.querySelector('#vista-velocidad');
     const btn = ev.currentTarget; btn.disabled = true; salida.hidden = false; salida.textContent = 'Midiendo…';
@@ -178,7 +208,7 @@ export function render(el) {
     ev.preventDefault();
     const e = el.querySelector('#estado-coach');
     e.textContent = 'Guardando…'; e.className = 'estado';
-    try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
+    try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value, messages: el.querySelector('#c-mensajes').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
     catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
   });
   el.querySelector('#form-comida').addEventListener('submit', async (ev) => {

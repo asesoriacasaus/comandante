@@ -319,6 +319,22 @@ El usuario eligió una personalidad concreta y marcada para el entrenador. **La 
 
 ---
 
+### 7.5 Ahorro de IA (21 de noviembre de 2026)
+
+Regla: **la IA solo se usa para lo que no se puede resolver con reglas, con los datos propios o con lo ya calculado.** Cada vía de ahorro se cuenta y se enseña en Ajustes > Uso de la IA (llamadas del mes por modelo y llamadas ahorradas por vía; el contador del servidor vive en la Propiedad `AI_USO` y el del móvil en `localStorage`).
+
+| Llamada | Qué se hace ahora | IA |
+|---|---|---|
+| Cualquier `callJson_` | Caché de respuestas idénticas 6 h (modelo + instrucciones + datos + adjuntos, con hash SHA-256): un reintento, la misma foto o el mismo texto no repiten | Solo la primera vez |
+| Mensaje de inicio y de cierre | Modo **ahorro** por defecto (`coach.messages`): un banco de frases con la personalidad (4 por grupo muscular para empezar, 5 por resultado para cerrar: completa, incompleta, molestia) generado con **una** llamada y guardado en `ai/frases.json` del Drive del usuario (nunca en el repo). Mensaje = frase del banco, rotando sin repetir, + los datos reales que pone el código. Se rehace si cambia la personalidad o la intensidad, o a los 45 días. Modo **a medida** opcional en Ajustes | 1 llamada cada 45 días en vez de 2 por sesión |
+| Comidas escritas | **Base de alimentos propia** (`foods.list`): se forma sola con lo comido y revisado en 180 días (por 100 g/ml o por unidad, la vez más reciente manda). El móvil entiende "2 huevos y 200 g de arroz" y lo calcula sin IA; si hay algo desconocido o ambiguo (un número sin unidad en algo que se pesa), pregunta a la IA. En la revisión queda el botón "Calcular con la IA" | Solo con alimentos nuevos |
+| Comidas repetidas | **Lo de siempre**: las comidas que se repiten (los mismos alimentos 2 o más veces en 60 días) se apuntan con un toque, como la última vez | Ninguna |
+| Suplementos | Catálogo local de genéricos (creatina, whey, colágeno, vitamina D en UI o µg, omega 3, magnesio, zinc, vitamina C, B12, cafeína) que lee la dosis del texto. Marcas, multivitamínicos y combinados van a la IA | Solo marcas |
+| Planes de sesión, recetas, correo semanal | Ya eran una llamada por ciclo, por petición explícita o por semana | Igual |
+| Dictado de series, fotos, pantallazos, resumen hablado | Necesitan entender audio o imagen | Sí |
+
+Pendiente, por si el dictado sigue siendo el mayor gasto: transcribir en el propio iPhone (reconocimiento de voz del sistema) y aplicar las reglas de interpretación de series en el móvil, dejando la IA solo para lo que no se entienda. Antes de hacerlo hay que medir si el reconocimiento de iOS acierta con el ruido del gimnasio y el habla andaluza.
+
 ## 8. Motor del entrenador
 
 Híbrido: **reglas deterministas** fijan los límites y la estructura; **Gemini** elige ejercicios, ajusta matices y redacta. Las reglas viven en `Planner.gs` como funciones puras con tests.

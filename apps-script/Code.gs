@@ -64,6 +64,7 @@ function doPost(e) {
     'meal.process': () => mealProcess(payload),
     'meal.delete': () => mealDelete(payload),
     'nutrition.state': () => nutritionState(payload),
+    'foods.list': () => foodsList(),
     'supplement.analyze': () => supplementAnalyze(payload),
     'supplement.save': () => supplementSave(payload),
     'supplement.delete': () => supplementDelete(payload),

@@ -1305,6 +1305,26 @@ function test_pure_sup_catalogo() {
   return 'ok';
 }
 
+function test_pure_food_db() {
+  const meals = [
+    { date: '2026-11-01', mealType: 'breakfast', items: [{ name: 'Huevo', quantity: 2, unit: 'unidad', kcal: 150, proteinG: 12, carbsG: 1, fatG: 10, confidence: 0.9 },
+      { name: 'Arroz blanco cocido', quantity: 200, unit: 'g', kcal: 260, proteinG: 5, carbsG: 56, fatG: 0.6, ironMg: 0.4, confidence: 0.8 }] },
+    { date: '2026-11-10', mealType: 'breakfast', items: [{ name: 'huevo', quantity: 3, unit: 'unidad', kcal: 216, proteinG: 18.9, carbsG: 1.2, fatG: 15, confidence: 0.9 },
+      { name: 'Arroz blanco cocido', quantity: 150, unit: 'g', kcal: 195, proteinG: 3.75, carbsG: 42, fatG: 0.45, confidence: 0.8 }] },
+    { date: '2026-11-12', mealType: 'snack', items: [{ name: 'Algo raro', quantity: 1, unit: 'ración', kcal: 300, proteinG: 1, carbsG: 1, fatG: 1, confidence: 0.3 }] },
+    { date: '2026-11-12', mealType: 'supplement', items: [{ name: 'Creatina', quantity: 5, unit: 'g', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }] }];
+  const db = buildFoodDb_(meals);
+  const huevo = db.find((f) => f.name === 'huevo');
+  assert_(huevo && huevo.base === 1 && huevo.n.kcal === 72 && huevo.n.proteinG === 6.3 && huevo.tipica === 3 && huevo.veces === 2, 'por unidad, la vez más reciente: ' + JSON.stringify(huevo));
+  const arroz = db.find((f) => f.name === 'Arroz blanco cocido');
+  assert_(arroz.base === 100 && arroz.n.kcal === 130 && arroz.n.carbsG === 28 && arroz.tipica === 150, 'por 100 g');
+  assert_(!db.some((f) => f.name === 'Algo raro') && !db.some((f) => f.name === 'Creatina'), 'sin estimaciones poco fiables ni suplementos');
+  const fr = frequentMeals_(meals, '2026-11-21');
+  assert_(fr.length === 1 && fr[0].veces === 2 && fr[0].ultima === '2026-11-10' && fr[0].items[0].quantity === 3, 'comida que se repite, la más reciente');
+  assert_(frequentMeals_(meals, '2027-03-01').length === 0, 'solo los últimos 60 días');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1354,7 +1374,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
