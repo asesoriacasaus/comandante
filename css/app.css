@@ -436,3 +436,4 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .lista-uso { list-style: none; margin: 4px 0 12px; padding: 0; }
 .lista-uso li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--linea); font-size: 14px; }
 .lista-uso li:first-child { border-top: 0; }
+.modo-dictado { margin: -8px 0 10px; text-align: center; font: 600 12px var(--sans); color: var(--oliva); }

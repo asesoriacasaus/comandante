@@ -80,18 +80,35 @@ function applyOpOnce_(s, op, equipment, library) {
   return out;
 }
 
-/** Procesa un clip de audio. Idempotente: reenviar el mismo clipId no duplica series. */
+/**
+ * Procesa un clip: audio (lo interpreta la IA) o texto ya transcrito por el iPhone (primero reglas, sin IA; si no encajan,
+ * la IA solo con el texto). Idempotente: reenviar el mismo clipId no duplica series.
+ */
 function clipProcess(p) {
   if (!CLIP_ID_RE_.test(String(p.clipId))) throw { code: 'VALIDATION', message: 'id de clip inválido' };
-  const mime = validateMedia_('audio', p.mime, p.data);
+  const esTexto = typeof p.text === 'string';
+  const texto = esTexto ? String(validateText_(p.text)).trim() : '';
+  if (esTexto && !texto) throw { code: 'VALIDATION', message: 'No se ha oído nada' };
+  const mime = esTexto ? null : validateMedia_('audio', p.mime, p.data);
   const session = readSession_(p.sessionId);
   if (session.status === 'done') throw { code: 'VALIDATION', message: 'La sesión ya está cerrada' };
   if ((session.clips || []).some((c) => c.id === p.clipId)) return { session: session, duplicate: true };
 
   const settings = getSettings();
   const library = exerciseSeed_();
-  const ai = callJson_('CLIP', CLIP_SYSTEM_, buildClipUser_(session, library), CLIP_SCHEMA_, validateClipResponse_,
-    [{ inlineData: { mimeType: mime, data: p.data } }]);
+  let ai; let via;
+  if (esTexto) {
+    const reglas = reglasSerie_(texto, session, library);
+    if (reglas) { ai = { transcript: texto, events: reglas }; via = 'reglas'; aiCount_('ahorro', 'dictado'); }
+    else {
+      ai = callJson_('FAST', CLIP_SYSTEM_, Object.assign(buildClipUser_(session, library), { transcripcionDelMovil: texto }), CLIP_SCHEMA_, validateClipResponse_);
+      ai.transcript = texto; via = 'ia-texto';
+    }
+  } else {
+    ai = callJson_('CLIP', CLIP_SYSTEM_, buildClipUser_(session, library), CLIP_SCHEMA_, validateClipResponse_,
+      [{ inlineData: { mimeType: mime, data: p.data } }]);
+    via = 'ia-audio';
+  }
 
   const updated = mutateSession_(p.sessionId, (s) => {
     if ((s.clips || []).some((c) => c.id === p.clipId)) return s;
@@ -100,7 +117,7 @@ function clipProcess(p) {
     s.pending = (s.pending || []).concat(res.pending);
     s.painFlags = (s.painFlags || []).concat(res.pain);
     s.clips = (s.clips || []).concat([{ id: p.clipId, ts: String(p.ts || new Date().toISOString()).slice(0, 40),
-      transcript: ai.transcript.slice(0, 4000), events: ai.events, warnings: res.warnings, status: 'processed' }]);
+      transcript: ai.transcript.slice(0, 4000), events: ai.events, warnings: res.warnings, status: 'processed', via: via }]);
     return startIfPlanned_(s);
   });
   return { session: updated };

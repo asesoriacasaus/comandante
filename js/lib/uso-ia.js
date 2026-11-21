@@ -1,6 +1,6 @@
 // Resumen del uso de la IA del mes: lo que cuenta el servidor y lo que se ahorra en el propio móvil. Funciones puras.
 const VIAS = { cache: 'Peticiones repetidas (caché)', frases: 'Mensajes del Comandante (banco de frases)', suplementos: 'Suplementos conocidos',
-  comidas: 'Comidas con alimentos conocidos', repetir: 'Comidas repetidas («Lo de siempre»)' };
+  dictado: 'Series del dictado del iPhone entendidas sin IA', comidas: 'Comidas con alimentos conocidos', repetir: 'Comidas repetidas («Lo de siempre»)' };
 const MODELOS = { FAST: 'Modelo rápido', SMART: 'Modelo avanzado', CLIP: 'Dictado (audio)' };
 
 export function resumenUso(servidor, local, mes) {

@@ -6,6 +6,7 @@ import { createQueue } from '../lib/queue.js';
 import { borrar, leer, guardar } from '../lib/cache.js';
 import { descanso, objetivo, seriesHechas } from '../lib/sesion-viva.js';
 import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
+import { crearDictado, modoDictado, ERRORES_GRAVES } from '../lib/dictado.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
@@ -49,7 +50,7 @@ export function render(el) {
       h('p', { class: 'vacio' }, 'Empieza la sesión desde Hoy.'), h('a', { class: 'btn', href: '#hoy' }, 'Ir a Hoy')));
     return;
   }
-  const st = { id, session: null, recording: false, processing: 0, msg: '', msgType: '', ms: 0, queueInfo: { waiting: 0, errors: 0 },
+  const st = { id, modo: modoDictado(), session: null, recording: false, processing: 0, msg: '', msgType: '', ms: 0, queueInfo: { waiting: 0, errors: 0 },
     editing: null, timer: null, formulario: null, ejercicios: null, scrollForm: false };
 
   const queue = createQueue({
@@ -141,6 +142,8 @@ export function render(el) {
 }
 
 async function blobToPayload(clip) {
+  // Clip del dictado del iPhone: solo texto (el servidor lo interpreta con reglas, y si no encaja, con la IA).
+  if (typeof clip.text === 'string') return { sessionId: clip.sessionId, clipId: clip.id, ts: clip.ts, text: clip.text };
   const data = await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).split(',')[1] || '');
@@ -172,6 +175,7 @@ function view(st, ctx) {
   const setMsg = (m, t = '') => { st.msg = m; st.msgType = t; paint(); };
 
   async function toggleRecord() {
+    if (st.modo === 'iphone') return toggleDictado();
     if (st.recording) {
       try {
         const r = await recorder.stop();
@@ -196,6 +200,34 @@ function view(st, ctx) {
     }
   }
 
+  // Dictado del iPhone: el sistema transcribe gratis y se manda el texto. Si falla, se pasa a grabar audio para la sesión.
+  async function toggleDictado() {
+    const pasarAAudio = (motivo) => { st.modo = 'audio'; st.recording = false; setMsg('El dictado del iPhone no está disponible aquí' + (motivo ? ' (' + motivo + ')' : '') + '. Pulsa Grabar otra vez: grabaré audio como antes.', 'error'); };
+    if (st.recording) {
+      st.recording = false;
+      const r = await st.dictado.stop();
+      if (r.error && ERRORES_GRAVES.has(r.error) && !r.texto) { pasarAAudio(r.error); return; }
+      if (!r.texto) { setMsg('No he oído nada. Pulsa Grabar y vuelve a decirlo.', 'error'); return; }
+      const clip = { id: newId('c'), sessionId: ctx.id, ts: new Date().toISOString(), text: r.texto.slice(0, 1500) };
+      setMsg('Oí: «' + r.texto + '». Procesando…', '');
+      await queue.enqueue(clip);
+      st.queueInfo = await queue.counts(ctx.id);
+      paint();
+      return;
+    }
+    try {
+      // Un reconocedor por pantalla (se reutiliza entre series). Si el iPhone lo bloquea, se pasa a audio en el momento.
+      st.dictado = st.dictado || crearDictado({
+        onParcial: (t) => { const n = document.querySelector('#view .estado'); if (n && st.recording) n.textContent = 'Oigo: ' + t; },
+        onError: (e) => { if (!st.recording) return; st.dictado.stop(); pasarAAudio(e); }
+      });
+      if (!st.dictado) { pasarAAudio(); return; }
+      st.dictado.start();
+      st.recording = true;
+      setMsg('Escuchando… di la serie y pulsa Parar.', '');
+    } catch (err) { console.error(err); pasarAAudio(err && err.message); }
+  }
+
   if (cur) cur.toggle = toggleRecord;
   const abrir = (cfg) => abrirFormulario(st, cfg, paint, (err) => setMsg('No se pudo cargar la lista de ejercicios: ' + err.message, 'error'));
   const guardarSerie = async (payload, pendiente) => {
@@ -216,6 +248,7 @@ function view(st, ctx) {
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
+    h('p', { class: 'modo-dictado' }, st.modo === 'iphone' ? 'Dictado del iPhone · sin gastar IA en lo que se entienda' : 'Grabación de audio · la interpreta la IA'),
     (s.clips || []).length < 2 ? h('p', { class: 'pista' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
     st.sinEnviar ? h('p', { class: 'aviso' }, st.sinEnviar === 1 ? '1 cambio sin enviar: se enviará solo al volver la conexión.'
