@@ -143,3 +143,27 @@ export function huecosRecientes(start, today, logged, n = 3) {
 
 /** Tipos de comida que el usuario elige al guardar (los suplementos se marcan aparte). */
 export const TIPOS_ELEGIBLES = Object.keys(MEAL_TYPES_ES).filter((k) => k !== 'supplement');
+
+// ---------- Reparto: qué parte del plato de la foto te has comido ----------
+
+/** Fracción que te corresponde: { modo: 'todo' } → 1; { modo: 'personas', n } → 1/n; { modo: 'porcentaje', pct } → pct/100. */
+export function fraccionReparto(r) {
+  if (!r || r.modo === 'todo') return 1;
+  if (r.modo === 'personas') { const n = Math.round(Number(r.n)); return n >= 1 && n <= 50 ? 1 / n : 1; }
+  if (r.modo === 'porcentaje') { const p = Number(r.pct); return p > 0 && p <= 100 ? p / 100 : 1; }
+  return 1;
+}
+
+/** Texto de tu parte: "Todo el plato", "1/3 del plato (compartido entre 3)", "40 % del plato". */
+export function textoReparto(r) {
+  if (!r || r.modo === 'todo' || fraccionReparto(r) === 1) return 'Todo el plato';
+  if (r.modo === 'personas') return '1/' + Math.round(r.n) + ' del plato (compartido entre ' + Math.round(r.n) + ')';
+  return fmtDec(Number(r.pct)) + ' % del plato';
+}
+
+/** Tu parte de cada alimento: cantidades y nutrientes escalados por la fracción (la IA estimó el plato entero). */
+export function repartir(items, r) {
+  const f = fraccionReparto(r);
+  if (f === 1) return items.map((it) => Object.assign({}, it));
+  return items.map((it) => scaleItem(it, Math.max(0.1, Math.round(it.quantity * f * 10) / 10)));
+}

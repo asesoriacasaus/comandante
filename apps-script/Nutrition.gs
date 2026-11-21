@@ -82,6 +82,9 @@ const MEAL_SYSTEM_ = 'Eres un nutricionista que estima lo que una persona ha com
   'Si hay fotos: identifica cada alimento visible y estima la cantidad por el tamaño del plato, los cubiertos, la mano o el envase como ' +
   'referencia; cuenta el aceite o la salsa que se vea. Si una etiqueta nutricional es legible, usa sus datos. Si el texto o el audio dan ' +
   'cantidades o aclaran qué es algo, mandan sobre lo que parece en la foto. Si con la foto no se sabe la cantidad, baja "confidence". ' +
+  'Si "repartoAparte" es true, estima TODO lo que se ve en las fotos (el plato o la fuente entera) aunque la descripción diga que se ' +
+  'compartió o que solo se comió una parte: la app aplica después la parte de esta persona. Sin "repartoAparte", si dice que lo compartió ' +
+  'o que comió una parte, estima solo lo que comió esta persona. ' +
   'Responde solo con el JSON pedido.';
 
 function validateMealExtraction_(o) {
@@ -148,6 +151,8 @@ function mealInputs_(p) {
   if (!text && !parts.length) throw { code: 'VALIDATION', message: 'Añade una foto, un audio o un texto con lo que has comido' };
   const user = { tarea: 'Estima la comida', fotos: images.length, audio: !!audio };
   if (text) user.descripcion = text;
+  // El usuario dice aparte qué parte se comió (compartido o un porcentaje): la IA estima el plato ENTERO y la app reparte.
+  if (p.shared === true) user.repartoAparte = true;
   return { user: user, parts: parts };
 }
 

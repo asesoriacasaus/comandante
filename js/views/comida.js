@@ -5,7 +5,7 @@ import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar } from '../lib/cache.js';
-import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES } from '../lib/nutrition.js';
+import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES, fraccionReparto, textoReparto, repartir } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
@@ -223,10 +223,45 @@ function comidaNodo(el, st, m) {
 
 const MAX_FOTOS = 3;
 
+/**
+ * ¿Cuánto del plato de la foto te has comido? Todo, compartido entre varias personas o un porcentaje.
+ * `estado` es { modo, n, pct } y se modifica en el sitio; onChange() avisa de cada cambio.
+ */
+function controlReparto(estado, onChange) {
+  const caja = h('div', { class: 'reparto' });
+  const pintar = () => {
+    const seg = (modo, texto) => h('button', { type: 'button', class: 'segmento' + (estado.modo === modo ? ' activo' : ''), 'aria-pressed': String(estado.modo === modo),
+      onClick: () => { estado.modo = modo; pintar(); onChange(); } }, texto);
+    let detalle = null;
+    if (estado.modo === 'personas') {
+      const cambiar = (d) => { estado.n = Math.min(20, Math.max(2, estado.n + d)); pintar(); onChange(); };
+      detalle = h('div', { class: 'contador' },
+        h('button', { type: 'button', class: 'contador-btn', 'aria-label': 'Una persona menos', disabled: estado.n <= 2, onClick: () => cambiar(-1) }, '−'),
+        h('span', { class: 'contador-valor', 'aria-live': 'polite' }, 'Entre ' + estado.n + ' personas'),
+        h('button', { type: 'button', class: 'contador-btn', 'aria-label': 'Una persona más', disabled: estado.n >= 20, onClick: () => cambiar(1) }, '+'));
+    } else if (estado.modo === 'porcentaje') {
+      const campo = h('input', { inputmode: 'decimal', value: fmtDec(estado.pct), 'aria-label': 'Porcentaje que te has comido' });
+      campo.addEventListener('change', () => { const v = parseNum(campo.value); if (v !== null && v > 0 && v <= 100) { estado.pct = v; pintar(); onChange(); } else campo.value = fmtDec(estado.pct); });
+      detalle = h('div', { class: 'porcentajes' },
+        ...[25, 33, 50, 75].map((v) => h('button', { type: 'button', class: 'chip chip-boton' + (Number(estado.pct) === v ? ' activo' : ''), onClick: () => { estado.pct = v; pintar(); onChange(); } }, v + ' %')),
+        h('label', { class: 'porcentaje-libre' }, campo, h('span', {}, '%')));
+    }
+    caja.replaceChildren(
+      h('p', { class: 'etiqueta' }, '¿Cuánto te has comido tú?'),
+      h('div', { class: 'segmentos', role: 'group', 'aria-label': 'Reparto del plato' }, seg('todo', 'Todo'), seg('personas', 'Compartido'), seg('porcentaje', 'Una parte')),
+      detalle,
+      h('p', { class: 'reparto-resumen' }, 'Tu parte: ' + textoReparto(estado).replace(/^Todo el plato$/, 'todo lo de la foto')));
+  };
+  pintar();
+  return caja;
+}
+
 function pantallaAnadir(el, st) {
   pantalla = 'otra';
   const fotos = [];   // { blob, url }
   let audio = null;   // { blob, mime, ms }
+  const reparto = { modo: 'todo', n: 2, pct: 50 };
+  const cajaReparto = controlReparto(reparto, () => {});
   let grabando = false;
   const dia = h('input', { type: 'date', value: st.date, max: st.today, 'aria-label': 'Día de la comida' });
   const atajos = h('div', { class: 'chips-datos' },
@@ -244,6 +279,7 @@ function pantallaAnadir(el, st) {
   const pintarFotos = () => {
     miniaturas.replaceChildren(...fotos.map((f, i) => h('div', { class: 'miniatura' }, h('img', { src: f.url, alt: 'Foto ' + (i + 1) + ' de la comida' }),
       h('button', { type: 'button', class: 'quitar', 'aria-label': 'Quitar la foto ' + (i + 1), onClick: () => { URL.revokeObjectURL(f.url); fotos.splice(i, 1); pintarFotos(); } }, '×'))));
+    cajaReparto.hidden = !fotos.length;
     btnFoto.disabled = fotos.length >= MAX_FOTOS;
     btnFoto.textContent = fotos.length ? 'Otra foto' : 'Añadir foto';
   };
@@ -259,6 +295,7 @@ function pantallaAnadir(el, st) {
     if (estado.textContent === 'Preparando la foto…') estado.textContent = '';
     pintarFotos();
   });
+  cajaReparto.hidden = true;
 
   recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando) btnAudio.textContent = 'Parar · ' + Math.floor(ms / 1000) + ' s'; }, onAutoStop: () => { if (grabando) btnAudio.click(); } });
   btnAudio.addEventListener('click', async () => {
@@ -283,16 +320,17 @@ function pantallaAnadir(el, st) {
     estado.textContent = fotos.length ? 'Mirando la foto y calculando… puede tardar unos segundos.' : 'Calculando lo que has comido…';
     try {
       const payload = { text: area.value.trim() };
+      if (fotos.length && fraccionReparto(reparto) < 1) payload.shared = true;   // la IA estima el plato entero; la app reparte
       if (audio) payload.audio = { mime: audio.mime, data: await blobToBase64(audio.blob) };
       if (fotos.length) payload.images = await Promise.all(fotos.map(async (f) => ({ mime: 'image/jpeg', data: await blobToBase64(f.blob) })));
       const r = await call('meal.process', payload, { timeoutMs: 150000 });
-      if (vigente(el)) pantallaRevision(el, st, r, fotos.length ? 'photo' : audio ? 'voice' : 'text', dia.value, fotos.map((f) => f.url));
+      if (vigente(el)) pantallaRevision(el, st, r, fotos.length ? 'photo' : audio ? 'voice' : 'text', dia.value, fotos.map((f) => f.url), fotos.length ? reparto : null);
     } catch (err) { console.error(err); calcular.disabled = false; estado.className = 'estado error'; estado.textContent = err.message + ' Lo que has añadido sigue aquí.'; }
   });
 
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Añadir comida'),
     h('div', { class: 'bloque' }, h('label', {}, 'Día', dia), atajos),
-    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Foto'), miniaturas, archivo,
+    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Foto'), miniaturas, archivo, cajaReparto,
       h('div', { class: 'acciones' }, btnFoto), h('p', { class: 'nota' }, 'Del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad. Hasta 3 fotos; también vale la etiqueta del envase.')),
     h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Voz o texto'), h('div', { class: 'acciones' }, btnAudio), audioInfo, area),
     calcular, estado,
@@ -301,9 +339,16 @@ function pantallaAnadir(el, st) {
 
 // ---------- Revisar y guardar ----------
 
-function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas = []) {
+function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas = [], reparto = null) {
   pantalla = 'otra';
-  let items = r.items.map((i) => Object.assign({}, i));
+  // Con foto, la IA estimó el plato entero: aquí se aplica tu parte, y se puede cambiar sin volver a calcular.
+  const entero = r.items.map((i) => Object.assign({}, i));
+  let items = reparto ? repartir(entero, reparto) : entero.map((i) => Object.assign({}, i));
+  const platoEntero = h('p', { class: 'nota' });
+  const pintarEntero = () => {
+    const t = sumItems(entero);
+    platoEntero.textContent = reparto && fraccionReparto(reparto) < 1 ? 'El plato entero de la foto tenía unas ' + fmtInt(t.kcal) + ' kcal; abajo ya va solo tu parte.' : '';
+  };
   const filas = h('div', {});
   const totalNodo = h('p', { class: 'detalle' });
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
@@ -339,11 +384,13 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
         ...avisos);
     }));
   };
-  pintarFilas(); pintarTotal();
+  pintarFilas(); pintarTotal(); pintarEntero();
+  const cajaReparto = reparto ? controlReparto(reparto, () => { items = repartir(entero, reparto); pintarFilas(); pintarTotal(); pintarEntero(); }) : null;
 
   const guardar = async (btn) => {
     if (!items.length) { estado.className = 'estado error'; estado.textContent = 'No queda ningún alimento.'; return; }
     const record = { date: fechaComida, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
+    if (reparto && fraccionReparto(reparto) < 1) record.portion = { share: Math.round(fraccionReparto(reparto) * 1000) / 1000, text: textoReparto(reparto) };
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
     try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
@@ -353,6 +400,7 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
     miniaturas.length ? h('div', { class: 'miniaturas' }, ...miniaturas.map((u, i) => h('div', { class: 'miniatura' }, h('img', { src: u, alt: 'Foto ' + (i + 1) })))) : null,
     r.transcript ? h('p', { class: 'nota' }, 'Oí: «' + r.transcript + '»') : null,
     h('p', { class: 'nota' }, 'Los valores son una estimación de la IA. Corrige lo que no cuadre: al cambiar la cantidad, los nutrientes se reajustan solos.'),
+    cajaReparto ? h('div', { class: 'bloque' }, cajaReparto, platoEntero) : null,
     h('div', { class: 'rejilla' }, h('label', {}, 'Tipo', tipo), h('label', {}, 'Hora', hora)),
     filas, totalNodo, estado,
     h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar comida'),

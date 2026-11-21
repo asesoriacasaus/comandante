@@ -412,3 +412,17 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .sup-fila > div { display: grid; gap: 3px; min-width: 0; }
 .sup-fila small { font: 400 13px var(--sans); color: var(--tinta-2); }
 .sup-fila .sup-nota { font-style: italic; }
+
+/* Reparto del plato de la foto */
+.reparto { margin: 4px 0 12px; }
+.reparto .segmentos { margin: 6px 0 10px; }
+.contador { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; }
+.contador-btn { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--tarjeta-2); color: var(--tinta); font: 600 22px/1 var(--sans); cursor: pointer; }
+.contador-btn[disabled] { opacity: .35; }
+.contador-valor { min-width: 150px; text-align: center; font: 700 17px var(--sans); font-variant-numeric: tabular-nums; }
+.porcentajes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.chip-boton { min-height: 44px; padding: 8px 14px; }
+.chip.activo { background: var(--boton); color: #fff; }
+.porcentaje-libre { display: flex; align-items: center; gap: 6px; margin: 0; }
+.porcentaje-libre input { width: 76px; margin: 0; text-align: center; }
+.reparto-resumen { margin: 0; font: 600 14px var(--sans); color: var(--oliva); }

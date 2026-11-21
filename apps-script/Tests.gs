@@ -1239,6 +1239,9 @@ function test_pure_meal_inputs() {
   assert_(falla({ images: [img, img, img, img] }) === 'VALIDATION', 'más de 3 fotos');
   assert_(falla({ images: [{ mime: 'application/pdf', data: img.data }] }) === 'VALIDATION', 'tipo de archivo');
   assert_(MEAL_SYSTEM_.indexOf('fotos') > 0, 'instrucciones para fotos');
+  assert_(mealInputs_({ images: [img], shared: true }).user.repartoAparte === true, 'reparto aparte: la IA estima el plato entero');
+  assert_(!('repartoAparte' in mealInputs_({ images: [img] }).user), 'sin reparto, como siempre');
+  assert_(MEAL_SYSTEM_.indexOf('repartoAparte') > 0, 'instrucción de reparto');
   return 'ok';
 }
 
