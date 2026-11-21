@@ -2,10 +2,10 @@
 import { call } from '../api.js';
 import { h, cargando } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
-import { blobToBase64 } from '../lib/media.js';
+import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar } from '../lib/cache.js';
-import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo } from '../lib/nutrition.js';
+import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
@@ -17,9 +17,17 @@ function sumarDias(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+/** "jueves 19": corto, para botones. */
+function diaCorto(iso) { const [y, m, d] = iso.split('-').map(Number); return DIAS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + ' ' + d; }
+
+let ultimaVista = 0;
 export function render(el) {
   pantalla = 'inicio';
-  fecha = fecha || todayIsoLocal();
+  // El día elegido se recuerda mientras usas Comida; si vuelves al rato, se abre en hoy.
+  if (!fecha || Date.now() - ultimaVista > 10 * 60 * 1000) fecha = todayIsoLocal();
+  ultimaVista = Date.now();
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), cargando()));
   cargar(el);
 }
@@ -66,10 +74,25 @@ function inicio(el, st) {
   pantalla = 'inicio';
   const esHoy = st.date === st.today;
   const t = st.targets;
-  const nav = h('div', { class: 'dia-nav' },
-    h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Día anterior', onClick: () => { fecha = sumarDias(st.date, -1); render(el); } }, '‹'),
-    h('span', { class: 'dia-titulo' }, esHoy ? 'Hoy' : formatDateEs(st.date)),
-    h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Día siguiente', disabled: esHoy, onClick: () => { fecha = sumarDias(st.date, 1); render(el); } }, '›'));
+  const nombreDia = esHoy ? 'hoy' : formatDateEs(st.date);
+
+  // Semana de lunes a domingo: un punto en los días con comidas. Tocar un día lo abre (también los pasados, para rellenar huecos).
+  const w = st.week7 || { start: st.date, logged: [] };
+  const irA = (d) => { fecha = d; render(el); };
+  const finSemana = sumarDias(w.start, 6);
+  const semana = h('div', { class: 'semana', role: 'group', 'aria-label': 'Días de la semana' },
+    h('div', { class: 'semana-cab' },
+      h('button', { type: 'button', class: 'semana-flecha', 'aria-label': 'Semana anterior', onClick: () => irA(sumarDias(st.date, -7)) }, '‹'),
+      h('span', { class: 'semana-titulo' }, finSemana >= st.today && w.start <= st.today ? 'Esta semana' : 'Semana del ' + diaCorto(w.start).replace(/^\S+ /, '') + ' de ' + MESES[Number(w.start.slice(5, 7)) - 1]),
+      h('button', { type: 'button', class: 'semana-flecha', 'aria-label': 'Semana siguiente', disabled: sumarDias(w.start, 7) > st.today,
+        onClick: () => irA(sumarDias(st.date, 7) > st.today ? st.today : sumarDias(st.date, 7)) }, '›')),
+    h('div', { class: 'semana-dias' }, ...diasSemana(w.start, st.today, w.logged).map((d) => h('button', {
+      type: 'button', class: 'dia' + (d.date === st.date ? ' activo' : '') + (d.apuntado ? ' apuntado' : ''), disabled: d.futuro,
+      'aria-label': formatDateEs(d.date) + (d.apuntado ? ', con comidas' : ', sin comidas'), 'aria-pressed': String(d.date === st.date),
+      onClick: () => irA(d.date) }, h('span', { class: 'dia-letra' }, d.letra), h('span', { class: 'dia-num' }, String(d.num)), h('i', { class: 'dia-punto' })))));
+  const huecos = esHoy ? huecosRecientes(w.start, st.today, w.logged) : [];
+  const aviso = huecos.length ? h('button', { type: 'button', class: 'aviso aviso-boton', onClick: () => irA(huecos[0]) },
+    'No apuntaste nada ' + huecos.map((d) => 'el ' + diaCorto(d)).join(', ').replace(/, ([^,]*)$/, ' ni $1') + '. Toca aquí para añadirlo ahora: nunca es tarde.') : null;
 
   const objetivos = t
     ? h('div', {}, anillos(st.totals, t),
@@ -78,18 +101,55 @@ function inicio(el, st) {
           h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.')))
     : h('p', { class: 'aviso' }, 'Para calcular tus objetivos faltan tus datos: completa la bienvenida desde Hoy.');
 
-  const comidas = st.meals.length
-    ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Comidas'), ...st.meals.map((m) => comidaNodo(el, st, m)))
-    : h('p', { class: 'vacio' }, 'Aún no has apuntado nada ' + (esHoy ? 'hoy' : 'ese día') + '.');
+  const reales = st.meals.filter((m) => m.mealType !== 'supplement');
+  const comidas = reales.length
+    ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Comidas'), ...reales.map((m) => comidaNodo(el, st, m)))
+    : h('p', { class: 'vacio' }, 'Aún no has apuntado nada ' + nombreDia + '.');
 
   const micros = bloqueMicros(el, st);
 
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Comida'), nav,
-    h('div', { class: 'acciones' },
-      h('button', { type: 'button', class: 'btn', onClick: () => pantallaVoz(el, st) }, 'Dictar comida'),
-      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => pantallaTexto(el, st) }, 'Escribir comida')),
-    objetivos, micros, comidas,
+  el.replaceChildren(h('section', {}, h('h2', {}, 'Comida'), semana, aviso,
+    h('button', { type: 'button', class: 'btn btn-ancho', onClick: () => pantallaAnadir(el, st) },
+      esHoy ? 'Añadir comida' : 'Añadir comida del ' + diaCorto(st.date)),
+    h('p', { class: 'pista' }, 'Con una foto, la voz o un texto, o todo a la vez.'),
+    objetivos, bloqueSuplementos(el, st), comidas, micros,
     h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrirRecetas(el, st) }, 'Recetas y lista de la compra'))));
+}
+
+// ---------- Suplementos ----------
+
+function bloqueSuplementos(el, st) {
+  const lista = st.supplements || [];
+  const tomados = new Set(st.supplementsTaken || []);
+  const gestionar = h('button', { type: 'button', class: 'enlace', onClick: () => abrirSuplementos(el, st) }, lista.length ? 'Gestionar' : 'Añadir');
+  if (!lista.length) {
+    return h('div', { class: 'bloque' }, h('div', { class: 'bloque-cab' }, h('p', { class: 'etiqueta' }, 'Suplementos'), gestionar),
+      h('p', { class: 'nota' }, '¿Tomas creatina, vitamina D, hierro u omega 3? Añádelos una vez y márcalos cada día: lo que aportan cuenta en tus vitaminas y minerales.'));
+  }
+  const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
+  return h('div', { class: 'bloque' }, h('div', { class: 'bloque-cab' }, h('p', { class: 'etiqueta' }, 'Suplementos'), gestionar),
+    h('div', { class: 'suplementos' }, ...lista.map((s) => {
+      const btn = h('button', { type: 'button', class: 'sup' + (tomados.has(s.id) ? ' tomado' : ''), 'aria-pressed': String(tomados.has(s.id)) },
+        h('span', { class: 'sup-check', 'aria-hidden': 'true' }), h('span', { class: 'sup-texto' }, h('b', {}, s.name), h('small', {}, fmtDec(s.dose) + ' ' + s.unit)));
+      btn.addEventListener('click', async () => {
+        const tomar = !btn.classList.contains('tomado');
+        btn.classList.toggle('tomado', tomar); btn.setAttribute('aria-pressed', String(tomar)); btn.disabled = true;   // al instante; el servidor confirma
+        try {
+          await call('supplement.take', { date: st.date, id: s.id, taken: tomar }, { timeoutMs: 60000 });
+          borrar('comida:' + st.date); if (vigente(el) && pantalla === 'inicio') render(el);
+        } catch (err) {
+          console.error(err); btn.classList.toggle('tomado', !tomar); btn.setAttribute('aria-pressed', String(!tomar)); btn.disabled = false;
+          estado.className = 'estado error'; estado.textContent = err.message;
+        }
+      });
+      return btn;
+    })), estado);
+}
+
+function abrirSuplementos(el, st) {
+  pantalla = 'otra';
+  import('./suplementos.js').then((m) => m.pantallaSuplementos(el, { lista: st.supplements || [], micros: st.micros || [], volver: () => { borrar('comida:' + st.date); render(el); } }))
+    .catch((err) => { console.error(err); pantalla = 'inicio'; });
 }
 
 // ---------- Micronutrientes ----------
@@ -159,73 +219,96 @@ function comidaNodo(el, st, m) {
     h('p', { class: 'detalle' }, fmtInt(total.kcal) + ' kcal · P ' + fmtInt(total.proteinG) + ' g · H ' + fmtInt(total.carbsG) + ' g · G ' + fmtInt(total.fatG) + ' g'));
 }
 
-// ---------- Capturar ----------
+// ---------- Añadir: foto, voz y texto, para cualquier día ----------
 
-function pantallaTexto(el, st) {
-  pantalla = 'otra';
-  const area = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Qué has comido', placeholder: 'Ej.: dos huevos revueltos con una tostada de pan integral y un café con leche' });
-  const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
-  const enviar = h('button', { type: 'button', class: 'btn' }, 'Calcular');
-  enviar.addEventListener('click', async () => {
-    if (!area.value.trim()) { estado.className = 'estado error'; estado.textContent = 'Escribe lo que has comido.'; return; }
-    enviar.disabled = true; estado.className = 'estado'; estado.textContent = 'Calculando…';
-    try {
-      const r = await call('meal.process', { kind: 'text', text: area.value }, { timeoutMs: 150000 });
-      if (vigente(el)) pantallaRevision(el, st, r, 'text');
-    } catch (err) { console.error(err); enviar.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
-  });
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Escribir comida'),
-    h('label', {}, 'Qué has comido', area), h('div', { class: 'acciones' }, enviar,
-      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, st) }, 'Cancelar')), estado));
-}
+const MAX_FOTOS = 3;
 
-function pantallaVoz(el, st) {
+function pantallaAnadir(el, st) {
   pantalla = 'otra';
-  const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
-  const boton = h('button', { type: 'button', class: 'btn btn-grabar' }, 'Grabar');
+  const fotos = [];   // { blob, url }
+  let audio = null;   // { blob, mime, ms }
   let grabando = false;
-  recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando) estado.textContent = 'Grabando ' + Math.floor(ms / 1000) + ' s'; }, onAutoStop: () => boton.click() });
-  boton.addEventListener('click', async () => {
+  const dia = h('input', { type: 'date', value: st.date, max: st.today, 'aria-label': 'Día de la comida' });
+  const atajos = h('div', { class: 'chips-datos' },
+    ...[['Hoy', st.today], ['Ayer', sumarDias(st.today, -1)], ['Anteayer', sumarDias(st.today, -2)]].map(([t, d]) =>
+      h('button', { type: 'button', class: 'chip chip-boton', onClick: () => { dia.value = d; } }, t)));
+  const miniaturas = h('div', { class: 'miniaturas' });
+  const archivo = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+  const btnFoto = h('button', { type: 'button', class: 'btn btn-sec' }, 'Añadir foto');
+  const area = h('textarea', { rows: 3, maxlength: 2000, 'aria-label': 'Descripción de la comida', placeholder: 'Opcional si hay foto o audio. Ej.: arroz con pollo, unos 200 g de arroz cocido; una manzana' });
+  const btnAudio = h('button', { type: 'button', class: 'btn btn-sec' }, 'Grabar audio');
+  const audioInfo = h('p', { class: 'nota', hidden: true });
+  const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
+  const calcular = h('button', { type: 'button', class: 'btn btn-ancho' }, 'Calcular');
+
+  const pintarFotos = () => {
+    miniaturas.replaceChildren(...fotos.map((f, i) => h('div', { class: 'miniatura' }, h('img', { src: f.url, alt: 'Foto ' + (i + 1) + ' de la comida' }),
+      h('button', { type: 'button', class: 'quitar', 'aria-label': 'Quitar la foto ' + (i + 1), onClick: () => { URL.revokeObjectURL(f.url); fotos.splice(i, 1); pintarFotos(); } }, '×'))));
+    btnFoto.disabled = fotos.length >= MAX_FOTOS;
+    btnFoto.textContent = fotos.length ? 'Otra foto' : 'Añadir foto';
+  };
+  btnFoto.addEventListener('click', () => archivo.click());
+  archivo.addEventListener('change', async () => {
+    const elegidos = [...archivo.files].slice(0, MAX_FOTOS - fotos.length);
+    archivo.value = '';
+    estado.className = 'estado'; estado.textContent = elegidos.length ? 'Preparando la foto…' : '';
+    for (const f of elegidos) {
+      try { const blob = await shrinkImage(f, 1280, 0.82); fotos.push({ blob, url: URL.createObjectURL(blob) }); }
+      catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'No se pudo leer una de las fotos.'; }
+    }
+    if (estado.textContent === 'Preparando la foto…') estado.textContent = '';
+    pintarFotos();
+  });
+
+  recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando) btnAudio.textContent = 'Parar · ' + Math.floor(ms / 1000) + ' s'; }, onAutoStop: () => { if (grabando) btnAudio.click(); } });
+  btnAudio.addEventListener('click', async () => {
     if (!grabando) {
-      try { await recorder.start(); grabando = true; boton.textContent = 'Parar'; boton.classList.add('activo'); estado.className = 'estado'; estado.textContent = 'Grabando 0 s'; }
+      try { await recorder.start(); grabando = true; btnAudio.classList.add('grabando'); btnAudio.textContent = 'Parar · 0 s'; }
       catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'Sin acceso al micrófono. Actívalo en Ajustes de iOS para este sitio.'; }
       return;
     }
-    grabando = false; boton.disabled = true; boton.classList.remove('activo'); boton.textContent = 'Procesando…';
-    let clip;
-    try { clip = await recorder.stop(); } catch (err) { console.error(err); boton.disabled = false; boton.textContent = 'Grabar'; return; }
+    grabando = false; btnAudio.classList.remove('grabando');
+    try { const r = await recorder.stop(); audio = { blob: r.blob, mime: r.mime, ms: r.ms }; } catch (err) { console.error(err); }
     recorder.releaseMic();
-    const enviar = async () => {
-      estado.className = 'estado'; estado.textContent = 'Calculando lo que has comido…';
-      try {
-        const data = await blobToBase64(clip.blob);
-        const r = await call('meal.process', { kind: 'audio', mime: clip.mime, data }, { timeoutMs: 150000 });
-        if (vigente(el)) pantallaRevision(el, st, r, 'voice');
-      } catch (err) {
-        console.error(err);
-        estado.className = 'estado error'; estado.textContent = err.message + ' La grabación sigue aquí: puedes reintentar.';
-        boton.disabled = false; boton.textContent = 'Reintentar'; boton.onclick = (e) => { e.stopImmediatePropagation(); boton.disabled = true; enviar(); };
-      }
-    };
-    enviar();
+    btnAudio.textContent = audio ? 'Volver a grabar' : 'Grabar audio';
+    audioInfo.hidden = !audio;
+    audioInfo.textContent = audio ? 'Audio de ' + Math.max(1, Math.round(audio.ms / 1000)) + ' s listo.' : '';
   });
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Dictar comida'),
-    h('p', { class: 'nota' }, 'Cuenta lo que has comido y cuánto, aunque sea aproximado.'),
-    h('blockquote', { class: 'mensaje' }, 'Un plato de arroz con pollo, unos doscientos gramos de arroz cocido, una manzana y un yogur natural.'),
-    boton, estado,
-    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => { recorder && recorder.releaseMic(); inicio(el, st); } }, 'Cancelar'))));
+
+  calcular.addEventListener('click', async () => {
+    if (grabando) { estado.className = 'estado error'; estado.textContent = 'Para la grabación antes de calcular.'; return; }
+    if (!fotos.length && !audio && !area.value.trim()) { estado.className = 'estado error'; estado.textContent = 'Añade una foto, un audio o un texto.'; return; }
+    if (!dia.value || dia.value > st.today) { estado.className = 'estado error'; estado.textContent = 'Elige un día que no sea futuro.'; return; }
+    calcular.disabled = true; estado.className = 'estado';
+    estado.textContent = fotos.length ? 'Mirando la foto y calculando… puede tardar unos segundos.' : 'Calculando lo que has comido…';
+    try {
+      const payload = { text: area.value.trim() };
+      if (audio) payload.audio = { mime: audio.mime, data: await blobToBase64(audio.blob) };
+      if (fotos.length) payload.images = await Promise.all(fotos.map(async (f) => ({ mime: 'image/jpeg', data: await blobToBase64(f.blob) })));
+      const r = await call('meal.process', payload, { timeoutMs: 150000 });
+      if (vigente(el)) pantallaRevision(el, st, r, fotos.length ? 'photo' : audio ? 'voice' : 'text', dia.value, fotos.map((f) => f.url));
+    } catch (err) { console.error(err); calcular.disabled = false; estado.className = 'estado error'; estado.textContent = err.message + ' Lo que has añadido sigue aquí.'; }
+  });
+
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Añadir comida'),
+    h('div', { class: 'bloque' }, h('label', {}, 'Día', dia), atajos),
+    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Foto'), miniaturas, archivo,
+      h('div', { class: 'acciones' }, btnFoto), h('p', { class: 'nota' }, 'Del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad. Hasta 3 fotos; también vale la etiqueta del envase.')),
+    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Voz o texto'), h('div', { class: 'acciones' }, btnAudio), audioInfo, area),
+    calcular, estado,
+    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => { if (recorder) recorder.releaseMic(); fotos.forEach((f) => URL.revokeObjectURL(f.url)); inicio(el, st); } }, 'Cancelar'))));
 }
 
 // ---------- Revisar y guardar ----------
 
-function pantallaRevision(el, st, r, source) {
+function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas = []) {
   pantalla = 'otra';
   let items = r.items.map((i) => Object.assign({}, i));
   const filas = h('div', {});
   const totalNodo = h('p', { class: 'detalle' });
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const tipo = h('select', { 'aria-label': 'Tipo de comida' }, h('option', { value: '' }, 'Sin especificar'),
-    ...Object.entries(MEAL_TYPES_ES).map(([v, l]) => h('option', Object.assign({ value: v }, r.mealType === v ? { selected: true } : {}), l)));
+    ...TIPOS_ELEGIBLES.map((v) => h('option', Object.assign({ value: v }, r.mealType === v ? { selected: true } : {}), MEAL_TYPES_ES[v])));
   const hora = h('input', { type: 'time', value: r.time || '', 'aria-label': 'Hora' });
 
   const pintarTotal = () => {
@@ -260,13 +343,14 @@ function pantallaRevision(el, st, r, source) {
 
   const guardar = async (btn) => {
     if (!items.length) { estado.className = 'estado error'; estado.textContent = 'No queda ningún alimento.'; return; }
-    const record = { date: st.date, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
+    const record = { date: fechaComida, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + st.date); if (vigente(el)) render(el); }
+    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Revisa la comida'),
+  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida · ' + (fechaComida === st.today ? 'hoy' : formatDateEs(fechaComida))), h('h2', {}, 'Revisa la comida'),
+    miniaturas.length ? h('div', { class: 'miniaturas' }, ...miniaturas.map((u, i) => h('div', { class: 'miniatura' }, h('img', { src: u, alt: 'Foto ' + (i + 1) })))) : null,
     r.transcript ? h('p', { class: 'nota' }, 'Oí: «' + r.transcript + '»') : null,
     h('p', { class: 'nota' }, 'Los valores son una estimación de la IA. Corrige lo que no cuadre: al cambiar la cantidad, los nutrientes se reajustan solos.'),
     h('div', { class: 'rejilla' }, h('label', {}, 'Tipo', tipo), h('label', {}, 'Hora', hora)),

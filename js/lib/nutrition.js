@@ -114,3 +114,32 @@ export function anillo(valor, objetivo, radio) {
   const f = objetivo > 0 && typeof valor === 'number' ? Math.min(Math.max(valor / objetivo, 0), 1) : 0;
   return { circunferencia: Math.round(c * 100) / 100, lleno: Math.round(c * f * 100) / 100 };
 }
+
+// ---------- Semana: días apuntados y huecos ----------
+
+const LETRAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const sumar = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+
+/** Los 7 días (lunes a domingo) desde `start`, con si tienen comidas y si son futuros. */
+export function diasSemana(start, today, logged) {
+  const hay = new Set(logged || []);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = sumar(start, i);
+    return { date, letra: LETRAS[i], num: Number(date.slice(8)), apuntado: hay.has(date), futuro: date > today };
+  });
+}
+
+/**
+ * Días recientes (hasta `n` antes de hoy) sin nada apuntado, del más antiguo al más reciente. Solo se miran los días
+ * de la semana que se conoce (de `start` a `start + 6`): de los demás no se sabe nada.
+ */
+export function huecosRecientes(start, today, logged, n = 3) {
+  const hay = new Set(logged || []);
+  const fin = sumar(start, 6);
+  const out = [];
+  for (let i = n; i >= 1; i--) { const d = sumar(today, -i); if (d >= start && d <= fin && !hay.has(d)) out.push(d); }
+  return out;
+}
+
+/** Tipos de comida que el usuario elige al guardar (los suplementos se marcan aparte). */
+export const TIPOS_ELEGIBLES = Object.keys(MEAL_TYPES_ES).filter((k) => k !== 'supplement');
