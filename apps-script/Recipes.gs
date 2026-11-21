@@ -54,7 +54,7 @@ const RECIPES_SCHEMA_ = { type: 'OBJECT', properties: {
 
 const RECIPES_SYSTEM_ = 'Eres un nutricionista deportivo español que propone recetas caseras, sencillas y baratas para una persona que ' +
   'entrena fuerza y quiere ganar músculo y perder grasa. Recibes lo que le falta (macros que quedan hoy y micronutrientes por debajo ' +
-  'de la referencia en la media de 7 días), lo que le sobra, los alimentos que suele comer y sus notas (alergias, lo que no le gusta). ' +
+  'de la referencia en la media de 7 días), lo que le sobra, los alimentos que suele comer, los suplementos que ya toma (no repitas con comida lo que ya cubren) y sus notas (alergias, lo que no le gusta). ' +
   'Propón exactamente 3 recetas que cubran lo que falta, priorizando la proteína si va corta y los micronutrientes más bajos. ' +
   'Reglas: ingredientes de supermercado español; nada que contradiga sus notas; evita lo que le sobra (por ejemplo, sodio o azúcar); ' +
   'como mucho 30 minutos salvo que se pueda cocinar en lote; 3 a 8 pasos cortos. ' +
@@ -131,7 +131,7 @@ function nutritionSuggest(p) {
   const user = {
     quedaHoy: gaps.remaining, proteinaMedia7DiasPct: gaps.proteinPct,
     microsBajos: gaps.low.map((g) => g.label + ' (' + g.pct + ' %)'), aEvitar: gaps.high.map((g) => g.label + ' (' + g.pct + ' %)'),
-    diasConDatos: gaps.days, suelesComer: habits, notas: String((settings.nutrition || {}).foodNotes || '').slice(0, 300) || null
+    diasConDatos: gaps.days, suelesComer: habits, tomaSuplementos: ((settings.nutrition || {}).supplements || []).map((x) => x.name), notas: String((settings.nutrition || {}).foodNotes || '').slice(0, 300) || null
   };
   const ai = sanitizeRecipes_(callJson_('SMART', RECIPES_SYSTEM_, user, RECIPES_SCHEMA_, validateRecipes_));
   const out = { date: today, createdAt: new Date().toISOString(), gaps: gaps, summary: ai.summary, recipes: ai.recipes, shopping: shoppingList_(ai.recipes) };

@@ -78,7 +78,14 @@ const MEAL_SYSTEM_ = 'Eres un nutricionista que estima lo que una persona ha com
   '"confidence" va de 0 a 1: baja si la cantidad o el alimento son vagos. ' +
   '"mealType": breakfast, lunch, dinner, snack, pre_workout, post_workout o null; "time": HH:MM solo si lo dice, si no null. ' +
   'Incluye aceites, salsas y bebidas con calorías solo si se mencionan. No añadas alimentos que no se hayan dicho. ' +
-  'Si hay audio, transcríbelo en "transcript". Responde solo con el JSON pedido.';
+  'Si hay audio, transcríbelo en "transcript". ' +
+  'Si hay fotos: identifica cada alimento visible y estima la cantidad por el tamaño del plato, los cubiertos, la mano o el envase como ' +
+  'referencia; cuenta el aceite o la salsa que se vea. Si una etiqueta nutricional es legible, usa sus datos. Si el texto o el audio dan ' +
+  'cantidades o aclaran qué es algo, mandan sobre lo que parece en la foto. Si con la foto no se sabe la cantidad, baja "confidence". ' +
+  'Si "repartoAparte" es true, estima TODO lo que se ve en las fotos (el plato o la fuente entera) aunque la descripción diga que se ' +
+  'compartió o que solo se comió una parte: la app aplica después la parte de esta persona. Sin "repartoAparte", si dice que lo compartió ' +
+  'o que comió una parte, estima solo lo que comió esta persona. ' +
+  'Responde solo con el JSON pedido.';
 
 function validateMealExtraction_(o) {
   const e = [];
@@ -126,18 +133,32 @@ function sanitizeMeal_(ai) {
     time: typeof ai.time === 'string' && HHMM_RE_.test(ai.time) ? ai.time : null, items: items, warnings: warnings };
 }
 
-function mealProcess(p) {
+const MEAL_MAX_IMAGES_ = 3;
+
+/**
+ * Qué se manda a la IA para estimar una comida: texto, audio y hasta 3 fotos, en cualquier combinación.
+ * Acepta también el formato antiguo ({ kind: 'text', text } o { kind: 'audio', mime, data }). Pura salvo la validación.
+ */
+function mealInputs_(p) {
+  const text = String(p.text == null ? '' : validateText_(p.text)).trim();
+  let audio = p.audio || null;
+  if (!audio && p.kind === 'audio') audio = { mime: p.mime, data: p.data };
+  const images = Array.isArray(p.images) ? p.images : [];
+  if (images.length > MEAL_MAX_IMAGES_) throw { code: 'VALIDATION', message: 'Como mucho ' + MEAL_MAX_IMAGES_ + ' fotos por comida' };
   const parts = [];
-  if (p.kind === 'text') {
-    parts.push({ text: validateText_(p.text) });
-    if (!String(p.text || '').trim()) throw { code: 'VALIDATION', message: 'El texto está vacío' };
-  } else {
-    const mime = validateMedia_('audio', p.mime, p.data);
-    parts.push({ inlineData: { mimeType: mime, data: p.data } });
-  }
-  const first = p.kind === 'text' ? [] : parts;
-  const user = p.kind === 'text' ? { descripcion: String(p.text) } : { tarea: 'Estima la comida descrita en el audio' };
-  const ai = callJson_('FAST', MEAL_SYSTEM_, user, MEAL_SCHEMA_, validateMealExtraction_, first);
+  if (audio) parts.push({ inlineData: { mimeType: validateMedia_('audio', audio.mime, audio.data), data: audio.data } });
+  images.forEach((im) => parts.push({ inlineData: { mimeType: validateMedia_('image', im && im.mime, im && im.data), data: im.data } }));
+  if (!text && !parts.length) throw { code: 'VALIDATION', message: 'Añade una foto, un audio o un texto con lo que has comido' };
+  const user = { tarea: 'Estima la comida', fotos: images.length, audio: !!audio };
+  if (text) user.descripcion = text;
+  // El usuario dice aparte qué parte se comió (compartido o un porcentaje): la IA estima el plato ENTERO y la app reparte.
+  if (p.shared === true) user.repartoAparte = true;
+  return { user: user, parts: parts };
+}
+
+function mealProcess(p) {
+  const inp = mealInputs_(p || {});
+  const ai = callJson_('FAST', MEAL_SYSTEM_, inp.user, MEAL_SCHEMA_, validateMealExtraction_, inp.parts);
   const res = sanitizeMeal_(ai);
   res.transcript = typeof ai.transcript === 'string' ? ai.transcript.slice(0, 2000) : null;
   return res;
@@ -157,7 +178,10 @@ function sumMeals_(meals) {
 /** Media diaria de los últimos 7 días (solo cuentan los días con comidas) y avisos de micronutrientes. */
 function weekNutrition_(meals, todayIso) {
   const byDay = {};
-  (meals || []).forEach((m) => { if (daysBetween_(m.date, todayIso) >= 0 && daysBetween_(m.date, todayIso) < 7) (byDay[m.date] = byDay[m.date] || []).push(m); });
+  // Un día cuenta si tiene alguna comida de verdad: un día con solo suplementos (no apuntaste lo que comiste) no baja la media.
+  const real = {};
+  (meals || []).forEach((m) => { if (m.mealType !== 'supplement') real[m.date] = true; });
+  (meals || []).forEach((m) => { if (real[m.date] && daysBetween_(m.date, todayIso) >= 0 && daysBetween_(m.date, todayIso) < 7) (byDay[m.date] = byDay[m.date] || []).push(m); });
   const days = Object.keys(byDay);
   const avg = {};
   MEAL_NUM_KEYS_.forEach((k) => {
@@ -176,6 +200,13 @@ function weekNutrition_(meals, todayIso) {
   return { days: days.length, avg: avg, alerts: alerts };
 }
 
+/** Lunes de la semana de una fecha ISO. Pura. */
+function mondayOf_(iso) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7);
+  return d.toISOString().slice(0, 10);
+}
+
 // ---------- Acciones con Drive ----------
 
 function loadMeals_(fromIso, toIso) {
@@ -192,8 +223,14 @@ function nutritionState(p) {
   const targets = nutritionTargets_(settings, bw, Number(today.slice(0, 4)));
   const weekMeals = loadMeals_(addDays_(date, -6), date);
   const dayMeals = weekMeals.filter((m) => m.date === date).sort(sortByDateTime_);
+  // Semana (lunes a domingo) del día que se mira: qué días tienen comidas apuntadas, para enseñarlo y rellenar huecos.
+  const ws = mondayOf_(date);
+  const logged = {};
+  loadMeals_(ws, addDays_(ws, 6)).forEach((m) => { if (m.mealType !== 'supplement') logged[m.date] = true; });
+  const supplements = (settings.nutrition || {}).supplements || [];
+  const takenIds = dayMeals.filter((m) => m.mealType === 'supplement').map((m) => m.supplementId);
   return { date: date, today: today, targets: targets, meals: dayMeals, totals: sumMeals_(dayMeals), week: weekNutrition_(weekMeals, date),
-    micros: MICROS_ };
+    micros: MICROS_, week7: { start: ws, logged: Object.keys(logged).sort() }, supplements: supplements, supplementsTaken: takenIds };
 }
 
 function mealDelete(p) {

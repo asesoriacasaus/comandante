@@ -36,3 +36,12 @@ test('escala de un micronutriente con tramos y marca', async () => {
   assert.equal(anillo(3000, 2400, 50).lleno, 314.16, 'pasado el objetivo, anillo completo');
   assert.equal(anillo(10, 0, 50).lleno, 0);
 });
+
+test('semana con días apuntados y huecos recientes', async () => {
+  const { diasSemana, huecosRecientes, TIPOS_ELEGIBLES } = await import('../js/lib/nutrition.js');
+  const d = diasSemana('2026-11-16', '2026-11-21', ['2026-11-16', '2026-11-19', '2026-11-21']);
+  assert.deepEqual(d.map((x) => x.letra + x.num + (x.apuntado ? '*' : '') + (x.futuro ? '!' : '')), ['L16*', 'M17', 'X18', 'J19*', 'V20', 'S21*', 'D22!']);
+  assert.deepEqual(huecosRecientes('2026-11-16', '2026-11-21', ['2026-11-16', '2026-11-19', '2026-11-21']), ['2026-11-18', '2026-11-20']);
+  assert.deepEqual(huecosRecientes('2026-11-16', '2026-11-17', []), ['2026-11-16'], 'no mira fuera de la semana conocida');
+  assert.ok(!TIPOS_ELEGIBLES.includes('supplement') && TIPOS_ELEGIBLES.includes('lunch'));
+});

@@ -1,7 +1,7 @@
 // Utilidades de nutrición del cliente. Funciones puras.
 export const MACRO_KEYS = ['kcal', 'proteinG', 'carbsG', 'fatG'];
-export const MEAL_TYPES_ES = { breakfast: 'Desayuno', lunch: 'Comida', dinner: 'Cena', snack: 'Snack', pre_workout: 'Antes de entrenar', post_workout: 'Después de entrenar' };
-export const UNITS = ['g', 'ml', 'unidad', 'ración', 'cucharada', 'taza'];
+export const MEAL_TYPES_ES = { breakfast: 'Desayuno', lunch: 'Comida', dinner: 'Cena', snack: 'Snack', pre_workout: 'Antes de entrenar', post_workout: 'Después de entrenar', supplement: 'Suplementos' };
+export const UNITS = ['g', 'ml', 'unidad', 'ración', 'cucharada', 'taza', 'cápsula', 'comprimido', 'sobre', 'cacito', 'gota'];
 
 const NUMERIC = ['kcal', 'proteinG', 'carbsG', 'fatG', 'fiberG', 'sugarG', 'saturatedFatG', 'sodiumMg', 'potassiumMg', 'calciumMg', 'ironMg', 'magnesiumMg',
   'zincMg', 'vitAUg', 'vitCMg', 'vitDUg', 'vitEMg', 'vitKUg', 'b1Mg', 'b2Mg', 'b3Mg', 'b6Mg', 'folateUg', 'b12Ug', 'omega3G'];
@@ -113,4 +113,57 @@ export function anillo(valor, objetivo, radio) {
   const c = 2 * Math.PI * radio;
   const f = objetivo > 0 && typeof valor === 'number' ? Math.min(Math.max(valor / objetivo, 0), 1) : 0;
   return { circunferencia: Math.round(c * 100) / 100, lleno: Math.round(c * f * 100) / 100 };
+}
+
+// ---------- Semana: días apuntados y huecos ----------
+
+const LETRAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const sumar = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+
+/** Los 7 días (lunes a domingo) desde `start`, con si tienen comidas y si son futuros. */
+export function diasSemana(start, today, logged) {
+  const hay = new Set(logged || []);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = sumar(start, i);
+    return { date, letra: LETRAS[i], num: Number(date.slice(8)), apuntado: hay.has(date), futuro: date > today };
+  });
+}
+
+/**
+ * Días recientes (hasta `n` antes de hoy) sin nada apuntado, del más antiguo al más reciente. Solo se miran los días
+ * de la semana que se conoce (de `start` a `start + 6`): de los demás no se sabe nada.
+ */
+export function huecosRecientes(start, today, logged, n = 3) {
+  const hay = new Set(logged || []);
+  const fin = sumar(start, 6);
+  const out = [];
+  for (let i = n; i >= 1; i--) { const d = sumar(today, -i); if (d >= start && d <= fin && !hay.has(d)) out.push(d); }
+  return out;
+}
+
+/** Tipos de comida que el usuario elige al guardar (los suplementos se marcan aparte). */
+export const TIPOS_ELEGIBLES = Object.keys(MEAL_TYPES_ES).filter((k) => k !== 'supplement');
+
+// ---------- Reparto: qué parte del plato de la foto te has comido ----------
+
+/** Fracción que te corresponde: { modo: 'todo' } → 1; { modo: 'personas', n } → 1/n; { modo: 'porcentaje', pct } → pct/100. */
+export function fraccionReparto(r) {
+  if (!r || r.modo === 'todo') return 1;
+  if (r.modo === 'personas') { const n = Math.round(Number(r.n)); return n >= 1 && n <= 50 ? 1 / n : 1; }
+  if (r.modo === 'porcentaje') { const p = Number(r.pct); return p > 0 && p <= 100 ? p / 100 : 1; }
+  return 1;
+}
+
+/** Texto de tu parte: "Todo el plato", "1/3 del plato (compartido entre 3)", "40 % del plato". */
+export function textoReparto(r) {
+  if (!r || r.modo === 'todo' || fraccionReparto(r) === 1) return 'Todo el plato';
+  if (r.modo === 'personas') return '1/' + Math.round(r.n) + ' del plato (compartido entre ' + Math.round(r.n) + ')';
+  return fmtDec(Number(r.pct)) + ' % del plato';
+}
+
+/** Tu parte de cada alimento: cantidades y nutrientes escalados por la fracción (la IA estimó el plato entero). */
+export function repartir(items, r) {
+  const f = fraccionReparto(r);
+  if (f === 1) return items.map((it) => Object.assign({}, it));
+  return items.map((it) => scaleItem(it, Math.max(0.1, Math.round(it.quantity * f * 10) / 10)));
 }

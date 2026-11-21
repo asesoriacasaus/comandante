@@ -36,6 +36,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { background: var(--fondo); }
 body {
   margin: 0; background: var(--fondo); color: var(--tinta);
@@ -369,3 +370,59 @@ section > .acciones.fin { margin-bottom: 0; }
 a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .pista { margin: 0 0 14px; font: 400 13px/1.4 var(--sans); text-align: center; color: var(--tinta-2); }
 .btn-grabar { width: 132px; height: 132px; min-height: 132px; margin: 12px auto 16px; }
+
+/* ---------- Comida: semana, añadir con foto y suplementos ---------- */
+.semana { margin: 0 0 14px; padding: 4px 6px 8px; background: var(--tarjeta); border-radius: var(--radio); box-shadow: var(--sombra); }
+.semana-cab { display: flex; align-items: center; justify-content: space-between; }
+.semana-titulo { font: 600 14px var(--sans); color: var(--tinta-2); }
+.semana-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.semana-flecha { min-width: 44px; min-height: 44px; border: 0; background: none; color: var(--tinta-2); font: 400 24px var(--sans); cursor: pointer; }
+.semana-flecha[disabled] { opacity: .3; }
+.dia { display: grid; justify-items: center; gap: 2px; min-height: 60px; padding: 6px 0; border: 0; border-radius: 16px; background: none; color: var(--tinta); cursor: pointer; transition: background-color .2s ease; }
+.dia-letra { font: 600 11px var(--sans); color: var(--tinta-2); }
+.dia-num { font: 700 17px var(--display); font-variant-numeric: tabular-nums; }
+.dia-punto { display: block; width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+.dia.apuntado .dia-punto { background: var(--oliva); }
+.dia.activo { background: var(--boton); color: #fff; }
+.dia.activo .dia-letra { color: rgba(255, 255, 255, .8); }
+.dia.activo.apuntado .dia-punto { background: #fff; }
+.dia[disabled] { opacity: .3; cursor: default; }
+.aviso-boton { display: block; width: 100%; border: 0; text-align: left; font: 500 14px var(--sans); cursor: pointer; }
+.btn-ancho { width: 100%; }
+.miniaturas { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; }
+.miniaturas:empty { display: none; }
+.miniatura { position: relative; width: 96px; height: 96px; border-radius: var(--radio-s); overflow: hidden; background: var(--tarjeta-2); }
+.miniatura img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.miniatura .quitar { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .6); color: #fff; font: 600 18px/1 var(--sans); cursor: pointer; }
+.btn.grabando { background: var(--boton); color: #fff; }
+.chip-boton { border: 0; min-height: 36px; cursor: pointer; }
+.bloque-cab { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
+.bloque-cab .etiqueta { margin: 0; }
+.enlace { min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--acento); font: 600 15px var(--sans); cursor: pointer; }
+.suplementos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.sup { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 0; border-radius: var(--radio-s); background: var(--tarjeta-2); color: var(--tinta); text-align: left; cursor: pointer; transition: background-color .2s ease, transform .1s ease; }
+.sup:active { transform: scale(.97); }
+.sup-check { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--tinta-2); transition: background-color .2s ease, border-color .2s ease; }
+.sup.tomado { background: var(--oliva-suave); }
+.sup.tomado .sup-check { border-color: var(--oliva); background: var(--oliva) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat; }
+.sup-texto { display: grid; min-width: 0; }
+.sup-texto b { font: 600 14px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sup-texto small { font: 400 12px var(--sans); color: var(--tinta-2); }
+.sup-fila { justify-content: space-between; }
+.sup-fila > div { display: grid; gap: 3px; min-width: 0; }
+.sup-fila small { font: 400 13px var(--sans); color: var(--tinta-2); }
+.sup-fila .sup-nota { font-style: italic; }
+
+/* Reparto del plato de la foto */
+.reparto { margin: 4px 0 12px; }
+.reparto .segmentos { margin: 6px 0 10px; }
+.contador { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; }
+.contador-btn { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--tarjeta-2); color: var(--tinta); font: 600 22px/1 var(--sans); cursor: pointer; }
+.contador-btn[disabled] { opacity: .35; }
+.contador-valor { min-width: 150px; text-align: center; font: 700 17px var(--sans); font-variant-numeric: tabular-nums; }
+.porcentajes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.chip-boton { min-height: 44px; padding: 8px 14px; }
+.chip.activo { background: var(--boton); color: #fff; }
+.porcentaje-libre { display: flex; align-items: center; gap: 6px; margin: 0; }
+.porcentaje-libre input { width: 76px; margin: 0; text-align: center; }
+.reparto-resumen { margin: 0; font: 600 14px var(--sans); color: var(--oliva); }
