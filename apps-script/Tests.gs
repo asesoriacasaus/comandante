@@ -1266,6 +1266,65 @@ function test_pure_supplements() {
   return 'ok';
 }
 
+function test_pure_ai_saver() {
+  let u = aiUsoSumar_(null, '2026-11', 'llamada', 'FAST', 1);
+  u = aiUsoSumar_(u, '2026-11', 'llamada', 'FAST', 1); u = aiUsoSumar_(u, '2026-11', 'ahorro', 'cache', 1);
+  assert_(u.llamadas.FAST === 2 && u.ahorros.cache === 1, 'cuentas del mes');
+  u = aiUsoSumar_(u, '2026-12', 'ahorro', 'frases', 1);
+  assert_(u.mes === '2026-12' && !u.llamadas.FAST && u.ahorros.frases === 1 && u.anterior.llamadas.FAST === 2, 'mes nuevo desde cero, el anterior guardado');
+  const banco = { inicio: {}, cierre: {} };
+  FRASES_GRUPOS_.forEach((g) => { banco.inicio[g] = ['Compatriota, hoy el ' + g + ' marcha al frente.', 'Firmes, que el ' + g + ' no se rinde.']; });
+  FRASES_CIERRE_.forEach((c) => { banco.cierre[c] = ['Bien hecho, la tarea de hoy queda cumplida.', 'Mañana más, que la revolución no descansa.']; });
+  assert_(validateFrases_(banco).length === 0, 'banco válido');
+  const roto = JSON.parse(JSON.stringify(banco)); roto.inicio.chest = ['corta'];
+  assert_(validateFrases_(roto).join() === 'inicio.chest', 'grupo sin frases útiles');
+  assert_(frasesCaducadas_(null, 'f', '2026-11-21') && !frasesCaducadas_({ firma: 'f', creado: '2026-11-01T10:00:00Z' }, 'f', '2026-11-21'), 'vigente');
+  assert_(frasesCaducadas_({ firma: 'f', creado: '2026-10-01T10:00:00Z' }, 'f', '2026-11-21') && frasesCaducadas_({ firma: 'g', creado: '2026-11-20T10:00:00Z' }, 'f', '2026-11-21'), 'caducado o personalidad distinta');
+  let r = siguienteFrase_(banco.inicio.chest, {}, 'inicio:chest');
+  const a = r.frase; r = siguienteFrase_(banco.inicio.chest, r.uso, 'inicio:chest');
+  const b = r.frase; r = siguienteFrase_(banco.inicio.chest, r.uso, 'inicio:chest');
+  assert_(a !== b && r.frase === a, 'rota sin repetir hasta agotar');
+  assert_(siguienteFrase_(['Una frase con raya \u2014 larga y suficiente.'], {}, 'x').frase.indexOf('\u2014') < 0, 'sin rayas largas');
+  assert_(resultadoSesion_({ issues: [], missing: [] }, 0) === 'completa' && resultadoSesion_({ issues: [], missing: [{}] }, 0) === 'incompleta' && resultadoSesion_({ issues: [{ type: 'pain' }], missing: [] }, 0) === 'molestia', 'resultado');
+  assert_(mensajesAhorro_({ coach: {} }) && !mensajesAhorro_({ coach: { messages: 'ia' } }), 'ahorro por defecto');
+  return 'ok';
+}
+
+function test_pure_sup_catalogo() {
+  const L = (t) => supplementLocal_(t, 'sup_abc123def4');
+  let x = L('Creatina 5 g al día');
+  assert_(x && x.name === 'Creatina monohidrato' && x.dose === 5 && x.unit === 'g' && !Object.keys(x.nutrients).length && !x.notes, 'creatina');
+  x = L('vitamina D 2000 UI'); assert_(x.nutrients.vitDUg === 50 && x.name === 'Vitamina D3 2000 UI', 'vitamina D en UI: ' + JSON.stringify(x));
+  x = L('Vitamina D3'); assert_(x.nutrients.vitDUg === 25 && /supuesta/.test(x.notes), 'vitamina D sin dosis: habitual y avisa');
+  x = L('omega 3, 2 cápsulas'); assert_(x.dose === 2 && x.nutrients.omega3G === 0.6, 'omega 3 por cápsulas');
+  x = L('magnesio bisglicinato 400 mg'); assert_(x.nutrients.magnesiumMg === 400 && x.name === 'Magnesio 400 mg', 'magnesio');
+  x = L('proteína whey 40 g'); assert_(x.nutrients.proteinG === 32 && x.nutrients.kcal === 160, 'whey');
+  x = L('B12 1000 mcg'); assert_(x.nutrients.b12Ug === 1000, 'B12 en mcg');
+  assert_(validateSupplements_([L('creatina'), Object.assign(L('zinc 15 mg'), { id: 'sup_otro12345' })]).length === 0, 'pasan la validación');
+  assert_(L('Sideral Forte, 1 cápsula') === null && L('multivitamínico') === null && L('magnesio + zinc') === null, 'marcas y combinados: a la IA');
+  return 'ok';
+}
+
+function test_pure_food_db() {
+  const meals = [
+    { date: '2026-11-01', mealType: 'breakfast', items: [{ name: 'Huevo', quantity: 2, unit: 'unidad', kcal: 150, proteinG: 12, carbsG: 1, fatG: 10, confidence: 0.9 },
+      { name: 'Arroz blanco cocido', quantity: 200, unit: 'g', kcal: 260, proteinG: 5, carbsG: 56, fatG: 0.6, ironMg: 0.4, confidence: 0.8 }] },
+    { date: '2026-11-10', mealType: 'breakfast', items: [{ name: 'huevo', quantity: 3, unit: 'unidad', kcal: 216, proteinG: 18.9, carbsG: 1.2, fatG: 15, confidence: 0.9 },
+      { name: 'Arroz blanco cocido', quantity: 150, unit: 'g', kcal: 195, proteinG: 3.75, carbsG: 42, fatG: 0.45, confidence: 0.8 }] },
+    { date: '2026-11-12', mealType: 'snack', items: [{ name: 'Algo raro', quantity: 1, unit: 'ración', kcal: 300, proteinG: 1, carbsG: 1, fatG: 1, confidence: 0.3 }] },
+    { date: '2026-11-12', mealType: 'supplement', items: [{ name: 'Creatina', quantity: 5, unit: 'g', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }] }];
+  const db = buildFoodDb_(meals);
+  const huevo = db.find((f) => f.name === 'huevo');
+  assert_(huevo && huevo.base === 1 && huevo.n.kcal === 72 && huevo.n.proteinG === 6.3 && huevo.tipica === 3 && huevo.veces === 2, 'por unidad, la vez más reciente: ' + JSON.stringify(huevo));
+  const arroz = db.find((f) => f.name === 'Arroz blanco cocido');
+  assert_(arroz.base === 100 && arroz.n.kcal === 130 && arroz.n.carbsG === 28 && arroz.tipica === 150, 'por 100 g');
+  assert_(!db.some((f) => f.name === 'Algo raro') && !db.some((f) => f.name === 'Creatina'), 'sin estimaciones poco fiables ni suplementos');
+  const fr = frequentMeals_(meals, '2026-11-21');
+  assert_(fr.length === 1 && fr[0].veces === 2 && fr[0].ultima === '2026-11-10' && fr[0].items[0].quantity === 3, 'comida que se repite, la más reciente');
+  assert_(frequentMeals_(meals, '2027-03-01').length === 0, 'solo los últimos 60 días');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1315,7 +1374,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

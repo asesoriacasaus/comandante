@@ -20,6 +20,10 @@ function addDays_(iso, n) {
 /** Llama a Gemini pidiendo JSON, valida y reintenta una vez con los errores. */
 function callJson_(tier, system, userObj, schema, validate, extraParts) {
   const data = JSON.stringify(userObj);
+  // Una petición idéntica en las últimas 6 h (reintento, la misma foto o el mismo texto) no vuelve a gastar tokens.
+  const key = aiCacheKey_(tier, system, data, extraParts);
+  const cached = aiCacheGet_(key);
+  if (cached && !validate(cached).length) { aiCount_('ahorro', 'cache'); return cached; }
   let extra = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const parts = [{ text: data }].concat(extraParts || []);
@@ -28,7 +32,7 @@ function callJson_(tier, system, userObj, schema, validate, extraParts) {
     let obj = null;
     try { obj = JSON.parse(r.text); } catch (_) { /* se trata como inválido */ }
     const errors = obj ? validate(obj) : ['no es JSON válido'];
-    if (!errors.length) return obj;
+    if (!errors.length) { aiCachePut_(key, obj); return obj; }
     extra = errors.join('; ');
   }
   throw { code: 'VALIDATION', message: 'La IA no ha devuelto un resultado válido' };

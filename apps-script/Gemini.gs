@@ -90,6 +90,7 @@ function callGeminiBody_(tier, body) {
     // El nombre del modelo no es secreto y ayuda a diagnosticar (404 = modelo mal escrito).
     throw { code: 'AI_HTTP', status: status, message: 'La IA ha devuelto el error HTTP ' + status + ' con el modelo "' + model + '"' };
   }
+  aiCount_('llamada', tier);
   const out = parseGeminiResponse_(JSON.parse(res.getContentText()));
   out.model = model;
   return out;

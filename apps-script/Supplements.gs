@@ -66,10 +66,70 @@ function supFromAi_(o, id) {
 
 function newSupId_() { return 'sup_' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toLowerCase(); }
 
-/** "Sideral Forte, una cápsula" → propuesta para revisar. No guarda nada. */
+// ---------- Catálogo local: suplementos genéricos sin gastar IA ----------
+// Composición típica por toma. Las marcas que no encajan aquí (por ejemplo, Sideral Forte) se preguntan a la IA.
+
+function sinTildes_(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+/** Pura: primer número con su unidad ("2000 ui", "5 g", "300 mg", "1000 mcg"). */
+function dosisEnTexto_(t) {
+  const m = /(?:^|[^a-z0-9])(\d+(?:[.,]\d+)?)\s*(ui|iu|mg|mcg|µg|ug|g|gr|gramos?|capsulas?|comprimidos?|perlas?)?(?![a-z])/.exec(t);
+  if (!m) return null;
+  const n = Number(m[1].replace(',', '.'));
+  const u = (m[2] || '').replace(/s$/, '');
+  const unidad = { ui: 'ui', iu: 'ui', mg: 'mg', mcg: 'ug', 'µg': 'ug', ug: 'ug', g: 'g', gr: 'g', gramo: 'g', capsula: 'n', comprimido: 'n', perla: 'n' }[u] || null;
+  return n > 0 ? { n: n, u: unidad } : null;
+}
+
+const SUP_CATALOGO_ = [
+  { re: /creatina/, nombre: 'Creatina monohidrato', unidad: 'g', base: 5, por: () => ({}) },
+  { re: /colageno/, nombre: 'Colágeno hidrolizado', unidad: 'g', base: 10, por: (g) => ({ kcal: 3.6 * g, proteinG: 0.9 * g }) },
+  { re: /(proteina|whey|batido de prote)/, nombre: 'Proteína de suero (whey)', unidad: 'g', base: 30,
+    por: (g) => ({ kcal: 4 * g, proteinG: 0.8 * g, carbsG: 0.1 * g, fatG: 0.05 * g, calciumMg: 4 * g }) },
+  { re: /(vitamina d3?|vit\.? ?d3?\b|\bd3\b|colecalciferol)/, nombre: 'Vitamina D3', unidad: 'cápsula', mg: false,
+    dosis: (d) => (d && d.u === 'ui' ? d.n / 40 : d && d.u === 'ug' ? d.n : 25), etiqueta: (ug) => fmtNum_(ug * 40) + ' UI', clave: 'vitDUg' },
+  { re: /(omega ?3|aceite de pescado|\bepa\b|\bdha\b)/, nombre: 'Omega 3', unidad: 'cápsula', base: 1, por: (n) => ({ kcal: 9 * n, fatG: 1 * n, omega3G: 0.3 * n }) },
+  { re: /magnesio/, nombre: 'Magnesio', unidad: 'comprimido', mgDef: 300, clave: 'magnesiumMg' },
+  { re: /\bzinc\b/, nombre: 'Zinc', unidad: 'comprimido', mgDef: 15, clave: 'zincMg' },
+  { re: /(vitamina c|vit\.? ?c\b|ascorbico)/, nombre: 'Vitamina C', unidad: 'comprimido', mgDef: 500, clave: 'vitCMg' },
+  { re: /(vitamina b12|vit\.? ?b12|\bb12\b|cobalamina)/, nombre: 'Vitamina B12', unidad: 'comprimido', ugDef: 1000, clave: 'b12Ug' },
+  { re: /cafeina/, nombre: 'Cafeína', unidad: 'comprimido', mgDef: 200, clave: null }
+];
+
+function fmtNum_(n) { return String(Math.round(n * 10) / 10).replace('.', ','); }
+
+/** Pura: suplemento genérico reconocido sin IA, o null si hay que preguntar (marcas, multivitamínicos, combinados). */
+function supplementLocal_(text, id) {
+  const t = sinTildes_(text);
+  if (/multi|complejo|\+| y /.test(t)) return null;   // combinados: mejor la IA
+  const e = SUP_CATALOGO_.find((x) => x.re.test(t));
+  if (!e) return null;
+  const d = dosisEnTexto_(t.replace(new RegExp(e.re.source, 'g'), ' '));   // sin el nombre: el "3" de "omega 3" o de "D3" no es la dosis
+  let dose; let unit = e.unidad; let nutrients = {}; let nombre = e.nombre; let supuesta = !d;
+  if (e.por) {                                    // por gramos o por cápsulas
+    const n = d && (e.unidad === 'g' ? d.u === 'g' || d.u === null : d.u === 'n' || d.u === null) ? d.n : e.base;
+    supuesta = n === e.base && !d;
+    dose = n; nutrients = e.por(n);
+  } else if (e.clave === 'vitDUg') {             // vitamina D: UI o µg por cápsula
+    const ug = e.dosis(d);
+    dose = 1; nutrients = { vitDUg: ug }; nombre += ' ' + e.etiqueta(ug);
+  } else {                                       // mg o µg por comprimido
+    const cant = d && (d.u === 'mg' || d.u === 'ug') ? d.n : e.mgDef || e.ugDef;
+    dose = 1; nombre += ' ' + fmtNum_(cant) + (e.ugDef ? ' µg' : ' mg');
+    if (e.clave) nutrients[e.clave] = cant;
+  }
+  const limpio = {};
+  Object.keys(nutrients).forEach((k) => { if (nutrients[k] > 0) limpio[k] = Math.round(nutrients[k] * 1000) / 1000; });
+  return { id: id, name: nombre.slice(0, 60), dose: dose, unit: unit, nutrients: limpio, known: true, local: true,
+    notes: supuesta ? 'Dosis habitual supuesta: compárala con el envase.' : null };
+}
+
+/** "Sideral Forte, una cápsula" → propuesta para revisar. No guarda nada. Los genéricos se resuelven sin IA. */
 function supplementAnalyze(p) {
   const text = String(validateText_(p && p.text)).trim();
   if (!text) throw { code: 'VALIDATION', message: 'Escribe qué suplemento tomas' };
+  const local = supplementLocal_(text, newSupId_());
+  if (local) { aiCount_('ahorro', 'suplementos'); return { supplement: local }; }
   const ai = callJson_('FAST', SUP_SYSTEM_, { suplemento: text.slice(0, 200) }, supSchema_(), validateSupAi_);
   return { supplement: supFromAi_(ai, newSupId_()) };
 }

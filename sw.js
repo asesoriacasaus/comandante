@@ -39,6 +39,8 @@ const SHELL = [
   './js/lib/progress.js',
   './js/lib/sesiones-datos.js',
   './js/lib/sesion-viva.js',
+  './js/lib/alimentos.js',
+  './js/lib/uso-ia.js',
   './js/lib/ediciones.js',
   './js/views/progreso.js',
   './js/views/carreras.js',
