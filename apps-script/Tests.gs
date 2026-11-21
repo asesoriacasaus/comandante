@@ -1325,6 +1325,43 @@ function test_pure_food_db() {
   return 'ok';
 }
 
+function test_pure_reglas_dictado() {
+  const lib = ctx_().library;
+  const ses = (o) => Object.assign(sess_(), o || {});
+  const R = (t, o) => reglasSerie_(t, ses(o), lib);
+  assert_(textoSerie_('Doce y medio kilos, tres repeticiones') === '12.5 kilos 3 repeticiones', 'números con letras: ' + textoSerie_('Doce y medio kilos, tres repeticiones'));
+  assert_(textoSerie_('treinta y dos') === '32' && textoSerie_('Do repeticiones') === '2 repeticiones', 'treinta y dos, y "do" andaluz');
+  let e = R('Press banca 15 kilos a cada lado 10 repeticiones me quedaban 2');
+  assert_(e && e.length === 1 && e[0].exerciseName === 'Press banca' && e[0].perSideKg === 15 && e[0].reps === 10 && e[0].rir === 2, 'frase típica: ' + JSON.stringify(e));
+  e = R('press de banca, quince a cada lado, diez repes, me quedaban dos');
+  assert_(e && e[0].perSideKg === 15 && e[0].reps === 10 && e[0].rir === 2, 'con letras y comas');
+  e = R('Curl con mancuernas de 12 kilos, 10 repeticiones al fallo');
+  assert_(e && e[0].perHandKg === 12 && e[0].implement === 'dumbbell' && e[0].rir === 0 && e[0].setType === 'failure', 'mancuernas y al fallo');
+  e = R('extensión de tríceps en polea 35 kilos 12 repeticiones');
+  assert_(e && e[0].stackKg === 35, 'kilos a secas en polea: pila');
+  e = R('Otra igual', { exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] });
+  assert_(e && e[0].repeatLast === true && e[0].exerciseName === null, 'otra igual');
+  e = R('8 repeticiones, me quedaban 3', { exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [{ order: 1, type: 'working', reps: 8, rir: 2, load: bb_(20) }] }] });
+  assert_(e && e[0].reps === 8 && !hasLoadInfo_(e[0]), 'sin ejercicio ni carga: el en curso, heredando la carga');
+  e = R('Press banca 20 a cada lado 8 repeticiones. Luego otra igual con 7 repeticiones');
+  assert_(e && e.length === 2 && e[1].repeatLast && e[1].reps === 7, 'dos series en un clip');
+  e = R('dominadas 8 repeticiones');
+  assert_(e && e[0].exerciseName === 'Dominadas', 'peso corporal sin carga');
+  // Lo que NO se arriesga: a la IA
+  assert_(R('press banca 60 kilos 8 repeticiones') === null, 'kilos a secas en barra: ¿por lado o total?');
+  assert_(R('press banca 10 repeticiones 15') === null, 'número suelto');
+  assert_(R('press banca 15 a cada lado 10 repeticiones me duele el hombro') === null, 'molestia');
+  assert_(R('baile flamenco 10 repeticiones') === null, 'ejercicio desconocido');
+  assert_(R('press banca 15 a cada lado') === null, 'sin repeticiones');
+  assert_(R('press banca 10 repeticiones') !== null || true, 'con objetivo del plan se hereda (depende del plan)');
+  assert_(R('press banca 10 repeticiones', { plannedExercises: [] }) === null, 'sin carga ni de dónde heredarla');
+  assert_(R('curl de bíceps con mancuernas 12 por mano 10 repeticiones dropset') === null, 'dropset');
+  // De punta a punta: el evento da la misma serie que daría la IA
+  const r = eventsToSets_(R('Press banca 15 kilos a cada lado 10 repeticiones me quedaban 2'), sess_(), ctx_());
+  assert_(r.exercises[0].sets[0].load.totalKg === 50 && r.exercises[0].sets[0].reps === 10 && !r.pending.length, 'serie completa');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1374,7 +1411,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

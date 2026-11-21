@@ -7,6 +7,7 @@ import { BUILD } from '../version.js';
 import { resumenUso } from '../lib/uso-ia.js';
 import { leerAhorroLocal } from '../lib/alimentos.js';
 import { h } from '../lib/dom.js';
+import { modoDictado, fijarModoDictado, reconocedor } from '../lib/dictado.js';
 
 export function render(el) {
   el.innerHTML = `
@@ -53,6 +54,16 @@ export function render(el) {
         <div class="acciones"><button type="submit" class="btn">Guardar</button></div>
         <p id="estado-comida" class="estado" role="status" aria-live="polite"></p>
       </form>
+      <h3 class="seccion">Dictado de series</h3>
+      <div class="card">
+        <label>Cómo se dicta en la sesión
+          <select id="c-dictado">
+            <option value="iphone">Dictado del iPhone (gratis; la IA solo si no se entiende)</option>
+            <option value="audio">Grabación de audio (la interpreta siempre la IA)</option>
+          </select>
+        </label>
+        <p class="nota" id="nota-dictado">El dictado del iPhone usa el reconocimiento de voz del sistema (Apple). Si en tu iPhone no funciona dentro de la app, se pasa solo a grabar audio.</p>
+      </div>
       <h3 class="seccion">Uso de la IA</h3>
       <div class="card" id="caja-uso">
         <p class="nota">Cargando…</p>
@@ -130,6 +141,10 @@ export function render(el) {
       el.querySelector('#c-notas').value = (s.nutrition && s.nutrition.foodNotes) || '';
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
+  const selDictado = el.querySelector('#c-dictado');
+  selDictado.value = modoDictado();
+  if (!reconocedor()) { selDictado.value = 'audio'; selDictado.disabled = true; el.querySelector('#nota-dictado').textContent = 'Este navegador no ofrece dictado del sistema: se graba audio.'; }
+  selDictado.addEventListener('change', () => fijarModoDictado(selDictado.value));
   // Uso de la IA del mes: llamadas hechas y ahorradas (servidor y este móvil).
   const cajaUso = el.querySelector('#caja-uso');
   const pintarUso = (servidor) => {

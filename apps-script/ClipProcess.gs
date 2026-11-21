@@ -50,7 +50,10 @@ const CLIP_SYSTEM_ = 'Eres el asistente de un diario de entrenamiento de pesas. 
   'para decidir entre números que suenan parecido (por ejemplo "dos" o "doce", "seis" o "siete"). ' +
   '11) Si un número o el ejercicio de una serie no se entiende con seguridad por el ruido o la pronunciación, NO lo adivines: ' +
   'pon ese dato a null y marca la serie con "unclear": true. Es mejor que el usuario lo complete a que se guarde un dato falso. ' +
-  'Responde solo con el JSON pedido.';
+  'Responde solo con el JSON pedido. ' +
+  'Si no hay audio y recibes "transcripcionDelMovil", es lo que transcribió el reconocimiento de voz del iPhone: puede traer errores ' +
+  '(números o palabras parecidas mal oídos, por ejemplo "presbanca" o "doce" por "dos"); interprétalo con el contexto del plan y ' +
+  'pon en "transcript" ese mismo texto.';
 
 function validateClipResponse_(o) {
   const e = [];
