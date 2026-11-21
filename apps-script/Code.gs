@@ -34,6 +34,7 @@ function doPost(e) {
     ping: () => ({ version: CONFIG.VERSION, time: new Date().toISOString() }),
     'ping.ai': () => pingAi(),
     'ai.models': () => ({ models: listGeminiModels_() }),
+    'ai.usage': () => aiUsage(),
     'ai.probe': () => aiProbe(payload),
     'plan.state': () => planState(),
     'plan.cycle.propose': () => proposeCycle(),

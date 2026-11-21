@@ -300,7 +300,7 @@ function defaultSettings_() {
     training: { daysPerWeek: [3, 4], groupsPerSession: [1, 2], runsPerWeek: [1, 2], sessionMinutes: 75, useRir: true },
     strength: { experience: 'advanced', referenceExerciseId: 'press_banca', referenceReps: 10, referenceTotalKg: null },
     nutrition: { proteinGPerKg: 2.0, kcalStrategy: 'maintenance_minus_10', activityFactor: 1.55, fatGPerKg: 0.9, kcalAdjust: 0, foodNotes: '', supplements: [] },
-    coach: { persona: 'comandante', intensity: 'alta' },
+    coach: { persona: 'comandante', intensity: 'alta', messages: 'ahorro' },
     notifications: { email: null, weekly: true, weeklyAt: 'domingo 19:00', reminder: true,
                      reminderAt: '07:30', reminderAfterRestDays: 2 }
   };

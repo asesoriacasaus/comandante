@@ -151,5 +151,6 @@ function validateSettings_(s) {
   const notes = (s.nutrition || {}).foodNotes;
   if (notes !== undefined && notes !== null && (typeof notes !== 'string' || notes.length > 300)) e.push('nutrition.foodNotes debe ser un texto de hasta 300 caracteres');
   if (!s.coach || ['baja', 'media', 'alta'].indexOf(s.coach.intensity) < 0) e.push('coach.intensity debe ser baja, media o alta');
+  if (s.coach && s.coach.messages !== undefined && ['ahorro', 'ia'].indexOf(s.coach.messages) < 0) e.push('coach.messages debe ser ahorro o ia');
   return e;
 }

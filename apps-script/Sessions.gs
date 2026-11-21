@@ -136,6 +136,11 @@ function sessionReviewMessage(id) {
   if (s.reviewMessageSource === 'ai') return { session: s };
   const settings = getSettings();
   const review = buildReview_(s, previousSameKey_(s, settings), exerciseSeed_(), { bodyweightKg: latestBodyweight_(settings) });
+  if (mensajesAhorro_(settings)) {
+    const frase = fraseDelBanco_(settings, 'cierre', resultadoSesion_(review, (s.painFlags || []).length));
+    const m = (frase ? frase + ' ' : '') + neutralReviewMessage_(review);
+    return { session: mutateSession_(id, (q) => { q.reviewMessage = m; q.reviewMessageSource = 'ai'; return q; }) };
+  }
   const msg = coachMessage_(s.groups, review.issues.map((i) => i.type), settings,
     { series: review.summary.workingSets, volumenKg: Math.round(review.summary.totalVolumeKg), sinHacer: review.missing.map((m) => m.name), molestias: (s.painFlags || []).length },
     'Mensaje de cierre de la sesión (2 o 3 frases): reconoce el trabajo y di qué mirar la próxima vez', neutralReviewMessage_(review));
@@ -147,6 +152,11 @@ function sessionMessage(id) {
   const s = readSession_(id);
   if (s.coachMessageSource === 'ai') return { session: s };
   const settings = getSettings();
+  if (mensajesAhorro_(settings)) {
+    const frase = fraseDelBanco_(settings, 'inicio', (s.groups || [])[0]);
+    const m = (frase ? frase + ' ' : '') + neutralCoachMessage_(s.groups, s.notes || []);
+    return { session: mutateSession_(id, (q) => { q.coachMessage = m; q.coachMessageSource = 'ai'; return q; }) };
+  }
   const msg = coachMessage_(s.groups, s.notes || [], settings, { ejercicios: (s.plannedExercises || []).length });
   return { session: mutateSession_(id, (q) => { q.coachMessage = msg; q.coachMessageSource = 'ai'; return q; }) };
 }
