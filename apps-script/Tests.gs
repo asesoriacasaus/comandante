@@ -1223,6 +1223,46 @@ function test_pure_debrief() {
   return 'ok';
 }
 
+function test_pure_meal_inputs() {
+  const img = { mime: 'image/jpeg', data: 'A'.repeat(400) };
+  const aud = { mime: 'audio/mp4', data: 'B'.repeat(400) };
+  let r = mealInputs_({ text: 'un plato de lentejas', images: [img] });
+  assert_(r.parts.length === 1 && r.user.descripcion === 'un plato de lentejas' && r.user.fotos === 1, 'foto y texto juntos');
+  r = mealInputs_({ audio: aud, images: [img, img] });
+  assert_(r.parts.length === 3 && r.user.audio === true && !('descripcion' in r.user), 'audio y dos fotos');
+  r = mealInputs_({ kind: 'audio', mime: 'audio/mp4', data: aud.data });
+  assert_(r.parts.length === 1, 'formato antiguo de audio');
+  r = mealInputs_({ kind: 'text', text: 'dos huevos' });
+  assert_(r.parts.length === 0 && r.user.descripcion === 'dos huevos', 'formato antiguo de texto');
+  const falla = (p) => { try { mealInputs_(p); return null; } catch (e) { return e.code; } };
+  assert_(falla({ text: '   ' }) === 'VALIDATION', 'nada que estimar');
+  assert_(falla({ images: [img, img, img, img] }) === 'VALIDATION', 'más de 3 fotos');
+  assert_(falla({ images: [{ mime: 'application/pdf', data: img.data }] }) === 'VALIDATION', 'tipo de archivo');
+  assert_(MEAL_SYSTEM_.indexOf('fotos') > 0, 'instrucciones para fotos');
+  return 'ok';
+}
+
+function test_pure_supplements() {
+  assert_(mondayOf_('2026-11-21') === '2026-11-16' && mondayOf_('2026-11-16') === '2026-11-16' && mondayOf_('2026-11-22') === '2026-11-16', 'lunes de la semana');
+  const ai = { name: 'Sideral Forte', dose: 1, unit: 'cápsula', known: true, ironMg: 30, vitCMg: 70, kcal: 0, b12Ug: null, inventado: 5, notes: 'Tómalo lejos del café.' };
+  const sup = supFromAi_(ai, 'sup_abc123def4');
+  assert_(sup.nutrients.ironMg === 30 && sup.nutrients.vitCMg === 70 && !('b12Ug' in sup.nutrients) && !('kcal' in sup.nutrients) && !('inventado' in sup.nutrients), 'solo nutrientes con valor');
+  assert_(validateSupplements_([sup]).length === 0, 'válido: ' + validateSupplements_([sup]));
+  assert_(validateSupplements_([Object.assign({}, sup, { unit: 'puñado' })]).length === 1, 'unidad');
+  assert_(validateSupplements_([sup, sup]).length === 1, 'id repetido');
+  assert_(validateSupplements_([Object.assign({}, sup, { nutrients: { veneno: 1 } })]).length === 1, 'nutriente desconocido');
+  const m = supMeal_(sup, '2026-11-20');
+  assert_(m.id === 'p_20261120_abc123def4' && m.mealType === 'supplement' && m.supplementId === sup.id, 'id fijo por día y suplemento');
+  assert_(m.items[0].ironMg === 30 && m.items[0].proteinG === 0 && m.items[0].unit === 'cápsula', 'la toma como alimento');
+  assert_(validateMeal_(m, '2026-11-21').length === 0, 'pasa la validación de comidas: ' + validateMeal_(m, '2026-11-21'));
+  // Un día con solo suplementos no cuenta para la media de 7 días.
+  const comida = (date, kcal) => ({ date: date, mealType: 'lunch', items: [{ kcal: kcal, proteinG: 10, carbsG: 10, fatG: 10, ironMg: 2 }] });
+  const toma = (date) => ({ date: date, mealType: 'supplement', items: [{ kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, ironMg: 30 }] });
+  const w = weekNutrition_([comida('2026-11-20', 2000), toma('2026-11-20'), toma('2026-11-19'), comida('2026-11-18', 1800)], '2026-11-21');
+  assert_(w.days === 2 && w.avg.kcal === 1900 && w.avg.ironMg === 17, 'media sin el día de solo suplementos: ' + JSON.stringify(w.avg));
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1272,7 +1312,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());
