@@ -620,7 +620,7 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - El descanso real de una serie es el tiempo entre el final de la anterior y el **inicio** de la siguiente. El inicio no se registra, así que hay que estimarlo:
      - **Opción A:** hora de registro de la serie actual menos una duración estimada de la serie (repeticiones × segundos por repetición, por ejemplo 3 a 4 s, configurable).
      - **Opción B:** guardar como descanso el tiempo completo entre registros y mostrarlo como "tiempo entre series".
-     - Decidir con el usuario al desarrollarlo.
+     - **Decidido por el usuario (23 de noviembre de 2026): opción A.**
    - Guardarlo en `restSec` de cada serie (el campo ya existe y hoy va vacío).
    - Enseñarlo en la sesión, en la revisión y en el Diario (por ejemplo, "Descanso medio 1:52").
    - Una serie registrada mucho después (por ejemplo, más de 15 minutos) o el primer ejercicio no cuentan como descanso.
