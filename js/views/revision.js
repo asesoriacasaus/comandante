@@ -7,6 +7,8 @@ import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valorDeCarga } from '../lib/serie.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
 import { bloqueResumen } from './resumen-hablado.js';
+import { ponerBarra, avisar } from '../lib/barra.js';
+import { descansoMedio, relojDescanso } from '../lib/sesion-viva.js';
 import { figuraMusculos } from '../lib/musculos.js';
 
 const vigente = (el) => el.dataset.route === 'revision';
@@ -31,7 +33,9 @@ export function render(el) {
   };
   const paint = () => {
     if (!vigente(el)) return;
+    const y = window.scrollY;   // al repintar, la página se queda donde estaba
     el.replaceChildren(vista(st, { el, paint, load, id }));
+    window.scrollTo(0, y);
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
   };
 
@@ -143,6 +147,7 @@ function vista(st, ctx) {
       h('p', { class: 'detalle' }, ex.doneSets + (ex.plannedSets ? ' de ' + ex.plannedSets : '') + ' series · ' + (ex.repsMin === ex.repsMax ? ex.repsMin : ex.repsMin + '-' + ex.repsMax) + ' rep' +
         (ex.avgRir !== null ? ' · RIR medio ' + String(ex.avgRir).replace('.', ',') : '')),
       ...cmp.map((t) => h('p', { class: 'detalle' }, t)),
+      full && descansoMedio(full.sets) !== null ? h('p', { class: 'detalle' }, 'Descanso medio: ' + relojDescanso(descansoMedio(full.sets))) : null,
       full ? h('ul', { class: 'series' }, full.sets.map((set) => serieNodo(st, full, set, edit, ctx.paint))) : null,
       full ? h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => {
         const l = full.sets[full.sets.length - 1];
@@ -155,23 +160,37 @@ function vista(st, ctx) {
     ...clips.map((c, i) => h('p', { class: 'nota' }, (i + 1) + '. ' + quoteTranscript(c.transcript, 400)))));
 
   nodes.push(h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg));
-  nodes.push(h('div', { class: 'acciones fin' },
-    h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: () => run(async () => {
-      await call('session.save', { id: ctx.id }, { timeoutMs: 60000 });
-      ['hoy', 'resumen-sesiones', 'sesion-' + ctx.id, 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
-      try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
-      location.hash = '#hoy';
-    }) }, 'Guardar sesión'),
-    h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
-      await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar); location.hash = '#sesion';
-    }) }, 'Seguir grabando'),
-    h('button', { type: 'button', class: 'btn btn-sec', onClick: () => run(async () => {
-      if (!confirm('¿Descartar esta sesión? No se podrá recuperar.')) return;
-      await call('session.discard', { id: ctx.id }, { timeoutMs: 60000 });
-      ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
-      try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
-      location.hash = '#hoy';
-    }) }, 'Descartar sesión')));
+
+  const guardarSesion = () => run(async () => {
+    await call('session.save', { id: ctx.id }, { timeoutMs: 60000 });
+    ['hoy', 'resumen-sesiones', 'sesion-' + ctx.id, 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
+    try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
+    avisar('Sesión guardada ✓');
+    location.hash = '#hoy';
+  });
+  const seguir = () => run(async () => {
+    await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar); location.hash = '#sesion';
+  });
+  const descartar = () => run(async () => {
+    if (!confirm('¿Descartar esta sesión? No se podrá recuperar.')) return;
+    await call('session.discard', { id: ctx.id }, { timeoutMs: 60000 });
+    ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
+    try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
+    avisar('Sesión descartada');
+    location.hash = '#hoy';
+  });
+  // Barra flotante: guardar siempre a mano y el estado a la vista. "Seguir grabando" y "Descartar" van en un menú aparte para no pulsarlos sin querer.
+  const menu = h('div', { class: 'barra-menu', hidden: true, role: 'menu' },
+    h('button', { type: 'button', role: 'menuitem', onClick: seguir }, 'Seguir grabando'),
+    h('button', { type: 'button', role: 'menuitem', class: 'peligro', onClick: descartar }, 'Descartar sesión'));
+  const mas = h('button', { type: 'button', class: 'barra-mas', 'aria-label': 'Más opciones', 'aria-expanded': 'false', onClick: () => {
+    menu.hidden = !menu.hidden; mas.setAttribute('aria-expanded', String(!menu.hidden));
+  } }, '⋯');
+  const pend = (s.pending || []).length;
+  ponerBarra(h('div', { class: 'barra-contenido' },
+    h('div', { class: 'barra-estado' }, h('b', { class: 'sin-guardar' }, 'Sin guardar'), h('span', {}, pend ? pend + (pend === 1 ? ' pendiente por resolver' : ' pendientes por resolver') : 'Revisa y guarda')),
+    h('div', { class: 'barra-acciones' }, h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: guardarSesion }, 'Guardar sesión'), mas),
+    menu));
   return h('section', {}, nodes);
 }
 

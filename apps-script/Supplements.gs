@@ -43,7 +43,7 @@ const SUP_SYSTEM_ = 'Eres un nutricionista. Recibes cómo describe una persona u
   'dosis habitual del producto), con "unit" una de: g, ml, cápsula, comprimido, sobre, cacito, gota, unidad. ' +
   'Devuelve lo que aporta ESA toma: kcal, proteinG, carbsG, fatG y los micronutrientes que contenga (fiberG, potassiumMg, calciumMg, ironMg, ' +
   'magnesiumMg, zincMg, vitAUg, vitCMg, vitDUg (1 µg = 40 UI), vitEMg, vitKUg, b1Mg, b2Mg, b3Mg, b6Mg, folateUg, b12Ug, omega3G (EPA+DHA en g), ' +
-  'sodiumMg, sugarG). Lo que no contenga o no sepas, null. La creatina, la cafeína o el colágeno no aportan micronutrientes: déjalos en null. ' +
+  'sodiumMg, sugarG). b3Mg es la niacina ya formada del producto. Lo que no contenga o no sepas, null. La creatina, la cafeína o el colágeno no aportan micronutrientes: déjalos en null. ' +
   '"known": true si conoces la composición de ese producto o del genérico; false si es una marca que no conoces y has supuesto. ' +
   '"notes": una frase útil y prudente (por ejemplo, tomar el hierro separado del café o del calcio, o no pasar de la dosis sin consejo ' +
   'médico); null si no hace falta. No hagas diagnósticos. Responde solo con el JSON pedido.';

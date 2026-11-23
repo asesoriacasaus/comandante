@@ -6,7 +6,8 @@ import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar, leer } from '../lib/cache.js';
 import { estimarLocal, contarAhorroLocal } from '../lib/alimentos.js';
-import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES, fraccionReparto, textoReparto, repartir } from '../lib/nutrition.js';
+import { ponerBarra, avisar } from '../lib/barra.js';
+import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES, fraccionReparto, textoReparto, repartir, desgloseMicro, avisoSol, NOTAS_MICRO } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
@@ -25,6 +26,7 @@ function diaCorto(iso) { const [y, m, d] = iso.split('-').map(Number); return DI
 
 let ultimaVista = 0;
 export function render(el) {
+  ponerBarra(null);
   pantalla = 'inicio';
   // El día elegido se recuerda mientras usas Comida; si vuelves al rato, se abre en hoy.
   if (!fecha || Date.now() - ultimaVista > 10 * 60 * 1000) fecha = todayIsoLocal();
@@ -72,6 +74,7 @@ function anillos(tot, t) {
 }
 
 function inicio(el, st) {
+  ponerBarra(null);
   pantalla = 'inicio';
   const esHoy = st.date === st.today;
   const t = st.targets;
@@ -148,6 +151,7 @@ function bloqueSuplementos(el, st) {
 }
 
 function abrirSuplementos(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   import('./suplementos.js').then((m) => m.pantallaSuplementos(el, { lista: st.supplements || [], micros: st.micros || [], volver: () => { borrar('comida:' + st.date); render(el); } }))
     .catch((err) => { console.error(err); pantalla = 'inicio'; });
@@ -158,9 +162,14 @@ function abrirSuplementos(el, st) {
 let vistaMicros = null;   // 'semana' | 'hoy': se recuerda mientras la app está abierta
 
 /** Una fila con barra: la marca vertical es la referencia (100 %); la barra llega hasta el 150 %. */
-function filaMicro(m) {
+const fmtVal = (v, u) => (v >= 100 ? fmtInt(v) : fmtDec(v)) + ' ' + u;
+
+/** `ctx` = { extras, habits, abrirHabitos }: lo que no viene de las comidas (sol, agua, niacina fabricada) y los avisos propios de cada nutriente. */
+function filaMicro(m, ctx = {}) {
   const e = escalaMicro(m);
-  const valor = (m.value >= 100 ? fmtInt(m.value) : fmtDec(m.value)) + ' ' + m.unit;
+  const valor = fmtVal(m.value, m.unit);
+  const partes = desgloseMicro(m.key, m.value, ctx.extras);
+  const sol = m.key === 'vitDUg' ? avisoSol(ctx.habits, ctx.extras) : null;
   return h('li', { class: 'micro ' + m.estado },
     h('div', { class: 'micro-cab' }, h('span', { class: 'micro-nombre' }, m.label),
       h('span', { class: 'micro-pct' }, m.pct + ' %'), h('span', { class: 'micro-valor' }, '≈ ' + valor)),
@@ -169,7 +178,10 @@ function filaMicro(m) {
       h('span', { class: 'escala-marca', 'data-pos': String(e.marca) })),
     h('div', { class: 'escala-extremos', 'aria-hidden': 'true' }, h('span', {}, e.extremos[0]), h('span', {}, e.extremos[1])),
     m.estado === 'bajo' && FUENTES[m.key] ? h('p', { class: 'micro-fuentes' }, 'Lo tienes en: ' + FUENTES[m.key]) : null,
-    m.estado === 'alto' ? h('p', { class: 'micro-fuentes' }, 'Conviene no pasar de ' + fmtInt(m.ref) + ' ' + m.unit + ' al día') : null);
+    m.estado === 'alto' ? h('p', { class: 'micro-fuentes' }, 'Conviene no pasar de ' + fmtInt(m.ref) + ' ' + m.unit + ' al día') : null,
+    partes ? h('p', { class: 'micro-desglose' }, partes.map((p) => p.origen + ' ' + fmtVal(p.valor, m.unit)).join(' + ')) : null,
+    sol ? h('p', { class: 'micro-fuentes' }, sol.texto, ' ', ctx.abrirHabitos ? h('button', { type: 'button', class: 'enlace enlace-linea', onClick: ctx.abrirHabitos }, sol.tipo === 'sin-perfil' ? 'Contar mi sol' : 'Ajustar mi sol') : null) : null,
+    NOTAS_MICRO[m.key] ? h('p', { class: 'micro-fuentes micro-nota' }, NOTAS_MICRO[m.key]) : null);
 }
 
 function bloqueMicros(el, st) {
@@ -179,6 +191,9 @@ function bloqueMicros(el, st) {
   const modo = vistaMicros || (haySemana ? 'semana' : 'hoy');
   const valores = modo === 'semana' ? st.week.avg : st.totals;
   const g = agruparMicros(estadoMicros(st.micros, valores));
+  // Lo que no viene de las comidas (sol, agua, niacina fabricada). Las cachés antiguas no lo traen: se toleran.
+  const ctxMicro = { extras: (modo === 'semana' ? (st.week && st.week.extras) : st.extras) || {}, habits: st.habits || null, abrirHabitos: () => abrirHabitos(el, st) };
+  const fila = (m) => filaMicro(m, ctxMicro);
   const pestaña = (m, texto) => h('button', { type: 'button', class: 'segmento' + (modo === m ? ' activo' : ''), 'aria-pressed': String(modo === m),
     onClick: () => { vistaMicros = m; inicio(el, st); } }, texto);
   const contador = (n, texto, clase) => h('div', { class: 'dato ' + clase }, h('span', { class: 'valor' }, String(n)), h('span', { class: 'dato-que' }, texto));
@@ -187,12 +202,13 @@ function bloqueMicros(el, st) {
     h('p', { class: 'etiqueta' }, 'Vitaminas y minerales'),
     h('div', { class: 'segmentos', role: 'group', 'aria-label': 'Periodo' }, pestaña('semana', 'Media 7 días'), pestaña('hoy', 'Hoy')),
     h('div', { class: 'resumen' }, contador(g.bajos.length, 'a reforzar', 'bajo'), contador(g.altos.length, 'a vigilar', 'alto'), contador(g.ok.length, 'bien', 'ok')),
-    g.bajos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A reforzar'), h('ul', { class: 'micro-lista' }, g.bajos.map(filaMicro))) : null,
-    g.altos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A vigilar'), h('ul', { class: 'micro-lista' }, g.altos.map(filaMicro))) : null,
-    g.ok.length ? h('details', {}, h('summary', {}, 'Bien cubiertos (' + g.ok.length + ')'), h('ul', { class: 'micro-lista' }, g.ok.map(filaMicro))) : null,
+    g.bajos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A reforzar'), h('ul', { class: 'micro-lista' }, g.bajos.map(fila))) : null,
+    g.altos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A vigilar'), h('ul', { class: 'micro-lista' }, g.altos.map(fila))) : null,
+    g.ok.length ? h('details', {}, h('summary', {}, 'Bien cubiertos (' + g.ok.length + ')'), h('ul', { class: 'micro-lista' }, g.ok.map(fila))) : null,
     g.bajos.length ? h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: () => abrirRecetas(el, st) }, 'Recetas para cubrirlo')) : null,
+    h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrirHabitos(el, st) }, 'Sol y agua: lo que no viene de la comida')),
     h('p', { class: 'nota' }, (modo === 'semana' ? 'Media de los ' + st.week.days + ' días con comidas de la última semana' + (st.week.days < 3 ? ' (con tan pocos días es orientativa)' : '') + '. '
-      : 'Solo lo apuntado hoy. ') + 'Son estimaciones de la IA a partir de lo que dictas: sirven para ver tendencias. Referencia: valores de la UE para un adulto.' +
+      : 'Solo lo apuntado hoy. ') + 'Son estimaciones de la IA a partir de lo que dictas, más el sol, el agua y la niacina que fabrica tu cuerpo si los has contado: sirven para ver tendencias. Referencia: valores de la UE para un adulto.' +
       (g.sinDato.length ? ' Sin dato: ' + g.sinDato.map((m) => m.label.toLowerCase()).join(', ') + '.' : '')));
   // El ancho de las barras se pone por JavaScript: la política de seguridad no permite estilos en línea en el HTML.
   caja.querySelectorAll('.tramo').forEach((n) => { n.style.width = n.dataset.ancho + '%'; });
@@ -200,7 +216,15 @@ function bloqueMicros(el, st) {
   return caja;
 }
 
+function abrirHabitos(el, st) {
+  ponerBarra(null);
+  pantalla = 'otra';
+  import('./habitos.js').then((m) => m.pantallaHabitos(el, { habits: st.habits || null, hoy: st.today, volver: () => { borrar('comida:' + st.date); render(el); } }))
+    .catch((err) => { console.error(err); pantalla = 'inicio'; });
+}
+
 function abrirRecetas(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   import('./recetas.js').then((m) => m.pantallaRecetas(el, { volver: () => inicio(el, st) }))
     .catch((err) => { console.error(err); pantalla = 'inicio'; });
@@ -258,6 +282,7 @@ function controlReparto(estado, onChange) {
 }
 
 function pantallaAnadir(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   const fotos = [];   // { blob, url }
   let audio = null;   // { blob, mime, ms }
@@ -413,11 +438,12 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
   const cajaReparto = reparto ? controlReparto(reparto, () => { items = repartir(entero, reparto); pintarFilas(); pintarTotal(); pintarEntero(); }) : null;
 
   const guardar = async (btn) => {
+    if (btn.disabled) return;
     if (!items.length) { estado.className = 'estado error'; estado.textContent = 'No queda ningún alimento.'; return; }
     const record = { date: fechaComida, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
     if (reparto && fraccionReparto(reparto) < 1) record.portion = { share: Math.round(fraccionReparto(reparto) * 1000) / 1000, text: textoReparto(reparto) };
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; if (vigente(el)) render(el); }
+    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; avisar('Comida guardada ✓'); if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 
@@ -435,8 +461,12 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
     cajaReparto ? h('div', { class: 'bloque' }, cajaReparto, platoEntero) : null,
     h('div', { class: 'rejilla' }, h('label', {}, 'Tipo', tipo), h('label', {}, 'Hora', hora)),
     filas, totalNodo, estado,
-    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar comida'),
-      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, st) }, 'Descartar'))));
+    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, st) }, 'Descartar'))));
+  // "Guardar comida" siempre a mano, con el total a la vista.
+  const botonGuardar = h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar comida');
+  ponerBarra(h('div', { class: 'barra-contenido' },
+    h('div', { class: 'barra-estado' }, h('b', { class: 'sin-guardar' }, 'Sin guardar'), h('span', {}, 'Revisa y guarda')),
+    h('div', { class: 'barra-acciones' }, botonGuardar)));
 }
 
 /** Elimina campos que no pertenecen al modelo (por ejemplo, avisos) antes de guardar. */

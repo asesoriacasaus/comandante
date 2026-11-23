@@ -24,6 +24,7 @@ function mutateSession_(id, fn) {
     const idx = arr.findIndex((x) => x.id === id);
     if (idx < 0) throw { code: 'NOT_FOUND', message: 'Sesión no encontrada' };
     const next = fn(arr[idx]);
+    applyRestSecs_(next, (settings.training || {}).secPerRep);
     next.metrics = computeSessionMetrics_(next, { bodyweightKg: latestBodyweight_(settings) });
     arr[idx] = next;
     writeFile_(path, arr);
@@ -222,7 +223,7 @@ function epley_(kg, reps) {
  * Lo que necesitan las listas: unos cientos de bytes por sesión en vez de 10-15 KB (sin clips ni series).
  * El detalle se pide aparte con session.get cuando el usuario abre una sesión.
  */
-function sessionSummary_(s) {
+function sessionSummary_(s) {   // incluye metrics.avgRestSec
   const ex = (s.exercises || []).map((x) => {
     let best = null;
     (x.sets || []).forEach((set) => {

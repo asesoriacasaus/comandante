@@ -610,3 +610,70 @@ Anotadas el 21 de noviembre de 2026 a petición del usuario, para más adelante.
 - **Recomendaciones ligadas a un comercio electrónico:** convertir las carencias detectadas (por ejemplo, hierro bajo de forma sostenida) en sugerencias de productos. Antes habría que resolver: que la recomendación la valide un profesional sanitario cuando sea un suplemento, avisos de interacciones y de dosis máximas, transparencia sobre que es publicidad o afiliación, protección de datos de salud (categoría especial en el RGPD: consentimiento explícito y finalidad separada) y que la app no haga diagnósticos.
 - **Multiusuario:** hoy la app es de una sola persona (datos en su Drive y un token). Una versión profesional necesitaría cuentas, servidor propio y base de datos, no Apps Script.
 
+
+## 17. Mejoras pendientes anotadas por el usuario (sin desarrollar)
+
+Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El 23 de noviembre de 2026 el usuario pidió desarrollarlas todas (1 a 8).** Estado de cada una abajo.
+
+1. **Descanso real calculado entre series (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en `apps-script/Rest.gs` (`applyRestSecs_`): se recalcula entero en cada cambio de la sesión (dentro de `mutateSession_`), con `restSec = (hora de registro − repeticiones × segundos por repetición) − hora de registro de la serie anterior`, ordenando todas las series de la sesión por hora. Da `null` (sin descanso) en la primera serie, en una serie sin hora, con un hueco de más de 15 minutos o con resultado negativo (por ejemplo, dos series dictadas en el mismo clip comparten hora). Segundos por repetición: `settings.training.secPerRep`, por defecto 4 (rango 1 a 15). Se ve en cada serie, como media por ejercicio (sesión y revisión) y en el Diario (`metrics.avgRestSec`).
+   - El usuario registra cada serie justo al terminarla, así que la hora de registro (`at`) marca el final de una serie.
+   - El descanso real de una serie es el tiempo entre el final de la anterior y el **inicio** de la siguiente. El inicio no se registra, así que hay que estimarlo:
+     - **Opción A:** hora de registro de la serie actual menos una duración estimada de la serie (repeticiones × segundos por repetición, por ejemplo 3 a 4 s, configurable).
+     - **Opción B:** guardar como descanso el tiempo completo entre registros y mostrarlo como "tiempo entre series".
+     - **Decidido por el usuario (23 de noviembre de 2026): opción A.**
+   - Guardarlo en `restSec` de cada serie (el campo ya existe y hoy va vacío).
+   - Enseñarlo en la sesión, en la revisión y en el Diario (por ejemplo, "Descanso medio 1:52").
+   - Una serie registrada mucho después (por ejemplo, más de 15 minutos) o el primer ejercicio no cuentan como descanso.
+2. **Contador de descanso dentro del recuadro del ejercicio en curso (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: un solo reloj (`#descanso`) dentro del recuadro del ejercicio activo; arriba solo mientras no hay ninguna serie. El ejercicio "en curso" es ahora el de la serie registrada más recientemente (`ejercicioActivo`), no el último de la lista.
+   - El reloj "Descanso 0:40 de 1:30 min" o "Listo" se muestra **dentro de la tarjeta del ejercicio en curso**, junto a sus series, para no tener que subir a mirarlo.
+   - Arriba se puede quitar o dejar solo como resumen.
+3. **Cursor al final en los campos del formulario a mano (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en toda la app (`cursorAlFinal` en `js/lib/barra.js`): al enfocar un campo de texto el cursor va al final (se aplica a los 0 y a los 60 ms, porque iOS coloca el cursor después del foco). Un toque posterior dentro del campo es libre. Solo en la primera vez que se enfoca. **No probado en un iPhone real.**
+   - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
+   - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
+   - **Decidido por el usuario (23 de noviembre de 2026): solo cursor al final**, sin seleccionar el número entero.
+4. **Vitamina D: contar el sol y no solo la comida (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en `apps-script/Extras.gs` y en la pantalla Comida > "Sol y agua" (`js/views/habitos.js`). El perfil se guarda en `settings.nutrition.sun` = `{ minutes, skin, midday, spf, lat }` (minutos de sol directo en un día normal, piel al descubierto, si es hacia el mediodía, protector y zona de España: norte 43°, centro 40°, sur 37°, Canarias 28°). Sin geolocalización ni servicios externos. La estimación (`sunVitDUg_`) usa el índice UV de mediodía con cielo despejado según la latitud y la fecha (cae por debajo de UVI 3 → casi nulo de noviembre a febrero), 0,6 µg por minuto en condiciones de referencia, tope de 20 µg al día; el protector la reduce un 80 % y fuera del mediodía a la mitad. **El sol tras un cristal no cuenta** y la pantalla lo explica. En noviembre en España el resultado es ≈ 0 y la app lo dice ("tu valor bajo puede ser real"), con el aviso fijo del análisis de sangre. Sin perfil, la vitamina D solo cuenta comida y suplementos y se invita a contar el sol. Es una estimación muy gruesa; los coeficientes (0,6 µg/min, curva UVI) están pendientes de contrastar con el dietista.
+   - Hoy la vitamina D sale solo de los alimentos y de los suplementos registrados. Así parece baja aunque no lo sea, porque la mayor parte de la vitamina D se fabrica en la piel con la radiación UVB del sol.
+   - **Preguntar la exposición solar:**
+     - minutos al aire libre al día (o en la semana), con cara, brazos o piernas al descubierto;
+     - si fue en las horas centrales;
+     - si llevaba protector solar.
+     - Mejor con respuestas rápidas tipo "nada / poco / bastante", y al pasear o en la terraza a la hora de comer.
+   - **El sol a través de un cristal (coche, oficina) no cuenta:** el vidrio bloquea casi toda la UVB. Explicarlo en la pregunta, porque es un error muy común.
+   - **La estación y la latitud importan mucho:** en España, de noviembre a febrero el sol produce poca vitamina D incluso a mediodía. Estimar con la fecha, la ubicación aproximada (o la ciudad indicada) y el índice UV del día, si se puede consultar sin enviar datos personales.
+   - **Resultado:** la tarjeta de vitamina D muestra "comida + suplementos + sol estimado", con el sol marcado como estimación gruesa. Si el sol es una parte importante, no se marca como "A reforzar" solo por la dieta.
+   - **Aviso fijo en la vitamina D:** la única forma de saber el nivel real es un análisis de sangre (25-hidroxivitamina D). Antes de tomar un suplemento de vitamina D de forma continuada, consúltalo con tu médico, sobre todo a dosis altas.
+   - Aplica también al Proyecto N: la vitamina D no debería ir en el motor automático de complementos sin tener en cuenta el sol. Anotado en su plan.
+5. **Tras registrar una serie, la pantalla va al ejercicio en curso (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: se conserva el desplazamiento en cada repintado (Sesión y Revisión) y, si han subido las series, se va con suavidad al ejercicio activo, salvo que el usuario esté escribiendo en un campo o tocando la pantalla (menos de 1 segundo). Respeta "reducir movimiento".
+   - **Causa del salto sin confirmar:** en Chromium (con y sin anclaje de scroll) la versión anterior NO saltaba al principio, así que no se ha podido reproducir el fallo del iPhone. Lo hecho es defensivo y hace el comportamiento determinista: la vista se queda donde estaba y va al ejercicio activo. Si en el iPhone sigue volviendo arriba, anotar exactamente qué se hizo (dictado, "Otra serie igual" o a mano) para buscar la causa real.
+   - Al guardar una serie (por voz, "Otra serie igual" o a mano), la sesión se repinta y hoy vuelve al principio, al ejercicio 1.
+   - Debe **desplazarse al recuadro del ejercicio activo** (el que tiene la serie recién añadida), con un desplazamiento suave y sin saltos.
+   - Mientras el usuario esté desplazándose o escribiendo en un formulario, no se le mueve la pantalla.
+   - Va junto con la mejora 2 (contador de descanso dentro del recuadro): al registrar, la vista queda en el ejercicio con su contador a la vista.
+6. **Botón flotante para terminar y guardar la sesión (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: barra de acción flotante (`js/lib/barra.js`, fuera de `#view`), encima de las pestañas. Sesión: "Terminar sesión" con el número de series. Revisión: "Sin guardar" + "Guardar sesión" y un menú "⋯" con "Seguir grabando" y "Descartar sesión". Revisión de una comida: "Guardar comida". Se esconde solo con el teclado realmente abierto (área visible un 20 % menor), para no quedarse escondida. Avisos: "Sesión guardada ✓"; al salir de la revisión sin guardar, un aviso; y en Hoy, un recordatorio arriba de la sesión sin guardar.
+   - Hoy "Terminar sesión" (en la Sesión) y "Guardar sesión" (en la Revisión) están al final de la página. Es tedioso bajar, y es fácil creer que ya se guardó sin haberlo hecho.
+   - **Barra de acción flotante,** fija justo encima de la barra de pestañas, visible en cualquier punto del desplazamiento:
+     - en la Sesión: "Terminar sesión";
+     - en la Revisión: "Guardar sesión", más "Seguir grabando" y "Descartar" en un menú secundario para no pulsarlos sin querer.
+   - **Estado siempre visible** en la propia barra: "Sin guardar" o "Guardada ✓". Al salir de la app o de la pantalla con una sesión en revisión sin guardar, aviso claro.
+   - En Hoy, si queda una sesión en revisión sin guardar, un recordatorio arriba con acceso directo ("Tienes una sesión sin guardar · Revisar y guardar").
+   - Cuidar que la barra no tape contenido (margen inferior), que tenga objetivos táctiles de 44 px y contraste AA.
+   - Valorar el mismo patrón en otras pantallas largas (por ejemplo, "Guardar comida" en la revisión de una comida).
+7. **Niacina (vitamina B3) desde la proteína (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho (`niacinFromProtein_`): 12 mg de triptófano por gramo de proteína ÷ 60 = niacina fabricada. **Los prompts de comidas y suplementos ahora piden `b3Mg` solo como niacina ya formada**, para no contar dos veces si una tabla ya da equivalentes de niacina. La tarjeta muestra "alimentos X mg + fabricada con la proteína (estimada) Y mg". El 12 es una media de dieta mixta, pendiente de contrastar.
+   - El cuerpo fabrica niacina a partir del triptófano de la proteína: 60 mg de triptófano dan 1 mg de niacina (equivalentes de niacina).
+   - Hoy solo se cuenta la niacina de los alimentos, lo que la infravalora, sobre todo con una ingesta alta de proteína.
+   - Sumar la niacina estimada desde el triptófano. Usar el triptófano del alimento si la tabla lo trae; si no, una aproximación a partir de la proteína (del orden de 10 a 13 mg de triptófano por gramo de proteína, a fijar con una fuente).
+   - Mostrar en la tarjeta: "niacina de los alimentos + fabricada a partir de la proteína (estimada)".
+8. **Calcio y magnesio del agua (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: perfil en `settings.nutrition.water` = `{ calciumMgL, magnesiumMgL, litersPerDay }`, con aproximaciones (mineral débil, blanda, media, dura) o los mg/l de la etiqueta o del análisis del ayuntamiento; no se consulta ningún dato municipal. El aporte se suma al calcio y al magnesio y se muestra como "agua". El sodio lleva el aviso de que no incluye la sal añadida al cocinar.
+   - **Un solo punto de combinación:** `nutritionState` suma los aportes extra al total del día y a la media de 7 días antes de valorar los avisos (`weekNutrition_(..., extraFn)`), devuelve el desglose aparte (`extras`) y el correo semanal usa la misma función; `sumMeals_` y los totales guardados de cada comida no se tocan. Test de extremo a extremo en `tests/nutrition-state.test.cjs`. Las cachés antiguas del móvil sin `extras` se toleran.
+   - El agua del grifo o embotellada puede aportar mucho calcio y bastante magnesio, según la zona y la marca.
+   - Preguntar una vez qué agua se bebe: grifo, con el municipio, o embotellada, con la marca. Tomar los miligramos por litro de la etiqueta o de los datos públicos del agua del municipio, o pedírselos al usuario. Preguntar también cuánta se bebe al día (o registrarla).
+   - Sumar el aporte diario al calcio y al magnesio, marcado como "del agua".
+   - Al hilo: avisar de que el **sodio** sale más bajo de lo real si no se apunta la sal añadida al cocinar.

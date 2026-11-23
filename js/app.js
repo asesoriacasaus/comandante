@@ -2,6 +2,7 @@
 import { onActividad, call } from './api.js';
 import { getConfig } from './state.js';
 import { mensajeActividad } from './lib/actividad.js';
+import { ponerBarra, avisar, cursorAlFinal, tecladoAbierto } from './lib/barra.js';
 
 const LOADERS = {
   hoy: () => import('./views/hoy.js'), diario: () => import('./views/diario.js'), cuerpo: () => import('./views/cuerpo.js'),
@@ -28,6 +29,12 @@ async function render() {
   const key = currentRoute();
   if (rutaAnterior) scrolls[rutaAnterior] = window.scrollY;
   const cambia = rutaAnterior !== key;
+  if (cambia) {
+    ponerBarra(null);   // cada pantalla pone su propia barra de acción si la necesita
+    // Salir de la revisión sin guardar ni descartar: aviso claro de que la sesión sigue pendiente.
+    let pendiente = ''; try { pendiente = localStorage.getItem('comandante.sessionId') || ''; } catch (_) { pendiente = ''; }
+    if (rutaAnterior === 'revision' && pendiente && key !== 'sesion' && key !== 'revision') avisar('Sesión sin guardar. Vuelve a Hoy > «Revisar y guardar».', 6000);
+  }
   rutaAnterior = key;
   // Las vistas asíncronas comprueban este valor antes de dibujar, para no
   // pisar otra sección si el usuario ya ha navegado.
@@ -84,6 +91,18 @@ function quitarRepetidos() {
   if (e && t && e.classList.contains('etiqueta') && t.tagName === 'H2' && e.textContent.trim().toLowerCase() === t.textContent.trim().toLowerCase()) e.remove();
 }
 new MutationObserver(quitarRepetidos).observe(view, { childList: true });
+// Cursor al final al tocar un campo de texto; y mientras se escribe, la barra flotante se esconde para no tapar el formulario ni el teclado.
+cursorAlFinal();
+// Solo se esconde con el teclado realmente abierto (si no, en el iPhone podría quedarse escondida sin forma de cerrarla).
+function actualizarEscribiendo() {
+  const a = document.activeElement;
+  const foco = !!(a && view.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  const vv = window.visualViewport;
+  document.body.classList.toggle('escribiendo', foco && !!vv && tecladoAbierto(vv.height, window.innerHeight));
+}
+document.addEventListener('focusin', () => setTimeout(actualizarEscribiendo, 300));
+document.addEventListener('focusout', () => setTimeout(actualizarEscribiendo, 80));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', actualizarEscribiendo);
 window.addEventListener('hashchange', render);
 view.addEventListener('animationend', (e) => { if (e.target.parentElement === view) view.classList.remove('entrando'); });
 // Pulsar la pestaña en la que ya estás sube al principio, como en las apps nativas.
