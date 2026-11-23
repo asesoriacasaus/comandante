@@ -627,3 +627,7 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
 2. **Contador de descanso dentro del recuadro del ejercicio en curso (23 de noviembre de 2026).**
    - El reloj "Descanso 0:40 de 1:30 min" o "Listo" se muestra **dentro de la tarjeta del ejercicio en curso**, junto a sus series, para no tener que subir a mirarlo.
    - Arriba se puede quitar o dejar solo como resumen.
+3. **Cursor al final en los campos del formulario a mano (23 de noviembre de 2026).**
+   - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
+   - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
+   - Valorar además seleccionar todo el número al tocarlo, para escribir encima directamente. Decidir con el usuario al desarrollarlo.
