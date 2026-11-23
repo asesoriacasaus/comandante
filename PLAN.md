@@ -643,3 +643,8 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - **Resultado:** la tarjeta de vitamina D muestra "comida + suplementos + sol estimado", con el sol marcado como estimación gruesa. Si el sol es una parte importante, no se marca como "A reforzar" solo por la dieta.
    - **Aviso fijo en la vitamina D:** la única forma de saber el nivel real es un análisis de sangre (25-hidroxivitamina D). Antes de tomar un suplemento de vitamina D de forma continuada, consúltalo con tu médico, sobre todo a dosis altas.
    - Aplica también al Proyecto N: la vitamina D no debería ir en el motor automático de complementos sin tener en cuenta el sol. Anotado en su plan.
+5. **Tras registrar una serie, la pantalla va al ejercicio en curso (23 de noviembre de 2026).**
+   - Al guardar una serie (por voz, "Otra serie igual" o a mano), la sesión se repinta y hoy vuelve al principio, al ejercicio 1.
+   - Debe **desplazarse al recuadro del ejercicio activo** (el que tiene la serie recién añadida), con un desplazamiento suave y sin saltos.
+   - Mientras el usuario esté desplazándose o escribiendo en un formulario, no se le mueve la pantalla.
+   - Va junto con la mejora 2 (contador de descanso dentro del recuadro): al registrar, la vista queda en el ejercicio con su contador a la vista.
