@@ -148,6 +148,7 @@ function validateSettings_(s) {
   pushIf_(e, checkNum_((s.nutrition || {}).kcalAdjust, 'nutrition.kcalAdjust', -KCAL_ADJUST_MAX_, KCAL_ADJUST_MAX_, false));
   pushIf_(e, checkNum_((s.nutrition || {}).fatGPerKg, 'nutrition.fatGPerKg', 0.4, 2, false));
   e.push(...validateSupplements_((s.nutrition || {}).supplements));
+  pushIf_(e, checkNum_((s.training || {}).secPerRep, 'training.secPerRep', 1, 15, false));
   const notes = (s.nutrition || {}).foodNotes;
   if (notes !== undefined && notes !== null && (typeof notes !== 'string' || notes.length > 300)) e.push('nutrition.foodNotes debe ser un texto de hasta 300 caracteres');
   if (!s.coach || ['baja', 'media', 'alta'].indexOf(s.coach.intensity) < 0) e.push('coach.intensity debe ser baja, media o alta');

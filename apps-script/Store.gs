@@ -277,6 +277,7 @@ function computeSessionMetrics_(s, opts) {
     totalVolumeKg: Math.round(totalVolumeKg * 10) / 10,
     workingSets: workingSets,
     durationMin: durationMin,
+    avgRestSec: avgRestSec_(s),
     setsByGroup: setsByGroup
   };
 }
@@ -297,7 +298,7 @@ function defaultSettings_() {
     goal: { type: 'recomp', startDate: '2026-11-14', targetDate: '2027-05-14',
             startWeightKg: null, targetWeightKg: null, startWaistCm: null },
     equipment: { barbellKg: 20, ezBarKg: 10, dumbbellStepKg: 2, plateMinKg: 1.25, stackStepKg: 5 },
-    training: { daysPerWeek: [3, 4], groupsPerSession: [1, 2], runsPerWeek: [1, 2], sessionMinutes: 75, useRir: true },
+    training: { daysPerWeek: [3, 4], groupsPerSession: [1, 2], runsPerWeek: [1, 2], sessionMinutes: 75, useRir: true, secPerRep: 4 },
     strength: { experience: 'advanced', referenceExerciseId: 'press_banca', referenceReps: 10, referenceTotalKg: null },
     nutrition: { proteinGPerKg: 2.0, kcalStrategy: 'maintenance_minus_10', activityFactor: 1.55, fatGPerKg: 0.9, kcalAdjust: 0, foodNotes: '', supplements: [] },
     coach: { persona: 'comandante', intensity: 'alta', messages: 'ahorro' },

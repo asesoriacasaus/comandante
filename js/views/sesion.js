@@ -4,7 +4,8 @@ import { h, cargando } from '../lib/dom.js';
 import { newId } from '../lib/ids.js';
 import { createQueue } from '../lib/queue.js';
 import { borrar, leer, guardar } from '../lib/cache.js';
-import { descanso, objetivo, seriesHechas } from '../lib/sesion-viva.js';
+import { descanso, objetivo, seriesHechas, ejercicioActivo, totalSeries, descansoMedio, relojDescanso } from '../lib/sesion-viva.js';
+import { ponerBarra, avisar, escribiendo, desplazando, irA, debeIrAlActivo } from '../lib/barra.js';
 import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
 import { crearDictado, modoDictado, ERRORES_GRAVES } from '../lib/dictado.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
@@ -74,8 +75,15 @@ export function render(el) {
     const nombres = Object.fromEntries((st.ejercicios || []).map((e) => [e.id, e.name]));
     st.sinEnviar = ediciones.pendientes(id).length;
     st.vista = st.session ? vistaLocal(st.session, ediciones.pendientes(id), nombres) : null;
+    // Al repintar, la página se queda donde estaba (antes volvía arriba, al ejercicio 1). Si han subido las series, se va al ejercicio activo.
+    const y = window.scrollY;
+    const total = st.vista ? totalSeries(st.vista) : 0;
+    const irActivo = debeIrAlActivo({ antes: st.ultimoTotal, ahora: total, escribiendo: escribiendo(el), desplazando: desplazando() });
+    st.ultimoTotal = total;
     el.replaceChildren(view(st, { queue, el, paint, id, editar, enviar }));
+    window.scrollTo(0, y);
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
+    else if (irActivo) irA(el.querySelector('.bloque.actual'));
   }
   // Envía las ediciones hechas sin conexión, en orden. Una que el servidor rechace se quita y se explica.
   let enviando = false;
@@ -242,6 +250,10 @@ function view(st, ctx) {
   };
 
   const d = descanso(s, Date.now());
+  const activoId = ejercicioActivo(s);
+  const hayActivo = (s.exercises || []).some((x) => x.exerciseId === activoId);
+  // Un solo reloj (tick() lo busca por id): dentro del recuadro del ejercicio activo; arriba solo si aún no hay ninguna serie.
+  const reloj = h('p', { class: 'descanso' + (hayActivo ? ' en-bloque' : '') + (d.listo ? ' listo' : ''), id: 'descanso' }, d.texto);
   const enCola = st.queueInfo.waiting;
   const nodes = [
     h('p', { class: 'etiqueta' }, 'Sesión ' + s.cycleKey + ' · ' + formatDateEs(s.date)),
@@ -255,7 +267,7 @@ function view(st, ctx) {
       : st.sinEnviar + ' cambios sin enviar: se enviarán solos al volver la conexión.') : null,
     enCola ? h('p', { class: 'procesando', role: 'status' }, enCola === 1 ? 'Procesando 1 clip… sigue entrenando, la serie aparecerá sola.'
       : 'Procesando ' + enCola + ' clips… se guardan en este móvil hasta que el servidor los confirme.') : null,
-    h('p', { class: 'descanso' + (d.listo ? ' listo' : ''), id: 'descanso' }, d.texto),
+    hayActivo ? null : reloj,
     nodoFormulario(st, { paint, guardar: guardarSerie })
   ];
 
@@ -275,12 +287,15 @@ function view(st, ctx) {
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));
-  (s.exercises || []).forEach((x, idx) => {
-    const current = idx === s.exercises.length - 1;
+  (s.exercises || []).forEach((x) => {
+    const current = x.exerciseId === activoId;
     const meta = objetivo(s, x.exerciseId, seriesHechas(x));
+    const medio = descansoMedio(x.sets);
     nodes.push(h('div', { class: 'bloque' + (current ? ' actual' : '') },
       h('h3', {}, x.name + (current ? ' · en curso' : '')),
       meta ? h('p', { class: 'objetivo' }, meta) : null,
+      current ? reloj : null,
+      medio !== null ? h('p', { class: 'descanso-medio' }, 'Descanso medio de este ejercicio: ' + relojDescanso(medio)) : null,
       h('ul', { class: 'series' }, x.sets.map((set) => serieNodo(st, x, set, edit, paint))),
       h('div', { class: 'acciones compactas' },
         h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => {
@@ -303,14 +318,19 @@ function view(st, ctx) {
       h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax + (p.targetLoad ? ' · ' + formatLoad(p.targetLoad) : ''))))))));
 
   nodes.push(h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir({ titulo: 'Añadir un ejercicio a mano' }) }, 'Añadir otro ejercicio a mano')));
-  nodes.push(h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: async () => {
+  const terminar = async () => {
     if (!confirm('¿Terminar la sesión?')) return;
     if (st.recording) { setMsg('Para la grabación antes de terminar.', 'error'); return; }
     if (st.queueInfo.waiting) { setMsg('Aún hay clips sin procesar. Espera a que terminen.', 'error'); return; }
     if (st.sinEnviar) { await ctx.enviar(); if (ediciones.pendientes(ctx.id).length) { setMsg('Hay cambios sin enviar. Cuando vuelva la conexión se enviarán y podrás terminar.', 'error'); return; } }
     try { await call('session.finish', { id: ctx.id }, { timeoutMs: 60000 }); borrar('hoy'); borrar(CLAVE_VIVA); borrar('revision-' + ctx.id); recorder.releaseMic(); releaseWake(); location.hash = '#revision'; }
     catch (err) { setMsg(err.message, 'error'); }
-  } }, 'Terminar sesión')));
+  };
+  // "Terminar sesión" siempre a mano, estés donde estés de la página.
+  const n = totalSeries(s);
+  ponerBarra(h('div', { class: 'barra-contenido' },
+    h('div', { class: 'barra-estado' }, h('b', {}, 'Sesión en curso'), h('span', {}, n === 1 ? '1 serie registrada' : n + ' series registradas')),
+    h('div', { class: 'barra-acciones' }, h('button', { type: 'button', class: 'btn', onClick: terminar }, 'Terminar sesión'))));
   return h('section', {}, nodes);
 }
 
@@ -327,7 +347,7 @@ export function serieNodo(st, x, set, edit, paint) {
     (set.type !== 'working' ? ' · ' + ({ warmup: 'calentamiento', drop: 'dropset', failure: 'al fallo' }[set.type] || set.type) : '');
   const fila = h('li', { class: 'serie' },
     h('button', { type: 'button', class: 'serie-btn', onClick: () => { st.editing = editing ? null : { exerciseId: x.exerciseId, order: set.order }; paint(); } },
-      h('span', { class: 'n' }, set.order), h('span', {}, resumen), h('span', { class: 'carga' }, formatLoad(set.load))),
+      h('span', { class: 'n' }, set.order), h('span', {}, resumen, typeof set.restSec === 'number' ? h('small', { class: 'descanso-serie' }, 'descanso ' + relojDescanso(set.restSec)) : null), h('span', { class: 'carga' }, formatLoad(set.load))),
     set.local ? h('p', { class: 'nota' }, 'Sin enviar todavía: se guardará al volver la conexión.') : null,
     ...(set.flags || []).filter((f) => FLAGS[f]).map((f) => h('p', { class: 'nota' }, FLAGS[f] + ': revísala.')));
   if (!editing) return fila;

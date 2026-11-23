@@ -6,6 +6,7 @@ import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar, leer } from '../lib/cache.js';
 import { estimarLocal, contarAhorroLocal } from '../lib/alimentos.js';
+import { ponerBarra, avisar } from '../lib/barra.js';
 import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES, fraccionReparto, textoReparto, repartir } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
@@ -25,6 +26,7 @@ function diaCorto(iso) { const [y, m, d] = iso.split('-').map(Number); return DI
 
 let ultimaVista = 0;
 export function render(el) {
+  ponerBarra(null);
   pantalla = 'inicio';
   // El día elegido se recuerda mientras usas Comida; si vuelves al rato, se abre en hoy.
   if (!fecha || Date.now() - ultimaVista > 10 * 60 * 1000) fecha = todayIsoLocal();
@@ -72,6 +74,7 @@ function anillos(tot, t) {
 }
 
 function inicio(el, st) {
+  ponerBarra(null);
   pantalla = 'inicio';
   const esHoy = st.date === st.today;
   const t = st.targets;
@@ -148,6 +151,7 @@ function bloqueSuplementos(el, st) {
 }
 
 function abrirSuplementos(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   import('./suplementos.js').then((m) => m.pantallaSuplementos(el, { lista: st.supplements || [], micros: st.micros || [], volver: () => { borrar('comida:' + st.date); render(el); } }))
     .catch((err) => { console.error(err); pantalla = 'inicio'; });
@@ -201,6 +205,7 @@ function bloqueMicros(el, st) {
 }
 
 function abrirRecetas(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   import('./recetas.js').then((m) => m.pantallaRecetas(el, { volver: () => inicio(el, st) }))
     .catch((err) => { console.error(err); pantalla = 'inicio'; });
@@ -258,6 +263,7 @@ function controlReparto(estado, onChange) {
 }
 
 function pantallaAnadir(el, st) {
+  ponerBarra(null);
   pantalla = 'otra';
   const fotos = [];   // { blob, url }
   let audio = null;   // { blob, mime, ms }
@@ -413,11 +419,12 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
   const cajaReparto = reparto ? controlReparto(reparto, () => { items = repartir(entero, reparto); pintarFilas(); pintarTotal(); pintarEntero(); }) : null;
 
   const guardar = async (btn) => {
+    if (btn.disabled) return;
     if (!items.length) { estado.className = 'estado error'; estado.textContent = 'No queda ningún alimento.'; return; }
     const record = { date: fechaComida, mealType: tipo.value || null, time: hora.value || null, source, items: items.map(limpiar) };
     if (reparto && fraccionReparto(reparto) < 1) record.portion = { share: Math.round(fraccionReparto(reparto) * 1000) / 1000, text: textoReparto(reparto) };
     btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Guardando…';
-    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; if (vigente(el)) render(el); }
+    try { await call('commit', { entity: 'meal', record }, { timeoutMs: 60000 }); borrar('comida:' + fechaComida); fecha = fechaComida; avisar('Comida guardada ✓'); if (vigente(el)) render(el); }
     catch (err) { console.error(err); btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
   };
 
@@ -435,8 +442,12 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
     cajaReparto ? h('div', { class: 'bloque' }, cajaReparto, platoEntero) : null,
     h('div', { class: 'rejilla' }, h('label', {}, 'Tipo', tipo), h('label', {}, 'Hora', hora)),
     filas, totalNodo, estado,
-    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar comida'),
-      h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, st) }, 'Descartar'))));
+    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => inicio(el, st) }, 'Descartar'))));
+  // "Guardar comida" siempre a mano, con el total a la vista.
+  const botonGuardar = h('button', { type: 'button', class: 'btn', onClick: (e) => guardar(e.currentTarget) }, 'Guardar comida');
+  ponerBarra(h('div', { class: 'barra-contenido' },
+    h('div', { class: 'barra-estado' }, h('b', { class: 'sin-guardar' }, 'Sin guardar'), h('span', {}, 'Revisa y guarda')),
+    h('div', { class: 'barra-acciones' }, botonGuardar)));
 }
 
 /** Elimina campos que no pertenecen al modelo (por ejemplo, avisos) antes de guardar. */

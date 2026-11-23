@@ -3,6 +3,7 @@ import { h, cargando } from '../lib/dom.js';
 import { groupsEs, formatLoad, formatDateEs, todayIsoLocal } from '../lib/format.js';
 import { resumenSesiones, detalleSesion } from '../lib/sesiones-datos.js';
 import { guardar } from '../lib/cache.js';
+import { relojDescanso } from '../lib/sesion-viva.js';
 import { bloqueResumen } from './resumen-hablado.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
 
@@ -37,7 +38,7 @@ function pintar(el, sesiones, hoy) {
     const btn = h('button', { type: 'button', class: 'diario-fila', 'aria-expanded': 'false' },
       h('span', { class: 'diario-fecha' }, formatDateEs(s.date)),
       h('span', { class: 'diario-titulo' }, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
-      h('span', { class: 'detalle' }, t.sets + ' series · ' + thousands(t.volumeKg) + ' kg' + (t.durationMin ? ' · ' + t.durationMin + ' min' : '')));
+      h('span', { class: 'detalle' }, t.sets + ' series · ' + thousands(t.volumeKg) + ' kg' + (t.durationMin ? ' · ' + t.durationMin + ' min' : '') + (t.avgRestSec !== null ? ' · descanso medio ' + relojDescanso(t.avgRestSec) : '')));
     btn.addEventListener('click', () => {
       const abierta = abiertas.has(s.id);
       if (abierta) abiertas.delete(s.id); else abiertas.add(s.id);
@@ -78,7 +79,7 @@ function detalle(s) {
     nodos.push(h('div', { class: 'bloque' }, h('h3', {}, x.name),
       h('ul', { class: 'series' }, x.sets.map((set) => h('li', { class: 'serie-solo' },
         h('span', { class: 'n' }, set.order),
-        h('span', {}, set.reps + ' rep · ' + (set.rir === null || set.rir === undefined ? 'RIR sin dato' : 'RIR ' + set.rir) + (TIPOS[set.type] ? ' · ' + TIPOS[set.type] : '')),
+        h('span', {}, set.reps + ' rep · ' + (set.rir === null || set.rir === undefined ? 'RIR sin dato' : 'RIR ' + set.rir) + (TIPOS[set.type] ? ' · ' + TIPOS[set.type] : '') + (typeof set.restSec === 'number' ? ' · descanso ' + relojDescanso(set.restSec) : '')),
         h('span', { class: 'carga' }, formatLoad(set.load)))))));
   });
   if (!nodos.length) nodos.push(h('p', { class: 'vacio' }, 'Sin detalle.'));

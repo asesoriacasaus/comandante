@@ -35,3 +35,17 @@ test('objetivo de la siguiente serie según el plan', () => {
   assert.equal(objetivo(s, 'otro', 0), null);
   assert.equal(seriesHechas({ sets: [{ type: 'warmup' }, { type: 'working' }, { type: 'drop' }] }), 2);
 });
+
+test('ejercicio activo = el de la serie más reciente, no el último de la lista', async () => {
+  const { ejercicioActivo, totalSeries, descansoMedio, relojDescanso } = await import('../js/lib/sesion-viva.js');
+  const s = { clips: [], exercises: [
+    { exerciseId: 'a', sets: [{ at: '2026-11-23T18:00:00Z' }, { at: '2026-11-23T18:10:00Z' }] },   // volvió a este ejercicio al final
+    { exerciseId: 'b', sets: [{ at: '2026-11-23T18:05:00Z' }] }] };
+  assert.equal(ejercicioActivo(s), 'a');
+  assert.equal(ejercicioActivo({ exercises: [{ exerciseId: 'x', sets: [{}] }, { exerciseId: 'y', sets: [{}] }] }), 'y', 'sin horas: el último');
+  assert.equal(ejercicioActivo({ exercises: [] }), null);
+  assert.equal(totalSeries(s), 3);
+  assert.equal(descansoMedio([{ restSec: 100 }, { restSec: 125 }, { restSec: null }, {}]), 113);
+  assert.equal(descansoMedio([{}]), null);
+  assert.equal(relojDescanso(112), '1:52'); assert.equal(relojDescanso(null), '');
+});

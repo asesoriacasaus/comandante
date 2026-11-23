@@ -1362,6 +1362,35 @@ function test_pure_reglas_dictado() {
   return 'ok';
 }
 
+function test_pure_descanso_real() {
+  const t = (min, seg) => '2026-11-23T18:' + String(min).padStart(2, '0') + ':' + String(seg || 0).padStart(2, '0') + '.000Z';
+  const set = (at, reps) => ({ order: 1, type: 'working', reps: reps, rir: 2, load: bb_(20), at: at, clipId: null, flags: [] });
+  // Serie 1 termina a las 18:00:00; la 2 se registra a las 18:02:40 con 10 reps (40 s de serie a 4 s/rep): empezó a las 18:02:00 → 120 s de descanso.
+  const s = { exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [set(t(0), 10), set(t(2, 40), 10), set(t(5, 20), 8)] }], clips: [] };
+  applyRestSecs_(s, 4);
+  const r = s.exercises[0].sets.map((x) => x.restSec);
+  assert_(r[0] === null && r[1] === 120 && r[2] === 128, 'descanso = inicio estimado menos final anterior: ' + r);
+  assert_(avgRestSec_(s) === 124, 'media');
+  // Con 3 s por repetición cambia la estimación del inicio.
+  applyRestSecs_(s, 3); assert_(s.exercises[0].sets[1].restSec === 130, 'segundos por repetición configurables');
+  // Casos que no dan número
+  const raros = { exercises: [{ exerciseId: 'press_banca', name: 'x', sets: [set(t(0), 10), set(t(0), 10), set(t(30), 10), { order: 4, type: 'working', reps: 8, load: bb_(20), flags: [] }] }], clips: [] };
+  applyRestSecs_(raros, 4);
+  assert_(raros.exercises[0].sets.map((x) => x.restSec).join() === ',,,', 'mismo clip, hueco de 30 min y sin hora: sin descanso (' + raros.exercises[0].sets.map((x) => x.restSec) + ')');
+  // Entre ejercicios distintos también cuenta (en el orden real de las horas), y las ediciones/borrados lo recalculan.
+  const dos = { exercises: [{ exerciseId: 'press_banca', name: 'a', sets: [set(t(0), 8), set(t(6), 8)] }, { exerciseId: 'dominadas', name: 'b', sets: [set(t(3), 8)] }], clips: [] };
+  applyRestSecs_(dos, 4);
+  assert_(dos.exercises[1].sets[0].restSec === 148 && dos.exercises[0].sets[1].restSec === 148, 'ordenadas por hora entre ejercicios: ' + dos.exercises[1].sets[0].restSec + ',' + dos.exercises[0].sets[1].restSec);
+  dos.exercises[1].sets = []; applyRestSecs_(dos, 4);
+  assert_(dos.exercises[0].sets[1].restSec === 328, 'al borrar una serie se recalcula');
+  // Series antiguas sin `at`: se usa la hora de su clip
+  const vieja = { exercises: [{ exerciseId: 'press_banca', name: 'x', sets: [{ order: 1, type: 'working', reps: 8, load: bb_(20), clipId: 'c1', flags: [] }, { order: 2, type: 'working', reps: 8, load: bb_(20), clipId: 'c2', flags: [] }] }],
+    clips: [{ id: 'c1', ts: t(0) }, { id: 'c2', ts: t(2) }] };
+  applyRestSecs_(vieja, 4); assert_(vieja.exercises[0].sets[1].restSec === 88, 'con la hora del clip');
+  assert_(validateSettings_(defaultSettings_()).filter((m) => /secPerRep/.test(m)).length === 0, 'ajuste por defecto válido');
+  return 'ok';
+}
+
 function test_pure_op_once() {
   const op = { op: 'add', opId: 'o_20261116_1800_ab12', exerciseId: 'press_banca', set: { reps: 8, rir: 2, load: { implement: 'barbell', perSideKg: 20 } } };
   let s = applyOpOnce_(sess_(), JSON.parse(JSON.stringify(op)), ctx_().equipment, ctx_().library);
@@ -1411,7 +1440,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

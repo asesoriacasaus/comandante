@@ -14,10 +14,15 @@ test('orden: más reciente primero', () => {
 });
 test('resumen y totales semanales', () => {
   const s = (date, sets, vol, status = 'done') => ({ date, status, metrics: { workingSets: sets, totalVolumeKg: vol, durationMin: 60 } });
-  assert.deepEqual(summarizeSession(s('2026-11-16', 12, 3200.4)), { sets: 12, volumeKg: 3200, durationMin: 60 });
-  assert.deepEqual(summarizeSession({}), { sets: 0, volumeKg: 0, durationMin: null });
+  assert.deepEqual(summarizeSession(s('2026-11-16', 12, 3200.4)), { sets: 12, volumeKg: 3200, durationMin: 60, avgRestSec: null });
+  assert.deepEqual(summarizeSession({}), { sets: 0, volumeKg: 0, durationMin: null, avgRestSec: null });
   const list = [s('2026-11-16', 12, 3200), s('2026-11-18', 10, 2800), s('2026-11-10', 8, 1000), s('2026-11-17', 5, 999, 'discarded')];
   assert.deepEqual(weekTotals(list, '2026-11-16'), { sessions: 2, sets: 22, volumeKg: 6000 });
   assert.deepEqual(weekTotals(list, '2026-12-01'), { sessions: 0, sets: 0, volumeKg: 0 });
 });
 test('miles', () => { assert.equal(thousands(3200), '3.200'); assert.equal(thousands(950), '950'); assert.equal(thousands(1234567), '1.234.567'); });
+
+test('el resumen del Diario incluye el descanso medio', async () => {
+  const { summarizeSession } = await import('../js/lib/diary.js');
+  assert.equal(summarizeSession({ metrics: { workingSets: 9, totalVolumeKg: 100, durationMin: 50, avgRestSec: 112 } }).avgRestSec, 112);
+});

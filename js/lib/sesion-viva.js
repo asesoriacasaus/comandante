@@ -52,3 +52,25 @@ export function objetivo(session, exerciseId, hechas) {
 export function seriesHechas(x) {
   return ((x && x.sets) || []).filter((s) => s.type !== 'warmup').length;
 }
+
+/** Id del ejercicio "en curso": el de la serie registrada más recientemente (si no hay horas, el último de la lista). */
+export function ejercicioActivo(session) {
+  const l = ultimaSerie(session);
+  if (l) return l.exerciseId;
+  const ex = session.exercises || [];
+  return ex.length ? ex[ex.length - 1].exerciseId : null;
+}
+
+/** Total de series registradas (de cualquier tipo) en la sesión. */
+export function totalSeries(session) {
+  return (session.exercises || []).reduce((t, x) => t + ((x.sets || []).length), 0);
+}
+
+/** Descanso medio (s) de las series con descanso conocido, o null. */
+export function descansoMedio(sets) {
+  const v = (sets || []).map((s) => s.restSec).filter((n) => typeof n === 'number' && isFinite(n));
+  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+}
+
+/** "1:52" de unos segundos. */
+export function relojDescanso(sec) { return typeof sec === 'number' ? formatClock(sec) : ''; }

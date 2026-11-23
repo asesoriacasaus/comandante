@@ -613,9 +613,10 @@ Anotadas el 21 de noviembre de 2026 a petición del usuario, para más adelante.
 
 ## 17. Mejoras pendientes anotadas por el usuario (sin desarrollar)
 
-Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
+Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El 23 de noviembre de 2026 el usuario pidió desarrollarlas todas (1 a 8).** Estado de cada una abajo.
 
-1. **Descanso real calculado entre series (23 de noviembre de 2026).**
+1. **Descanso real calculado entre series (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en `apps-script/Rest.gs` (`applyRestSecs_`): se recalcula entero en cada cambio de la sesión (dentro de `mutateSession_`), con `restSec = (hora de registro − repeticiones × segundos por repetición) − hora de registro de la serie anterior`, ordenando todas las series de la sesión por hora. Da `null` (sin descanso) en la primera serie, en una serie sin hora, con un hueco de más de 15 minutos o con resultado negativo (por ejemplo, dos series dictadas en el mismo clip comparten hora). Segundos por repetición: `settings.training.secPerRep`, por defecto 4 (rango 1 a 15). Se ve en cada serie, como media por ejercicio (sesión y revisión) y en el Diario (`metrics.avgRestSec`).
    - El usuario registra cada serie justo al terminarla, así que la hora de registro (`at`) marca el final de una serie.
    - El descanso real de una serie es el tiempo entre el final de la anterior y el **inicio** de la siguiente. El inicio no se registra, así que hay que estimarlo:
      - **Opción A:** hora de registro de la serie actual menos una duración estimada de la serie (repeticiones × segundos por repetición, por ejemplo 3 a 4 s, configurable).
@@ -624,10 +625,12 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - Guardarlo en `restSec` de cada serie (el campo ya existe y hoy va vacío).
    - Enseñarlo en la sesión, en la revisión y en el Diario (por ejemplo, "Descanso medio 1:52").
    - Una serie registrada mucho después (por ejemplo, más de 15 minutos) o el primer ejercicio no cuentan como descanso.
-2. **Contador de descanso dentro del recuadro del ejercicio en curso (23 de noviembre de 2026).**
+2. **Contador de descanso dentro del recuadro del ejercicio en curso (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: un solo reloj (`#descanso`) dentro del recuadro del ejercicio activo; arriba solo mientras no hay ninguna serie. El ejercicio "en curso" es ahora el de la serie registrada más recientemente (`ejercicioActivo`), no el último de la lista.
    - El reloj "Descanso 0:40 de 1:30 min" o "Listo" se muestra **dentro de la tarjeta del ejercicio en curso**, junto a sus series, para no tener que subir a mirarlo.
    - Arriba se puede quitar o dejar solo como resumen.
-3. **Cursor al final en los campos del formulario a mano (23 de noviembre de 2026).**
+3. **Cursor al final en los campos del formulario a mano (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en toda la app (`cursorAlFinal` en `js/lib/barra.js`): al enfocar un campo de texto el cursor va al final (se aplica a los 0 y a los 60 ms, porque iOS coloca el cursor después del foco). Un toque posterior dentro del campo es libre. Solo en la primera vez que se enfoca. **No probado en un iPhone real.**
    - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
    - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
    - **Decidido por el usuario (23 de noviembre de 2026): solo cursor al final**, sin seleccionar el número entero.
@@ -643,12 +646,14 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - **Resultado:** la tarjeta de vitamina D muestra "comida + suplementos + sol estimado", con el sol marcado como estimación gruesa. Si el sol es una parte importante, no se marca como "A reforzar" solo por la dieta.
    - **Aviso fijo en la vitamina D:** la única forma de saber el nivel real es un análisis de sangre (25-hidroxivitamina D). Antes de tomar un suplemento de vitamina D de forma continuada, consúltalo con tu médico, sobre todo a dosis altas.
    - Aplica también al Proyecto N: la vitamina D no debería ir en el motor automático de complementos sin tener en cuenta el sol. Anotado en su plan.
-5. **Tras registrar una serie, la pantalla va al ejercicio en curso (23 de noviembre de 2026).**
+5. **Tras registrar una serie, la pantalla va al ejercicio en curso (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: la causa del salto era que al repintar la página se quedaba sin altura un instante y el desplazamiento se perdía. Ahora se conserva el desplazamiento al repintar (Sesión y Revisión) y, si han subido las series, se va con suavidad al ejercicio activo, salvo que el usuario esté escribiendo en un campo o tocando la pantalla (menos de 1 segundo). Respeta "reducir movimiento".
    - Al guardar una serie (por voz, "Otra serie igual" o a mano), la sesión se repinta y hoy vuelve al principio, al ejercicio 1.
    - Debe **desplazarse al recuadro del ejercicio activo** (el que tiene la serie recién añadida), con un desplazamiento suave y sin saltos.
    - Mientras el usuario esté desplazándose o escribiendo en un formulario, no se le mueve la pantalla.
    - Va junto con la mejora 2 (contador de descanso dentro del recuadro): al registrar, la vista queda en el ejercicio con su contador a la vista.
-6. **Botón flotante para terminar y guardar la sesión (23 de noviembre de 2026).**
+6. **Botón flotante para terminar y guardar la sesión (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: barra de acción flotante (`js/lib/barra.js`, fuera de `#view`), encima de las pestañas. Sesión: "Terminar sesión" con el número de series. Revisión: "Sin guardar" + "Guardar sesión" y un menú "⋯" con "Seguir grabando" y "Descartar sesión". Revisión de una comida: "Guardar comida". Se esconde solo con el teclado realmente abierto (área visible un 20 % menor), para no quedarse escondida. Avisos: "Sesión guardada ✓"; al salir de la revisión sin guardar, un aviso; y en Hoy, un recordatorio arriba de la sesión sin guardar.
    - Hoy "Terminar sesión" (en la Sesión) y "Guardar sesión" (en la Revisión) están al final de la página. Es tedioso bajar, y es fácil creer que ya se guardó sin haberlo hecho.
    - **Barra de acción flotante,** fija justo encima de la barra de pestañas, visible en cualquier punto del desplazamiento:
      - en la Sesión: "Terminar sesión";

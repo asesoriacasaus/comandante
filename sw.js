@@ -42,6 +42,7 @@ const SHELL = [
   './js/lib/alimentos.js',
   './js/lib/uso-ia.js',
   './js/lib/dictado.js',
+  './js/lib/barra.js',
   './js/lib/ediciones.js',
   './js/views/progreso.js',
   './js/views/carreras.js',

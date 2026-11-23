@@ -16,7 +16,7 @@ export function sortSessions(list) {
 /** { sets, volumeKg, durationMin } de una sesión hecha, a partir de sus métricas. */
 export function summarizeSession(s) {
   const m = s.metrics || {};
-  return { sets: m.workingSets || 0, volumeKg: Math.round(m.totalVolumeKg || 0), durationMin: m.durationMin ?? null };
+  return { sets: m.workingSets || 0, volumeKg: Math.round(m.totalVolumeKg || 0), durationMin: m.durationMin ?? null, avgRestSec: typeof m.avgRestSec === 'number' ? m.avgRestSec : null };
 }
 
 /** Totales de las sesiones hechas de la semana que empieza en `start`. */

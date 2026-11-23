@@ -126,7 +126,10 @@ function renderSesion(el, s, deCache = false) {
         s.status === 'done' ? h('p', { class: 'hero-meta' }, 'Sesión completada') : nEj ? h('p', { class: 'hero-meta' }, nEj + (nEj === 1 ? ' ejercicio' : ' ejercicios') + ' · ' + nSeries + ' series') : null),
       (s.groups || []).length ? figuraMusculos(s.groups, { ancho: 64, etiqueta: 'Hoy trabajas: ' + groupsEs(s.groups) }) : null),
     accion(el, s));
-  el.replaceChildren(h('section', {}, hero,
+  // Una sesión terminada y sin guardar no se puede pasar por alto.
+  const sinGuardar = s.status === 'review'
+    ? h('button', { type: 'button', class: 'aviso peligro aviso-boton', onClick: () => { location.hash = '#revision'; } }, 'Tienes una sesión sin guardar. Toca aquí para revisarla y guardarla.') : null;
+  el.replaceChildren(h('section', {}, sinGuardar, hero,
     s.coachMessage ? h('blockquote', { class: 'mensaje' }, s.coachMessage) : null,
     ...avisos, lista));
   pedirMensaje(el, s);
