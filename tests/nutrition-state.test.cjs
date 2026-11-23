@@ -82,3 +82,19 @@ test('una comida de suplemento (vitamina D) y el sol se suman, sin duplicarse', 
   const r = mundo({ nutrition: { sun: SOL }, meals: [d, sup] })('2026-06-20');
   assert.equal(r.totals.vitDUg, Math.round((1 + 25 + r.extras.vitDUg) * 100) / 100, 'comida 1 + suplemento 25 + sol');
 });
+
+test('un día sin comidas no recibe sol, agua ni niacina: no aparece un "calcio: a reforzar" falso', () => {
+  const r = mundo({ nutrition: { sun: SOL, water: AGUA }, meals: [comida('2026-06-19')] })('2026-06-20');   // el 20 no tiene nada
+  assert.deepEqual(r.extras, {});
+  assert.deepEqual(r.totals, {}, 'ni calcio ni vitamina D: el cliente no enseña el bloque de nutrientes');
+  assert.equal(Object.keys(r.totals).length, 0);
+  assert.equal(r.week.days, 1, 'la media sigue contando el día con comida');
+});
+
+test('un día solo con suplementos tampoco recibe aportes extra (coincide con la media de 7 días)', () => {
+  const sup = comida('2026-06-20', { type: 'supplement', item: { name: 'Creatina', proteinG: 0, b3Mg: 0, calciumMg: 0, magnesiumMg: 0, vitDUg: 0 } });
+  const r = mundo({ nutrition: { sun: SOL, water: AGUA }, meals: [sup, comida('2026-06-19')] })('2026-06-20');
+  assert.deepEqual(r.extras, {});
+  assert.equal(r.totals.calciumMg, 0, 'solo lo del suplemento, nada del agua');
+  assert.equal(r.week.days, 1);
+});

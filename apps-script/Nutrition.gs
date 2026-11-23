@@ -244,7 +244,9 @@ function nutritionState(p) {
   // Un solo sitio donde se suman los aportes que no vienen de las comidas (niacina fabricada, sol, agua): los totales y las medias ya los llevan.
   const nut = settings.nutrition || {};
   const dayTotals = sumMeals_(dayMeals);
-  const extras = extrasDia_(nut, dayTotals, date);
+  // Igual que la media de 7 días: un día sin comidas de verdad (vacío o solo con suplementos) no recibe aportes del sol, el agua ni de la proteína.
+  const hayComida = dayMeals.some((m) => m.mealType !== 'supplement');
+  const extras = hayComida ? extrasDia_(nut, dayTotals, date) : {};
   const week = weekNutrition_(weekMeals, date, (t, d) => extrasDia_(nut, t, d));
   return { date: date, today: today, targets: targets, meals: dayMeals, totals: conExtras_(dayTotals, extras), extras: extras, week: week,
     habits: { sun: nut.sun || null, water: nut.water || null },
