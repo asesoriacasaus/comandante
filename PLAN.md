@@ -630,4 +630,4 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
 3. **Cursor al final en los campos del formulario a mano (23 de noviembre de 2026).**
    - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
    - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
-   - Valorar además seleccionar todo el número al tocarlo, para escribir encima directamente. Decidir con el usuario al desarrollarlo.
+   - **Decidido por el usuario (23 de noviembre de 2026): solo cursor al final**, sin seleccionar el número entero.
