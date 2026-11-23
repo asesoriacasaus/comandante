@@ -610,3 +610,20 @@ Anotadas el 21 de noviembre de 2026 a petición del usuario, para más adelante.
 - **Recomendaciones ligadas a un comercio electrónico:** convertir las carencias detectadas (por ejemplo, hierro bajo de forma sostenida) en sugerencias de productos. Antes habría que resolver: que la recomendación la valide un profesional sanitario cuando sea un suplemento, avisos de interacciones y de dosis máximas, transparencia sobre que es publicidad o afiliación, protección de datos de salud (categoría especial en el RGPD: consentimiento explícito y finalidad separada) y que la app no haga diagnósticos.
 - **Multiusuario:** hoy la app es de una sola persona (datos en su Drive y un token). Una versión profesional necesitaría cuentas, servidor propio y base de datos, no Apps Script.
 
+
+## 17. Mejoras pendientes anotadas por el usuario (sin desarrollar)
+
+Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
+
+1. **Descanso real calculado entre series (23 de noviembre de 2026).**
+   - El usuario registra cada serie justo al terminarla, así que la hora de registro (`at`) marca el final de una serie.
+   - El descanso real de una serie es el tiempo entre el final de la anterior y el **inicio** de la siguiente. El inicio no se registra, así que hay que estimarlo:
+     - **Opción A:** hora de registro de la serie actual menos una duración estimada de la serie (repeticiones × segundos por repetición, por ejemplo 3 a 4 s, configurable).
+     - **Opción B:** guardar como descanso el tiempo completo entre registros y mostrarlo como "tiempo entre series".
+     - Decidir con el usuario al desarrollarlo.
+   - Guardarlo en `restSec` de cada serie (el campo ya existe y hoy va vacío).
+   - Enseñarlo en la sesión, en la revisión y en el Diario (por ejemplo, "Descanso medio 1:52").
+   - Una serie registrada mucho después (por ejemplo, más de 15 minutos) o el primer ejercicio no cuentan como descanso.
+2. **Contador de descanso dentro del recuadro del ejercicio en curso (23 de noviembre de 2026).**
+   - El reloj "Descanso 0:40 de 1:30 min" o "Listo" se muestra **dentro de la tarjeta del ejercicio en curso**, junto a sus series, para no tener que subir a mirarlo.
+   - Arriba se puede quitar o dejar solo como resumen.
