@@ -657,3 +657,13 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - En Hoy, si queda una sesión en revisión sin guardar, un recordatorio arriba con acceso directo ("Tienes una sesión sin guardar · Revisar y guardar").
    - Cuidar que la barra no tape contenido (margen inferior), que tenga objetivos táctiles de 44 px y contraste AA.
    - Valorar el mismo patrón en otras pantallas largas (por ejemplo, "Guardar comida" en la revisión de una comida).
+7. **Niacina (vitamina B3) desde la proteína (23 de noviembre de 2026).**
+   - El cuerpo fabrica niacina a partir del triptófano de la proteína: 60 mg de triptófano dan 1 mg de niacina (equivalentes de niacina).
+   - Hoy solo se cuenta la niacina de los alimentos, lo que la infravalora, sobre todo con una ingesta alta de proteína.
+   - Sumar la niacina estimada desde el triptófano. Usar el triptófano del alimento si la tabla lo trae; si no, una aproximación a partir de la proteína (del orden de 10 a 13 mg de triptófano por gramo de proteína, a fijar con una fuente).
+   - Mostrar en la tarjeta: "niacina de los alimentos + fabricada a partir de la proteína (estimada)".
+8. **Calcio y magnesio del agua (23 de noviembre de 2026).**
+   - El agua del grifo o embotellada puede aportar mucho calcio y bastante magnesio, según la zona y la marca.
+   - Preguntar una vez qué agua se bebe: grifo, con el municipio, o embotellada, con la marca. Tomar los miligramos por litro de la etiqueta o de los datos públicos del agua del municipio, o pedírselos al usuario. Preguntar también cuánta se bebe al día (o registrarla).
+   - Sumar el aporte diario al calcio y al magnesio, marcado como "del agua".
+   - Al hilo: avisar de que el **sodio** sale más bajo de lo real si no se apunta la sal añadida al cocinar.
