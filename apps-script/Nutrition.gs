@@ -74,6 +74,8 @@ const MEAL_SYSTEM_ = 'Eres un nutricionista que estima lo que una persona ha com
   '(una ración habitual en España si no se dice). Los valores nutricionales son del total de esa cantidad, NO por 100 g: ' +
   'kcal, proteinG, carbsG, fatG y, si puedes estimarlos, fiberG, sugarG, saturatedFatG, sodiumMg, potassiumMg, calciumMg, ironMg, ' +
   'magnesiumMg, zincMg, vitAUg, vitCMg, vitDUg, vitEMg, vitKUg, b1Mg, b2Mg, b3Mg, b6Mg, folateUg, b12Ug y omega3G (EPA+DHA en g). ' +
+  'b3Mg es solo la niacina ya presente en el alimento (nicotinamida y ácido nicotínico): NO sumes la que el cuerpo fabrica con el triptófano, ' +
+  'que la añade la app aparte. ' +
   'Los micronutrientes son aproximaciones: si no tienes una estimación razonable, pon null. ' +
   '"confidence" va de 0 a 1: baja si la cantidad o el alimento son vagos. ' +
   '"mealType": breakfast, lunch, dinner, snack, pre_workout, post_workout o null; "time": HH:MM solo si lo dice, si no null. ' +
@@ -176,7 +178,12 @@ function sumMeals_(meals) {
 }
 
 /** Media diaria de los últimos 7 días (solo cuentan los días con comidas) y avisos de micronutrientes. */
-function weekNutrition_(meals, todayIso) {
+/**
+ * Media diaria de los últimos 7 días (solo cuentan los días con comidas) y avisos de micronutrientes.
+ * `extraFn(totalesDelDia, fecha)` (opcional) devuelve los aportes que no vienen de las comidas (niacina fabricada, sol, agua): se suman
+ * al total de cada día ANTES de promediar y de valorar los avisos; su media se devuelve aparte en `extras` para enseñar el desglose.
+ */
+function weekNutrition_(meals, todayIso, extraFn) {
   const byDay = {};
   // Un día cuenta si tiene alguna comida de verdad: un día con solo suplementos (no apuntaste lo que comiste) no baja la media.
   const real = {};
@@ -184,9 +191,14 @@ function weekNutrition_(meals, todayIso) {
   (meals || []).forEach((m) => { if (real[m.date] && daysBetween_(m.date, todayIso) >= 0 && daysBetween_(m.date, todayIso) < 7) (byDay[m.date] = byDay[m.date] || []).push(m); });
   const days = Object.keys(byDay);
   const avg = {};
+  const porDia = days.map((d) => { const t = sumMeals_(byDay[d]); const ex = extraFn ? extraFn(t, d) : {}; return { t: conExtras_(t, ex), ex: ex }; });
+  const avgExtras = {};
   MEAL_NUM_KEYS_.forEach((k) => {
-    const vals = days.map((d) => sumMeals_(byDay[d])[k]).filter((v) => v !== undefined);
+    const vals = porDia.map((x) => x.t[k]).filter((v) => v !== undefined);
     if (vals.length) avg[k] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100;
+    const exv = porDia.map((x) => x.ex[k] || 0);
+    const media = exv.length ? exv.reduce((a, b) => a + b, 0) / exv.length : 0;
+    if (media > 0) avgExtras[k] = Math.round(media * 100) / 100;
   });
   const alerts = [];
   if (days.length >= 3) {
@@ -197,7 +209,7 @@ function weekNutrition_(meals, todayIso) {
       if (m.kind === 'max' && v > 1.3 * m.ref) alerts.push({ key: m.key, level: 'high', pct: Math.round(v / m.ref * 100) });
     });
   }
-  return { days: days.length, avg: avg, alerts: alerts };
+  return { days: days.length, avg: avg, extras: avgExtras, alerts: alerts };
 }
 
 /** Lunes de la semana de una fecha ISO. Pura. */
@@ -229,7 +241,13 @@ function nutritionState(p) {
   loadMeals_(ws, addDays_(ws, 6)).forEach((m) => { if (m.mealType !== 'supplement') logged[m.date] = true; });
   const supplements = (settings.nutrition || {}).supplements || [];
   const takenIds = dayMeals.filter((m) => m.mealType === 'supplement').map((m) => m.supplementId);
-  return { date: date, today: today, targets: targets, meals: dayMeals, totals: sumMeals_(dayMeals), week: weekNutrition_(weekMeals, date),
+  // Un solo sitio donde se suman los aportes que no vienen de las comidas (niacina fabricada, sol, agua): los totales y las medias ya los llevan.
+  const nut = settings.nutrition || {};
+  const dayTotals = sumMeals_(dayMeals);
+  const extras = extrasDia_(nut, dayTotals, date);
+  const week = weekNutrition_(weekMeals, date, (t, d) => extrasDia_(nut, t, d));
+  return { date: date, today: today, targets: targets, meals: dayMeals, totals: conExtras_(dayTotals, extras), extras: extras, week: week,
+    habits: { sun: nut.sun || null, water: nut.water || null },
     micros: MICROS_, week7: { start: ws, logged: Object.keys(logged).sort() }, supplements: supplements, supplementsTaken: takenIds };
 }
 

@@ -634,7 +634,8 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
    - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
    - **Decidido por el usuario (23 de noviembre de 2026): solo cursor al final**, sin seleccionar el número entero.
-4. **Vitamina D: contar el sol y no solo la comida (23 de noviembre de 2026).**
+4. **Vitamina D: contar el sol y no solo la comida (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho en `apps-script/Extras.gs` y en la pantalla Comida > "Sol y agua" (`js/views/habitos.js`). El perfil se guarda en `settings.nutrition.sun` = `{ minutes, skin, midday, spf, lat }` (minutos de sol directo en un día normal, piel al descubierto, si es hacia el mediodía, protector y zona de España: norte 43°, centro 40°, sur 37°, Canarias 28°). Sin geolocalización ni servicios externos. La estimación (`sunVitDUg_`) usa el índice UV de mediodía con cielo despejado según la latitud y la fecha (cae por debajo de UVI 3 → casi nulo de noviembre a febrero), 0,6 µg por minuto en condiciones de referencia, tope de 20 µg al día; el protector la reduce un 80 % y fuera del mediodía a la mitad. **El sol tras un cristal no cuenta** y la pantalla lo explica. En noviembre en España el resultado es ≈ 0 y la app lo dice ("tu valor bajo puede ser real"), con el aviso fijo del análisis de sangre. Sin perfil, la vitamina D solo cuenta comida y suplementos y se invita a contar el sol. Es una estimación muy gruesa; los coeficientes (0,6 µg/min, curva UVI) están pendientes de contrastar con el dietista.
    - Hoy la vitamina D sale solo de los alimentos y de los suplementos registrados. Así parece baja aunque no lo sea, porque la mayor parte de la vitamina D se fabrica en la piel con la radiación UVB del sol.
    - **Preguntar la exposición solar:**
      - minutos al aire libre al día (o en la semana), con cara, brazos o piernas al descubierto;
@@ -662,12 +663,15 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - En Hoy, si queda una sesión en revisión sin guardar, un recordatorio arriba con acceso directo ("Tienes una sesión sin guardar · Revisar y guardar").
    - Cuidar que la barra no tape contenido (margen inferior), que tenga objetivos táctiles de 44 px y contraste AA.
    - Valorar el mismo patrón en otras pantallas largas (por ejemplo, "Guardar comida" en la revisión de una comida).
-7. **Niacina (vitamina B3) desde la proteína (23 de noviembre de 2026).**
+7. **Niacina (vitamina B3) desde la proteína (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho (`niacinFromProtein_`): 12 mg de triptófano por gramo de proteína ÷ 60 = niacina fabricada. **Los prompts de comidas y suplementos ahora piden `b3Mg` solo como niacina ya formada**, para no contar dos veces si una tabla ya da equivalentes de niacina. La tarjeta muestra "alimentos X mg + fabricada con la proteína (estimada) Y mg". El 12 es una media de dieta mixta, pendiente de contrastar.
    - El cuerpo fabrica niacina a partir del triptófano de la proteína: 60 mg de triptófano dan 1 mg de niacina (equivalentes de niacina).
    - Hoy solo se cuenta la niacina de los alimentos, lo que la infravalora, sobre todo con una ingesta alta de proteína.
    - Sumar la niacina estimada desde el triptófano. Usar el triptófano del alimento si la tabla lo trae; si no, una aproximación a partir de la proteína (del orden de 10 a 13 mg de triptófano por gramo de proteína, a fijar con una fuente).
    - Mostrar en la tarjeta: "niacina de los alimentos + fabricada a partir de la proteína (estimada)".
-8. **Calcio y magnesio del agua (23 de noviembre de 2026).**
+8. **Calcio y magnesio del agua (23 de noviembre de 2026). DESARROLLADO.**
+   - Hecho: perfil en `settings.nutrition.water` = `{ calciumMgL, magnesiumMgL, litersPerDay }`, con aproximaciones (mineral débil, blanda, media, dura) o los mg/l de la etiqueta o del análisis del ayuntamiento; no se consulta ningún dato municipal. El aporte se suma al calcio y al magnesio y se muestra como "agua". El sodio lleva el aviso de que no incluye la sal añadida al cocinar.
+   - **Un solo punto de combinación:** `nutritionState` suma los aportes extra al total del día y a la media de 7 días antes de valorar los avisos (`weekNutrition_(..., extraFn)`), devuelve el desglose aparte (`extras`) y el correo semanal usa la misma función; `sumMeals_` y los totales guardados de cada comida no se tocan. Test de extremo a extremo en `tests/nutrition-state.test.cjs`. Las cachés antiguas del móvil sin `extras` se toleran.
    - El agua del grifo o embotellada puede aportar mucho calcio y bastante magnesio, según la zona y la marca.
    - Preguntar una vez qué agua se bebe: grifo, con el municipio, o embotellada, con la marca. Tomar los miligramos por litro de la etiqueta o de los datos públicos del agua del municipio, o pedírselos al usuario. Preguntar también cuánta se bebe al día (o registrarla).
    - Sumar el aporte diario al calcio y al magnesio, marcado como "del agua".

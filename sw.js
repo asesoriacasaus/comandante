@@ -25,6 +25,7 @@ const SHELL = [
   './js/views/resumen-hablado.js',
   './js/views/recetas.js',
   './js/views/suplementos.js',
+  './js/views/habitos.js',
   './js/views/guia.js',
   './js/lib/measures.js',
   './js/lib/diary.js',

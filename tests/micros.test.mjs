@@ -45,3 +45,16 @@ test('semana con días apuntados y huecos recientes', async () => {
   assert.deepEqual(huecosRecientes('2026-11-16', '2026-11-17', []), ['2026-11-16'], 'no mira fuera de la semana conocida');
   assert.ok(!TIPOS_ELEGIBLES.includes('supplement') && TIPOS_ELEGIBLES.includes('lunch'));
 });
+
+test('desglose de un nutriente con aportes que no vienen de las comidas', async () => {
+  const { desgloseMicro, avisoSol, perfilSolPorDefecto, NOTAS_MICRO } = await import('../js/lib/nutrition.js');
+  assert.deepEqual(desgloseMicro('vitDUg', 7, { vitDUg: 6 }), [{ origen: 'comida y suplementos', valor: 1 }, { origen: 'sol (estimado)', valor: 6 }]);
+  assert.deepEqual(desgloseMicro('b3Mg', 35, { b3Mg: 30 }).map((p) => p.origen), ['alimentos', 'fabricada con la proteína (estimada)']);
+  assert.equal(desgloseMicro('ironMg', 7, { vitDUg: 6 }), null, 'sin aporte extra, sin desglose');
+  assert.equal(desgloseMicro('vitDUg', 7, undefined), null, 'cachés antiguas sin extras');
+  assert.equal(avisoSol(null, {}).tipo, 'sin-perfil');
+  assert.equal(avisoSol({ sun: { minutes: 30 } }, {}).tipo, 'sin-aporte', 'perfil sí, pero el sol de esta época no aporta');
+  assert.equal(avisoSol({ sun: { minutes: 30 } }, { vitDUg: 8 }), null);
+  assert.deepEqual(perfilSolPorDefecto({ minutes: 45 }), { minutes: 45, skin: 'arms', midday: true, spf: false, lat: 40 });
+  assert.ok(/análisis de sangre/.test(NOTAS_MICRO.vitDUg) && /sal/.test(NOTAS_MICRO.sodiumMg));
+});

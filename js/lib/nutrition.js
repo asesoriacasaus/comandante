@@ -167,3 +167,50 @@ export function repartir(items, r) {
   if (f === 1) return items.map((it) => Object.assign({}, it));
   return items.map((it) => scaleItem(it, Math.max(0.1, Math.round(it.quantity * f * 10) / 10)));
 }
+
+// ---------- Aportes que no vienen de las comidas: desglose y avisos ----------
+
+const ORIGEN_EXTRA = {
+  vitDUg: 'sol (estimado)',
+  b3Mg: 'fabricada con la proteína (estimada)',
+  calciumMg: 'agua',
+  magnesiumMg: 'agua'
+};
+export const NOTAS_MICRO = {
+  vitDUg: 'Solo un análisis de sangre (25-hidroxivitamina D) dice tu nivel real. Antes de tomar vitamina D de forma continuada, consúltalo con tu médico, sobre todo a dosis altas.',
+  sodiumMg: 'No incluye la sal que añades al cocinar ni en la mesa: el sodio real suele ser mayor.'
+};
+
+/** Partes de un nutriente cuando parte de su valor no viene de las comidas: [{ origen, valor }] o null si todo viene de ellas. */
+export function desgloseMicro(key, total, extras) {
+  const ex = extras && typeof extras[key] === 'number' ? extras[key] : 0;
+  if (!(ex > 0) || typeof total !== 'number') return null;
+  const comida = Math.max(0, Math.round((total - ex) * 100) / 100);
+  return [{ origen: key === 'b3Mg' ? 'alimentos' : 'comida y suplementos', valor: comida }, { origen: ORIGEN_EXTRA[key] || 'otros aportes', valor: ex }];
+}
+
+/** Qué decir del sol en la vitamina D: null si no hay nada que añadir. */
+export function avisoSol(habits, extras) {
+  const sol = habits && habits.sun;
+  if (!sol || !(sol.minutes > 0)) return { tipo: 'sin-perfil', texto: 'Aquí solo cuenta la comida y los suplementos. El sol produce la mayor parte de la vitamina D: cuéntanos cuánto te da.' };
+  if (!(extras && extras.vitDUg > 0)) return { tipo: 'sin-aporte', texto: 'En esta época del año y en tu zona, el sol casi no produce vitamina D (y a través de un cristal, nada): tu valor bajo puede ser real.' };
+  return null;
+}
+
+/** Valores para rellenar el formulario de sol (con los valores por defecto cuando aún no hay perfil). */
+export function perfilSolPorDefecto(sun) {
+  return Object.assign({ minutes: 30, skin: 'arms', midday: true, spf: false, lat: 40 }, sun || {});
+}
+
+export const PRESETS_AGUA = [
+  { id: 'debil', etiqueta: 'Mineral débil', calciumMgL: 10, magnesiumMgL: 2 },
+  { id: 'blanda', etiqueta: 'Blanda', calciumMgL: 25, magnesiumMgL: 5 },
+  { id: 'media', etiqueta: 'Media', calciumMgL: 60, magnesiumMgL: 15 },
+  { id: 'dura', etiqueta: 'Dura', calciumMgL: 120, magnesiumMgL: 30 }
+];
+export const REGIONES_SOL = [
+  { lat: 43, etiqueta: 'Norte (Galicia, Asturias, Cantabria, País Vasco, Navarra…)' },
+  { lat: 40, etiqueta: 'Centro (Madrid, Castilla, Aragón, Cataluña, Valencia…)' },
+  { lat: 37, etiqueta: 'Sur (Andalucía, Murcia, Baleares…)' },
+  { lat: 28, etiqueta: 'Canarias' }
+];

@@ -37,6 +37,9 @@ export function render(el) {
             <option value="alta">Alta: enérgica y combativa</option>
           </select>
         </label>
+        <label>Segundos por repetición (para calcular tu descanso real entre series)
+          <input id="c-segrep" inputmode="decimal" autocomplete="off" placeholder="4">
+        </label>
         <label>Mensajes del Comandante
           <select id="c-mensajes">
             <option value="ahorro">Ahorro: frases guardadas y tus datos (casi sin gastar IA)</option>
@@ -138,6 +141,7 @@ export function render(el) {
       for (const [k, sel] of Object.entries(campos)) el.querySelector(sel).value = String(s.equipment[k]).replace('.', ',');
       if (s.coach && s.coach.intensity) el.querySelector('#c-intensidad').value = s.coach.intensity;
       el.querySelector('#c-mensajes').value = (s.coach && s.coach.messages) || 'ahorro';
+      el.querySelector('#c-segrep').value = String((s.training && s.training.secPerRep) || 4).replace('.', ',');
       el.querySelector('#c-notas').value = (s.nutrition && s.nutrition.foodNotes) || '';
     }).catch((err) => { console.error(err); mostrarM('No se pudo leer el material: ' + err.message, 'error'); });
   }
@@ -223,7 +227,11 @@ export function render(el) {
     ev.preventDefault();
     const e = el.querySelector('#estado-coach');
     e.textContent = 'Guardando…'; e.className = 'estado';
-    try { await call('settings.update', { patch: { coach: { intensity: el.querySelector('#c-intensidad').value, messages: el.querySelector('#c-mensajes').value } } }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
+    const spr = parseNum(el.querySelector('#c-segrep').value);
+    if (spr !== null && !(spr >= 1 && spr <= 15)) { e.textContent = 'Los segundos por repetición van de 1 a 15.'; e.className = 'estado error'; return; }
+    const patch = { coach: { intensity: el.querySelector('#c-intensidad').value, messages: el.querySelector('#c-mensajes').value } };
+    if (spr !== null) patch.training = { secPerRep: spr };
+    try { await call('settings.update', { patch }, { timeoutMs: 60000 }); e.textContent = 'Guardado.'; e.className = 'estado ok'; }
     catch (err) { console.error(err); e.textContent = err.message; e.className = 'estado error'; }
   });
   el.querySelector('#form-comida').addEventListener('submit', async (ev) => {

@@ -52,7 +52,7 @@ function weeklyReview(p) {
   const body = readJson_('body.json', []).filter((r) => r.date >= addDays_(today, -120));
   const targets = nutritionTargets_(settings, latestBodyweight_(settings), Number(today.slice(0, 4)));
 
-  const facts = weeklyFacts_({ today: today, sessions: sessions, runs: runs, meals: meals, body: body, targets: targets, library: library });
+  const facts = weeklyFacts_({ today: today, sessions: sessions, runs: runs, meals: meals, body: body, targets: targets, library: library, settings: settings });
   const adjustment = calorieAdjustment_(facts);
   const planInfo = { adjustment: adjustment, priorityGroups: facts.training.belowMin, stalled: stalledMainLifts_(sessions, library),
     nextSession: plan && plan.cycle ? (function () { const k = pickNextSession_(plan.cycle, sessions, runs, new Date().toISOString()); return { key: k.key, groups: k.groups }; })() : null };

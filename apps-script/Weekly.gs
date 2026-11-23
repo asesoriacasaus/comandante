@@ -65,7 +65,7 @@ function weeklyFacts_(d) {
       progressions: progressionsOf_(done, from, today) },
     runs: { count: runs.length, km: Math.round(sum(runs, (r) => r.distanceKm || 0) * 10) / 10, longRuns: runs.filter(isLongRun_).length },
     nutrition: { daysLogged: dayTotals.length, avgKcal: avg_(dayTotals.map((t) => t.kcal).filter(isNum_)), avgProteinG: avg_(dayTotals.map((t) => t.proteinG).filter(isNum_)),
-      targets: d.targets || null, micro: weekNutrition_(meals, today) },
+      targets: d.targets || null, micro: weekNutrition_(meals, today, d.settings ? (t, day) => extrasDia_(d.settings.nutrition, t, day) : undefined) },
     body: { weight: trendOf_(d.body || [], (r) => r.weightKg, from, today, prevFrom, prevTo),
       waist: { now: waistNow.length ? waistNow[waistNow.length - 1] : null, before: waistBefore.length ? waistBefore[waistBefore.length - 1] : null },
       fat: trendOf_(d.body || [], (r) => r.bodyFatPct, from, today, prevFrom, prevTo) }

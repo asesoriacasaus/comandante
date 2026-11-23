@@ -472,3 +472,8 @@ body.escribiendo .barra-accion { display: none; }
 .descanso-medio { margin: 8px 0 10px; font: 500 12px var(--sans); color: var(--tinta-2); }
 .descanso-serie { display: block; font: 500 11px var(--sans); color: var(--tinta-2); }
 .barra-contenido { display: contents; }
+
+/* Desglose de nutrientes y avisos propios */
+.micro-desglose { margin: 6px 0 0; font: 600 12px var(--sans); color: var(--oliva); font-variant-numeric: tabular-nums; }
+.micro-nota { font-style: italic; }
+.enlace-linea { min-height: 32px; padding: 0; text-decoration: underline; font-size: 13px; }
