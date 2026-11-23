@@ -648,3 +648,12 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - Debe **desplazarse al recuadro del ejercicio activo** (el que tiene la serie recién añadida), con un desplazamiento suave y sin saltos.
    - Mientras el usuario esté desplazándose o escribiendo en un formulario, no se le mueve la pantalla.
    - Va junto con la mejora 2 (contador de descanso dentro del recuadro): al registrar, la vista queda en el ejercicio con su contador a la vista.
+6. **Botón flotante para terminar y guardar la sesión (23 de noviembre de 2026).**
+   - Hoy "Terminar sesión" (en la Sesión) y "Guardar sesión" (en la Revisión) están al final de la página. Es tedioso bajar, y es fácil creer que ya se guardó sin haberlo hecho.
+   - **Barra de acción flotante,** fija justo encima de la barra de pestañas, visible en cualquier punto del desplazamiento:
+     - en la Sesión: "Terminar sesión";
+     - en la Revisión: "Guardar sesión", más "Seguir grabando" y "Descartar" en un menú secundario para no pulsarlos sin querer.
+   - **Estado siempre visible** en la propia barra: "Sin guardar" o "Guardada ✓". Al salir de la app o de la pantalla con una sesión en revisión sin guardar, aviso claro.
+   - En Hoy, si queda una sesión en revisión sin guardar, un recordatorio arriba con acceso directo ("Tienes una sesión sin guardar · Revisar y guardar").
+   - Cuidar que la barra no tape contenido (margen inferior), que tenga objetivos táctiles de 44 px y contraste AA.
+   - Valorar el mismo patrón en otras pantallas largas (por ejemplo, "Guardar comida" en la revisión de una comida).
