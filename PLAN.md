@@ -631,3 +631,15 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida.
    - Al tocar un campo de texto o de número del formulario de series a mano (y, por coherencia, de los demás formularios), el cursor se coloca al **final** del contenido.
    - Así, al borrar se borra de atrás hacia delante. Hoy a veces se queda en medio o al principio.
    - **Decidido por el usuario (23 de noviembre de 2026): solo cursor al final**, sin seleccionar el número entero.
+4. **Vitamina D: contar el sol y no solo la comida (23 de noviembre de 2026).**
+   - Hoy la vitamina D sale solo de los alimentos y de los suplementos registrados. Así parece baja aunque no lo sea, porque la mayor parte de la vitamina D se fabrica en la piel con la radiación UVB del sol.
+   - **Preguntar la exposición solar:**
+     - minutos al aire libre al día (o en la semana), con cara, brazos o piernas al descubierto;
+     - si fue en las horas centrales;
+     - si llevaba protector solar.
+     - Mejor con respuestas rápidas tipo "nada / poco / bastante", y al pasear o en la terraza a la hora de comer.
+   - **El sol a través de un cristal (coche, oficina) no cuenta:** el vidrio bloquea casi toda la UVB. Explicarlo en la pregunta, porque es un error muy común.
+   - **La estación y la latitud importan mucho:** en España, de noviembre a febrero el sol produce poca vitamina D incluso a mediodía. Estimar con la fecha, la ubicación aproximada (o la ciudad indicada) y el índice UV del día, si se puede consultar sin enviar datos personales.
+   - **Resultado:** la tarjeta de vitamina D muestra "comida + suplementos + sol estimado", con el sol marcado como estimación gruesa. Si el sol es una parte importante, no se marca como "A reforzar" solo por la dieta.
+   - **Aviso fijo en la vitamina D:** la única forma de saber el nivel real es un análisis de sangre (25-hidroxivitamina D). Antes de tomar un suplemento de vitamina D de forma continuada, consúltalo con tu médico, sobre todo a dosis altas.
+   - Aplica también al Proyecto N: la vitamina D no debería ir en el motor automático de complementos sin tener en cuenta el sol. Anotado en su plan.
