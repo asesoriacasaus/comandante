@@ -116,5 +116,19 @@ export function todayIsoLocal(now = new Date()) {
   return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 }
 
+/** Hora local 'HH:MM' (la del reloj del móvil, no la UTC). */
+export function horaLocal(now = new Date()) {
+  return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+}
+
+/**
+ * Hora con la que se guarda una comida. Manda la que el usuario cambió a mano; si no, la que dijo ("a las 14:00");
+ * si no, la de cuando la apuntó.
+ */
+export function horaComida({ editada = null, dicha = null, alApuntar = null } = {}) {
+  const ok = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+  return ok(editada) ? editada : ok(dicha) ? dicha : ok(alApuntar) ? alApuntar : null;
+}
+
 /** 99.5 → "99,5 cm". */
 export function formatCm(v) { return num(v) + ' cm'; }

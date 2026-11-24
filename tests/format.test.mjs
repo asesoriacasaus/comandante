@@ -63,3 +63,18 @@ test('lo que entendió la IA y citas', () => {
   assert.match(describeIssue({ type: 'total_ignored', names: ['Press banca'] }), /kilos por lado/);
   assert.match(describeIssue({ type: 'bar_inferred', name: 'Press banca', barKg: 10 }), /barra pesa 10 kg/);
 });
+
+import { horaLocal, horaComida } from '../js/lib/format.js';
+
+test('horaLocal: la hora del reloj del móvil en HH:MM', () => {
+  assert.equal(horaLocal(new Date(2026, 10, 24, 20, 5)), '20:05');
+  assert.equal(horaLocal(new Date(2026, 10, 24, 7, 0)), '07:00');
+});
+
+test('horaComida: manda la cambiada a mano, luego la dicha, luego la de cuando se apuntó', () => {
+  assert.equal(horaComida({ editada: '13:30', dicha: '14:00', alApuntar: '20:45' }), '13:30');
+  assert.equal(horaComida({ dicha: '14:00', alApuntar: '20:45' }), '14:00');
+  assert.equal(horaComida({ alApuntar: '20:45' }), '20:45');
+  assert.equal(horaComida({ dicha: '25:00', alApuntar: '20:45' }), '20:45', 'una hora imposible no cuenta');
+  assert.equal(horaComida({}), null);
+});

@@ -1,7 +1,7 @@
 // Pantalla Comida: totales del día frente a objetivos, dictar o escribir comidas, revisarlas y micronutrientes aproximados.
 import { call } from '../api.js';
 import { h, cargando } from '../lib/dom.js';
-import { formatDateEs, todayIsoLocal, parseNum } from '../lib/format.js';
+import { formatDateEs, todayIsoLocal, parseNum, horaLocal, horaComida } from '../lib/format.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { swr, borrar, leer } from '../lib/cache.js';
@@ -300,7 +300,7 @@ function pantallaAnadir(el, st) {
         const kcal = sumItems(f.items).kcal;
         return h('button', { type: 'button', class: 'siempre-btn', onClick: () => {
           contarAhorroLocal(localStorage, 'repetir');
-          pantallaRevision(el, st, { items: f.items.map((i) => Object.assign({}, i)), mealType: f.mealType, time: null, warnings: [], transcript: null, local: 'repetida' }, 'repeat', dia.value);
+          pantallaRevision(el, st, { items: f.items.map((i) => Object.assign({}, i)), mealType: f.mealType, time: null, warnings: [], transcript: null, local: 'repetida' }, 'repeat', dia.value, [], null, hora());
         } }, h('b', {}, f.items.map((i) => i.name).join(', ')), h('small', {}, (MEAL_TYPES_ES[f.mealType] || 'Comida') + ' · ' + fmtInt(kcal) + ' kcal · ' + f.veces + ' veces'));
       })),
       h('p', { class: 'nota' }, 'Un toque y se apunta igual que la última vez, sin gastar IA. Podrás ajustar las cantidades.'));
@@ -308,6 +308,11 @@ function pantallaAnadir(el, st) {
   swr('alimentos', async () => call('foods.list', {}, { timeoutMs: 60000, silent: true }), (d) => { base = d; pintarSiempre(); }).catch(() => { /* sin base: todo a la IA */ });
   let grabando = false;
   const dia = h('input', { type: 'date', value: st.date, max: st.today, 'aria-label': 'Día de la comida' });
+  // La hora de la comida: por defecto, la de ahora; si la cambias, manda la tuya.
+  const horaCampo = h('input', { type: 'time', value: horaLocal(), 'aria-label': 'Hora de la comida' });
+  let horaEditada = false;
+  horaCampo.addEventListener('change', () => { horaEditada = !!horaCampo.value; });
+  const hora = () => ({ editada: horaEditada ? horaCampo.value : null, alApuntar: horaCampo.value || horaLocal() });
   const atajos = h('div', { class: 'chips-datos' },
     ...[['Hoy', st.today], ['Ayer', sumarDias(st.today, -1)], ['Anteayer', sumarDias(st.today, -2)]].map(([t, d]) =>
       h('button', { type: 'button', class: 'chip chip-boton', onClick: () => { dia.value = d; } }, t)));
@@ -363,7 +368,7 @@ function pantallaAnadir(el, st) {
     // Solo texto y todo conocido: se calcula en el móvil con tus comidas anteriores, sin IA.
     if (!fotos.length && !audio && base) {
       const loc = estimarLocal(area.value, base.foods);
-      if (loc) { contarAhorroLocal(localStorage, 'comidas'); loc.texto = area.value.trim(); pantallaRevision(el, st, loc, 'text', dia.value); return; }
+      if (loc) { contarAhorroLocal(localStorage, 'comidas'); loc.texto = area.value.trim(); pantallaRevision(el, st, loc, 'text', dia.value, [], null, hora()); return; }
     }
     calcular.disabled = true; estado.className = 'estado';
     estado.textContent = fotos.length ? 'Mirando la foto y calculando… puede tardar unos segundos.' : 'Calculando lo que has comido…';
@@ -373,12 +378,12 @@ function pantallaAnadir(el, st) {
       if (audio) payload.audio = { mime: audio.mime, data: await blobToBase64(audio.blob) };
       if (fotos.length) payload.images = await Promise.all(fotos.map(async (f) => ({ mime: 'image/jpeg', data: await blobToBase64(f.blob) })));
       const r = await call('meal.process', payload, { timeoutMs: 150000 });
-      if (vigente(el)) pantallaRevision(el, st, r, fotos.length ? 'photo' : audio ? 'voice' : 'text', dia.value, fotos.map((f) => f.url), fotos.length ? reparto : null);
+      if (vigente(el)) pantallaRevision(el, st, r, fotos.length ? 'photo' : audio ? 'voice' : 'text', dia.value, fotos.map((f) => f.url), fotos.length ? reparto : null, hora());
     } catch (err) { console.error(err); calcular.disabled = false; estado.className = 'estado error'; estado.textContent = err.message + ' Lo que has añadido sigue aquí.'; }
   });
 
   el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Añadir comida'),
-    h('div', { class: 'bloque' }, h('label', {}, 'Día', dia), atajos),
+    h('div', { class: 'bloque' }, h('div', { class: 'rejilla' }, h('label', {}, 'Día', dia), h('label', {}, 'Hora', horaCampo)), atajos),
     cajaSiempre,
     h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Foto'), miniaturas, archivo, cajaReparto,
       h('div', { class: 'acciones' }, btnFoto), h('p', { class: 'nota' }, 'Del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad. Hasta 3 fotos; también vale la etiqueta del envase.')),
@@ -389,7 +394,8 @@ function pantallaAnadir(el, st) {
 
 // ---------- Revisar y guardar ----------
 
-function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas = [], reparto = null) {
+function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas = [], reparto = null, horaPropuesta = null) {
+  const hp = horaPropuesta || { alApuntar: horaLocal() };
   pantalla = 'otra';
   // Con foto, la IA estimó el plato entero: aquí se aplica tu parte, y se puede cambiar sin volver a calcular.
   const entero = r.items.map((i) => Object.assign({}, i));
@@ -404,7 +410,7 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const tipo = h('select', { 'aria-label': 'Tipo de comida' }, h('option', { value: '' }, 'Sin especificar'),
     ...TIPOS_ELEGIBLES.map((v) => h('option', Object.assign({ value: v }, r.mealType === v ? { selected: true } : {}), MEAL_TYPES_ES[v])));
-  const hora = h('input', { type: 'time', value: r.time || '', 'aria-label': 'Hora' });
+  const hora = h('input', { type: 'time', value: horaComida({ editada: hp.editada, dicha: r.time, alApuntar: hp.alApuntar }) || '', 'aria-label': 'Hora' });
 
   const pintarTotal = () => {
     const t = sumItems(items);
@@ -453,7 +459,7 @@ function pantallaRevision(el, st, r, source, fechaComida = st.date, miniaturas =
     r.local === true ? h('div', { class: 'aviso' }, 'Calculado con tus comidas anteriores, sin gastar IA.',
       h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: async (e) => {
         e.currentTarget.disabled = true; estado.className = 'estado'; estado.textContent = 'Calculando con la IA…';
-        try { const nuevo = await call('meal.process', { text: r.texto }, { timeoutMs: 150000 }); if (vigente(el)) pantallaRevision(el, st, nuevo, 'text', fechaComida); }
+        try { const nuevo = await call('meal.process', { text: r.texto }, { timeoutMs: 150000 }); if (vigente(el)) pantallaRevision(el, st, nuevo, 'text', fechaComida, [], null, hp); }
         catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = err.message; }
       } }, 'Calcular con la IA'))) : null,
     r.local === 'repetida' ? h('p', { class: 'aviso' }, 'Repetida de la última vez. Ajusta las cantidades si hoy ha sido distinto.') : null,
