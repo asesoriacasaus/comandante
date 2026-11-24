@@ -6,6 +6,7 @@ import { guardar } from '../lib/cache.js';
 import { relojDescanso } from '../lib/sesion-viva.js';
 import { bloqueResumen } from './resumen-hablado.js';
 import { sortSessions, summarizeSession, weekStart, weekTotals, thousands } from '../lib/diary.js';
+import { avisosRecuperables, pantallaRecuperar } from './recuperar.js';
 
 const vigente = (el) => el.dataset.route === 'diario';
 const TIPOS = { warmup: 'calentamiento', drop: 'dropset', failure: 'al fallo' };
@@ -15,7 +16,11 @@ export function render(el) {
   cargar(el);
 }
 
+let recuperables = null;   // caja de avisos de sesiones descartadas con series; se conserva entre repintados
+
 async function cargar(el) {
+  recuperables = h('div', { class: 'recuperables' });
+  avisosRecuperables(recuperables, (it) => pantallaRecuperar(el, it, () => render(el)));
   try {
     const hoy = todayIsoLocal();
     await resumenSesiones((items) => { if (vigente(el)) pintar(el, sortSessions(items), hoy); });
@@ -53,6 +58,7 @@ function pintar(el, sesiones, hoy) {
   el.replaceChildren(h('section', {},
     h('p', { class: 'etiqueta' }, 'Diario'),
     h('h2', {}, 'Diario'),
+    recuperables,
     h('div', { class: 'resumen' },
       dato(String(semana.sessions), 'sesiones esta semana'), dato(String(semana.sets), 'series'), dato(thousands(semana.volumeKg), 'kg de volumen')),
     sesiones.length ? lista : h('p', { class: 'vacio' }, 'Aún no has guardado ninguna sesión. Cuando termines y guardes una, aparecerá aquí.')));

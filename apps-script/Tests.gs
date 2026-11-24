@@ -1508,6 +1508,19 @@ function test_pure_sesion_de_hoy() {
   return 'ok';
 }
 
+function test_pure_recuperar_sesion() {
+  const se = (at, o) => ({ order: o, type: 'working', reps: 10, rir: 2, load: bb_(20), at: '2026-06-20T' + at + ':00.000Z', flags: [] });
+  const real = { id: 'r', date: '2026-06-20', status: 'discarded', exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [se('09:00', 1), se('09:03', 2)] }] };
+  const mano = { id: 'm', date: '2026-06-20', status: 'done', exercises: [{ exerciseId: 'press_banca', name: 'Press banca', sets: [se('10:00', 1), se('10:00', 2), se('10:01', 3)] },
+    { exerciseId: 'dominadas', name: 'Dominadas', sets: [se('10:05', 1)] }] };
+  const k = suggestRecovery_(real, mano);
+  assert_(k.length === 2 && k[0] === 'press_banca|2026-06-20T10:01:00.000Z|3' && k[1].indexOf('dominadas|') === 0, 'propuesta: ' + k);
+  const m = mergeRecovery_(real, mano, k, '2026-06-20T12:00:00.000Z');
+  assert_(m.status === 'done' && m.exercises[0].sets.length === 3 && m.exercises[1].sets.length === 1 && m.exercises[0].sets[2].order === 3, 'fusión');
+  assert_(real.status === 'discarded' && real.exercises[0].sets.length === 2, 'no toca la entrada');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1515,7 +1528,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras, test_pure_sesion_de_hoy,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras, test_pure_sesion_de_hoy, test_pure_recuperar_sesion,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

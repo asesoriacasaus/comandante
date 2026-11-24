@@ -214,6 +214,104 @@ function sessionResume(id) {
   }) };
 }
 
+// ---------- Recuperar una sesión descartada ----------
+// Si Hoy ofreció una sesión vacía y la real acabó descartada (fallo del 24 de noviembre de 2026), aquí se recupera:
+// la descartada vuelve a "hecha" con todas sus series, más las series elegidas de la guardada ese día, que pasa a descartada.
+
+const RECOVER_DAYS_ = 14;
+
+/** Clave estable de una serie: ejercicio, hora y orden. */
+function setKey_(exerciseId, set) { return exerciseId + '|' + (set.at || '') + '|' + (set.order || 0); }
+
+function seriesDe_(s, exerciseId) {
+  const x = (s && s.exercises || []).find((e) => e.exerciseId === exerciseId);
+  return x ? (x.sets || []) : [];
+}
+
+/**
+ * Pura: series de la sesión guardada que se proponen añadir. Por ejercicio, las que sobran respecto a la descartada
+ * (las últimas): si en la descartada hay 4 y en la guardada 5, la 5.ª; si el ejercicio solo está en la guardada, todas.
+ */
+function suggestRecovery_(discarded, saved) {
+  const out = [];
+  (saved && saved.exercises || []).forEach((x) => {
+    const sets = x.sets || [];
+    const ya = seriesDe_(discarded, x.exerciseId).length;
+    sets.slice(Math.min(ya, sets.length)).forEach((set) => out.push(setKey_(x.exerciseId, set)));
+  });
+  return out;
+}
+
+/** Pura: la sesión recuperada. No toca las entradas. */
+function mergeRecovery_(discarded, saved, keys, nowIso) {
+  const m = JSON.parse(JSON.stringify(discarded));
+  const elegir = new Set(keys || []);
+  (saved && saved.exercises || []).forEach((x) => {
+    const extra = (x.sets || []).filter((set) => elegir.has(setKey_(x.exerciseId, set)));
+    if (!extra.length) return;
+    let dest = (m.exercises || (m.exercises = [])).find((e) => e.exerciseId === x.exerciseId);
+    if (!dest) { dest = { exerciseId: x.exerciseId, name: x.name, sets: [] }; m.exercises.push(dest); }
+    extra.forEach((set) => dest.sets.push(Object.assign(JSON.parse(JSON.stringify(set)), { recovered: true })));
+  });
+  m.exercises.forEach((x) => {
+    x.sets.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+    x.sets.forEach((set, i) => { set.order = i + 1; });
+  });
+  m.status = 'done';
+  m.pending = [];
+  m.savedAt = nowIso;
+  m.recoveredAt = nowIso;
+  if (saved) m.recoveredFrom = saved.id;
+  if (!m.endedAt) m.endedAt = nowIso;
+  return m;
+}
+
+/** Sesiones descartadas con series de las últimas dos semanas, con la guardada de ese día y la propuesta de series. */
+function sessionsRecoverable() {
+  const settings = getSettings();
+  const today = todayIso_(settings.profile.timezone);
+  const all = loadSessionsSince_(addDays_(today, -RECOVER_DAYS_), today);
+  const items = all.filter((s) => s.status === 'discarded' && s.date >= addDays_(today, -RECOVER_DAYS_)
+      && (s.exercises || []).some((x) => (x.sets || []).length))
+    .map((d) => {
+      const saved = all.filter((s) => s.date === d.date && s.status === 'done' && s.id !== d.id)
+        .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
+      return { discarded: d, saved: saved, suggested: suggestRecovery_(d, saved) };
+    });
+  return { items: items };
+}
+
+/** Recupera `id` (descartada) añadiendo las series `keep` de `fromId` (guardada el mismo día), que pasa a descartada. */
+function sessionRecover(p) {
+  const id = String(p.id || '');
+  const fromId = p.fromId ? String(p.fromId) : '';
+  const path = sessionPath_(id);
+  if (fromId && sessionPath_(fromId) !== path) throw { code: 'VALIDATION', message: 'Las dos sesiones deben ser del mismo día' };
+  const keep = Array.isArray(p.keep) ? p.keep.map(String).slice(0, 200) : [];
+  const settings = getSettings();
+  const today = todayIso_(settings.profile.timezone);
+  return withLock_(() => {
+    const arr = readJson_(path, []);
+    const di = arr.findIndex((x) => x.id === id);
+    if (di < 0) throw { code: 'NOT_FOUND', message: 'Sesión no encontrada' };
+    if (arr[di].status !== 'discarded') throw { code: 'VALIDATION', message: 'Solo se recupera una sesión descartada' };
+    const fi = fromId ? arr.findIndex((x) => x.id === fromId) : -1;
+    if (fromId && fi < 0) throw { code: 'NOT_FOUND', message: 'La sesión guardada no existe' };
+    if (fi >= 0 && arr[fi].date !== arr[di].date) throw { code: 'VALIDATION', message: 'Las dos sesiones deben ser del mismo día' };
+    const merged = mergeRecovery_(arr[di], fi >= 0 ? arr[fi] : null, keep, new Date().toISOString());
+    const errors = validateSession_(merged, today, settings.equipment);
+    if (errors.length) throw { code: 'VALIDATION', message: errors.join('; ') };
+    const previo = 'sessions/' + addDays_(path.slice(9, 16) + '-01', -1).slice(0, 7) + '.json';
+    applyRestSecs_(merged, (settings.training || {}).secPerRep, restHistory_(arr.concat(readJson_(previo, [])), id));
+    merged.metrics = computeSessionMetrics_(merged, { bodyweightKg: latestBodyweight_(settings) });
+    arr[di] = merged;
+    if (fi >= 0) arr[fi] = Object.assign({}, arr[fi], { status: 'discarded', replacedBy: id });
+    writeFile_(path, arr);
+    bumpRevision_();
+    return { session: merged };
+  });
+}
+
 // ---------- Resumen ligero para Diario y Progreso ----------
 
 /** 1RM estimado (Epley); por encima de 12 repeticiones no es fiable. Igual que js/lib/progress.js. */
