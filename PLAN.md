@@ -677,3 +677,19 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - Preguntar una vez qué agua se bebe: grifo, con el municipio, o embotellada, con la marca. Tomar los miligramos por litro de la etiqueta o de los datos públicos del agua del municipio, o pedírselos al usuario. Preguntar también cuánta se bebe al día (o registrarla).
    - Sumar el aporte diario al calcio y al magnesio, marcado como "del agua".
    - Al hilo: avisar de que el **sodio** sale más bajo de lo real si no se apunta la sal añadida al cocinar.
+9. **Cambiar el ejercicio desde su propio recuadro (24 de noviembre de 2026). PENDIENTE.**
+   - Motivo: la máquina de cruce de poleas está casi siempre ocupada. Hace falta sustituir un ejercicio en el momento por otro equivalente que necesite menos material o menos espacio.
+   - **Botón "Cambiar ejercicio"** dentro del recuadro de cada ejercicio (en curso, con series hechas o pendiente del plan), usable antes, durante o después de sus series.
+   - **Tarjetas de alternativas** (3 a 5, deslizables), calculadas en el móvil sin IA con la biblioteca de ejercicios (`apps-script/Exercises.gs`, ya trae implementos, grupo principal y secundario, y tipo compuesto o aislamiento):
+     - mismo grupo muscular principal y, a ser posible, mismo tipo (aislamiento por aislamiento);
+     - excluye el implemento ocupado (si se cambia un ejercicio de polea, no ofrece otra polea salvo que no haya nada más);
+     - ordena por menos material y espacio: peso corporal y mancuernas antes que barra y máquinas;
+     - da prioridad a los ejercicios que el usuario ya ha hecho, con su última carga como sugerencia.
+     - Cada tarjeta muestra nombre, material ("Mancuernas y banco"), músculos que trabaja, una frase de por qué es equivalente y la carga sugerida.
+     - Ejemplo para el cruce en poleas: aperturas con mancuernas, flexiones, pec deck, press inclinado con mancuernas.
+   - **Al elegir:**
+     - antes de empezar: el ejercicio del plan se sustituye y hereda sus series y repeticiones objetivo;
+     - a mitad: las series ya hechas se quedan con el ejercicio original y las que faltan pasan al nuevo;
+     - después: opción "Las series ya hechas también eran de este ejercicio", para corregir un registro.
+   - Queda anotado en la sesión que hubo un cambio (para el Diario y para que el plan de la próxima semana no cuente el ejercicio original como "no hecho").
+   - Recordar los cambios frecuentes: si el cruce en poleas se cambia a menudo, sugerir la alternativa favorita en primer lugar, y valorar proponerla en el plan.
