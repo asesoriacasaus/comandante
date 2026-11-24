@@ -347,7 +347,7 @@ export function serieNodo(st, x, set, edit, paint) {
     (set.type !== 'working' ? ' · ' + ({ warmup: 'calentamiento', drop: 'dropset', failure: 'al fallo' }[set.type] || set.type) : '');
   const fila = h('li', { class: 'serie' },
     h('button', { type: 'button', class: 'serie-btn', onClick: () => { st.editing = editing ? null : { exerciseId: x.exerciseId, order: set.order }; paint(); } },
-      h('span', { class: 'n' }, set.order), h('span', {}, resumen, typeof set.restSec === 'number' ? h('small', { class: 'descanso-serie' }, 'descanso ' + relojDescanso(set.restSec)) : null), h('span', { class: 'carga' }, formatLoad(set.load))),
+      h('span', { class: 'n' }, set.order), h('span', {}, resumen, typeof set.restSec === 'number' ? h('small', { class: 'descanso-serie' }, (set.restImputed ? 'descanso ≈' : 'descanso ') + relojDescanso(set.restSec)) : null), h('span', { class: 'carga' }, formatLoad(set.load))),
     set.local ? h('p', { class: 'nota' }, 'Sin enviar todavía: se guardará al volver la conexión.') : null,
     ...(set.flags || []).filter((f) => FLAGS[f]).map((f) => h('p', { class: 'nota' }, FLAGS[f] + ': revísala.')));
   if (!editing) return fila;

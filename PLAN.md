@@ -693,3 +693,16 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
      - después: opción "Las series ya hechas también eran de este ejercicio", para corregir un registro.
    - Queda anotado en la sesión que hubo un cambio (para el Diario y para que el plan de la próxima semana no cuente el ejercicio original como "no hecho").
    - Recordar los cambios frecuentes: si el cruce en poleas se cambia a menudo, sugerir la alternativa favorita en primer lugar, y valorar proponerla en el plan.
+10. **Descanso mínimo de 1 minuto con el descanso habitual (24 de noviembre de 2026). DESARROLLADO.**
+   - Petición: si el descanso calculado es materialmente imposible (menos de 1 minuto), ponerlo a la fuerza con el descanso medio del histórico.
+   - Hecho en `apps-script/Rest.gs`: si el cálculo da menos de 60 s o negativo (series metidas a mano de golpe, dos series del mismo clip), la serie recibe el descanso medio real de ese ejercicio (mínimo 2 series en este mes y el anterior), si no el medio general (mínimo 3), si no el `restSec` del plan. Se marca `restImputed: true`, se muestra con "≈" y no cuenta para el histórico. La primera serie y los huecos de más de 15 minutos siguen sin descanso.
+   - Consecuencia aceptada: un descanso real de menos de 1 minuto (por ejemplo, una serie apuntada tarde) también se sustituye.
+
+### Fallo del 24 de noviembre de 2026: sesión duplicada y progreso "perdido"
+- **Qué pasó:** al abrir Hoy, dos cargas a la vez (`hoy.load`) generaron dos sesiones del mismo día en el mismo minuto. Se empezó una y se registraron las series. Al volver a Hoy, el servidor devolvió la otra, vacía: `planToday` cogía la primera del archivo y una planificada sin hora de inicio se ordena antes que la empezada. Al pulsar "Empezar sesión", la app pasó a la vacía. Las series no se borraron: siguieron en la primera sesión, que después se descartó desde la revisión. Descartar solo la marca (`status: 'discarded'`); los datos siguen en Drive.
+- **Arreglo:**
+  - `pickTodaySession_` elige por estado (en curso, revisión, planificada, hecha) y, a igualdad, la que tiene series o clips.
+  - `commitTodaySession_` vuelve a comprobar dentro del lock antes de escribir (`upsertShard_` acepta un `guard`), así que nunca hay dos sesiones activas del mismo día.
+  - En el móvil, "Empezar" no cambia a otra sesión si este móvil tiene una de hoy con series sin guardar (`otraSesionConTrabajo`).
+  - Pruebas en `tests/sesion-hoy.test.cjs` y `test_pure_sesion_de_hoy`.
+- **Riesgo latente anotado (sin arreglar):** `readJson_`, al no encontrar algo en la caché, lee Drive y rellena la caché fuera del lock. Un lector lento podría volver a poner contenido antiguo justo después de una escritura, y la siguiente escritura con lock lo guardaría. No es la causa de este fallo. Revisar.

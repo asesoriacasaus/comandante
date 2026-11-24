@@ -79,7 +79,7 @@ function detalle(s) {
     nodos.push(h('div', { class: 'bloque' }, h('h3', {}, x.name),
       h('ul', { class: 'series' }, x.sets.map((set) => h('li', { class: 'serie-solo' },
         h('span', { class: 'n' }, set.order),
-        h('span', {}, set.reps + ' rep · ' + (set.rir === null || set.rir === undefined ? 'RIR sin dato' : 'RIR ' + set.rir) + (TIPOS[set.type] ? ' · ' + TIPOS[set.type] : '') + (typeof set.restSec === 'number' ? ' · descanso ' + relojDescanso(set.restSec) : '')),
+        h('span', {}, set.reps + ' rep · ' + (set.rir === null || set.rir === undefined ? 'RIR sin dato' : 'RIR ' + set.rir) + (TIPOS[set.type] ? ' · ' + TIPOS[set.type] : '') + (typeof set.restSec === 'number' ? (set.restImputed ? ' · descanso ≈' : ' · descanso ') + relojDescanso(set.restSec) : '')),
         h('span', { class: 'carga' }, formatLoad(set.load)))))));
   });
   if (!nodos.length) nodos.push(h('p', { class: 'vacio' }, 'Sin detalle.'));
