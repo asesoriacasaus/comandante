@@ -91,8 +91,7 @@ function planToday() {
   const nowIso = new Date().toISOString();
   const sessions = loadSessionsSince_(addDays_(today, -120), today);
 
-  const existing = sessions.filter((s) => s.date === today && ['planned', 'in_progress', 'review', 'done'].indexOf(s.status) >= 0)
-    .sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))[0];
+  const existing = pickTodaySession_(sessions, today);
   if (existing) return { session: existing, source: 'existing' };
 
   const runs = loadRunsSince_(addDays_(today, -7), today);
@@ -129,11 +128,39 @@ function planToday() {
     plannedExercises: ruled.exercises, clips: [], exercises: [], notes: notes,
     // El mensaje con la personalidad llega después (session.message): la IA no bloquea la pantalla.
     coachMessage: neutralCoachMessage_(pick.groups, notes), coachMessageSource: 'neutral' };
-  commitSession_(rec, tz, today);
+  // Dos cargas de Hoy a la vez (abrir la app y tocar la pestaña, por ejemplo) generaban dos sesiones del mismo día.
+  // La generación va fuera del lock (puede tardar); la comprobación final y la escritura, dentro.
+  const ganadora = commitTodaySession_(rec, tz, today);
+  if (ganadora.id !== rec.id) return { session: ganadora, source: 'existing' };
   if (lastDeloadDate !== plan.lastDeloadDate) {
     withLock_(() => { writeFile_('plan/current.json', Object.assign({}, plan, { lastDeloadDate: lastDeloadDate })); bumpRevision_(); });
   }
   return { session: rec, source: 'generated', pick: { reason: pick.reason, skippedKey: pick.skippedKey } };
+}
+
+const TODAY_STATUS_RANK_ = { in_progress: 0, review: 1, planned: 2, done: 3 };
+
+/** Peso de una sesión: tiene series o clips (trabajo hecho que no se puede esconder). */
+function sessionHasWork_(s) {
+  return (s.exercises || []).some((x) => (x.sets || []).length) || (s.clips || []).length > 0;
+}
+
+/**
+ * La sesión de hoy entre las que haya (pura). Prioridad: en curso, en revisión, planificada y hecha. A igualdad,
+ * la que tiene trabajo y luego la empezada más tarde. Así un duplicado vacío nunca tapa a la sesión real.
+ */
+function pickTodaySession_(sessions, today) {
+  const cand = (sessions || []).filter((s) => s.date === today && TODAY_STATUS_RANK_[s.status] !== undefined);
+  cand.sort((a, b) => (TODAY_STATUS_RANK_[a.status] - TODAY_STATUS_RANK_[b.status])
+    || ((sessionHasWork_(b) ? 1 : 0) - (sessionHasWork_(a) ? 1 : 0))
+    || String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
+  return cand[0] || null;
+}
+
+/** Guarda la sesión nueva de hoy salvo que, dentro del lock, ya exista una: entonces devuelve esa y no escribe nada. */
+function commitTodaySession_(rec, tz, today) {
+  const r = commitSession_(rec, tz, today, (arr) => pickTodaySession_(arr, today));
+  return r.existing || rec;
 }
 
 /** Estado y sesión de hoy en UNA sola llamada. Si la sesión falla, el estado se devuelve igualmente. */

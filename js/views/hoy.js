@@ -6,6 +6,8 @@ import { ACTIVE_KEY, CLAVE_VIVA } from './sesion.js';
 import { swr, borrar, leer, guardar } from '../lib/cache.js';
 import { renderOnboarding } from './bienvenida.js';
 import { figuraMusculos } from '../lib/musculos.js';
+import { avisar } from '../lib/barra.js';
+import { otraSesionConTrabajo } from '../lib/sesion-viva.js';
 
 const SLOW = { timeoutMs: 150000 };
 const AVISOS = {
@@ -139,11 +141,26 @@ function renderSesion(el, s, deCache = false) {
 // en segundo plano (y, si esa llamada fallara, el primer clip o serie la empieza igualmente).
 function empezar(el, s, btn, destino = '#sesion') {
   btn.disabled = true;
+  // Red de seguridad: si este móvil tiene otra sesión de hoy con series sin guardar, se vuelve a ella en vez de
+  // cambiar a una vacía (pasó con dos sesiones del mismo día: el trabajo hecho quedaba escondido).
+  const otra = sesionVivaDeHoy(s);
+  if (otra) {
+    avisar('Ya tienes una sesión de hoy con series. Te llevo a ella.', 5000);
+    location.hash = otra.status === 'review' ? '#revision' : '#sesion';
+    return;
+  }
   try { localStorage.setItem(ACTIVE_KEY, s.id); } catch (_) { /* sin almacenamiento */ }
   if (destino === '#sesion') guardar(CLAVE_VIVA, s.status === 'planned' ? Object.assign({}, s, { status: 'in_progress' }) : s);
   if (s.status === 'planned') call('session.start', { id: s.id }, { timeoutMs: 60000, silent: true }).catch((err) => console.error(err));
   borrar('hoy');
   location.hash = destino;
+}
+
+/** La sesión de hoy con series que este móvil está grabando, si es distinta de `s`. Pura salvo la lectura local. */
+function sesionVivaDeHoy(s) {
+  let activa = ''; try { activa = localStorage.getItem(ACTIVE_KEY) || ''; } catch (_) { activa = ''; }
+  const viva = leer(CLAVE_VIVA);
+  return otraSesionConTrabajo(s, activa, viva && viva.data);
 }
 
 function accion(el, s) {

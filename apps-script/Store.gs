@@ -365,7 +365,8 @@ function latestBodyweight_(settings) {
   return (settings.goal && settings.goal.startWeightKg) || null;
 }
 
-function commitSession_(input, tz, today) {
+/** `guard(arr)` (opcional) se evalúa dentro del lock: si devuelve algo, no se escribe y se devuelve { existing }. */
+function commitSession_(input, tz, today, guard) {
   requireDate_(input.date);
   const rec = Object.assign({}, input);
   rec.id = rec.id || makeId_('s', rec.date, tz);
@@ -373,7 +374,7 @@ function commitSession_(input, tz, today) {
   const errors = validateSession_(rec, today, settings.equipment);
   if (errors.length) throw { code: 'VALIDATION', message: errors.join('; ') };
   rec.metrics = computeSessionMetrics_(rec, { bodyweightKg: latestBodyweight_(settings) });
-  return upsertShard_('sessions', rec, sortByDateTime_, tz);
+  return upsertShard_('sessions', rec, sortByDateTime_, tz, guard);
 }
 
 function commitMeal_(input, tz, today) {
@@ -387,10 +388,12 @@ function commitMeal_(input, tz, today) {
   return upsertShard_('meals', rec, sortByDateTime_, tz);
 }
 
-function upsertShard_(dir, rec, sortFn, tz) {
+function upsertShard_(dir, rec, sortFn, tz, guard) {
   const path = dir + '/' + rec.date.slice(0, 7) + '.json';
   return withLock_(() => {
     const arr = readJson_(path, []);
+    const ya = guard ? guard(arr) : null;
+    if (ya) return { id: ya.id, existing: ya };
     const idx = arr.findIndex((x) => x.id === rec.id);
     if (idx >= 0) arr[idx] = rec;
     else arr.push(rec);
