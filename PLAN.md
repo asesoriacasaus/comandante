@@ -698,6 +698,20 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - Hecho en `apps-script/Rest.gs`: si el cálculo da menos de 60 s o negativo (series metidas a mano de golpe, dos series del mismo clip), la serie recibe el descanso medio real de ese ejercicio (mínimo 2 series en este mes y el anterior), si no el medio general (mínimo 3), si no el `restSec` del plan. Se marca `restImputed: true`, se muestra con "≈" y no cuenta para el histórico. La primera serie y los huecos de más de 15 minutos siguen sin descanso.
    - Consecuencia aceptada: un descanso real de menos de 1 minuto (por ejemplo, una serie apuntada tarde) también se sustituye.
 
+11. **Comida más dinámica y con la hora rellenada (24 de noviembre de 2026). DESARROLLADO.**
+   - Petición: la comida se registra con la hora a la que se apunta (editable, nunca en blanco), y el módulo, que era estático, gana dinamismo: botón flotante, resumen plegable y desplegable.
+   - **Hora:** `horaComida` (`js/lib/format.js`) da la hora con que se guarda. Manda la cambiada a mano en "Cuándo"; si no, la que dijo el usuario ("a las 14:00", la trae la IA); si no, la del reloj al abrir Añadir. Se aplica también a "Lo de siempre" y a lo calculado sin IA. La hora es la local del móvil, no la UTC.
+   - **iPhone:** el campo de fecha se salía de la tarjeta (ancho mínimo propio de iOS) y los chips Hoy/Ayer salían en azul del sistema. Arreglado en CSS. **No probado en un iPhone real.**
+   - **Inicio de Comida:**
+     - Barra flotante con lo que falta del día ("Faltan 1.450 kcal · Proteína 43/160 g"), "Foto" (abre la cámara en el mismo toque) y "+ Añadir".
+     - Resumen del día plegable (`js/lib/plegable.js`): plegado, cuatro cifras con barrita (kcal, proteína, hidratos, grasa) que se queda pegado arriba al desplazarse; desplegado, los anillos.
+     - Comidas en filas ordenadas por hora (hora · tipo · alimentos · kcal) que se despliegan con el detalle y "Borrar".
+     - Vitaminas y minerales plegado, con el número a reforzar, a vigilar y bien, y cuáles reforzar.
+     - Suplementos sin añadir: una fila compacta.
+     - Lo desplegado se recuerda (resumen y micros en el móvil; comidas mientras la app está abierta) y la vista no salta al repintar.
+   - **Añadir:** "‹ Comida" arriba, "Cuándo" plegado ("Hoy · 20:45"), Foto y Voz como dos botones grandes, el texto debajo y "Calcular" en la página (la barra flotante se esconde con el teclado). "Lo de siempre" al final.
+   - Animaciones cortas (despliegue, barras que se llenan, entrada de filas) y respeta "Reducir movimiento".
+
 ### Fallo del 24 de noviembre de 2026: sesión duplicada y progreso "perdido"
 - **Qué pasó:** al abrir Hoy, dos cargas a la vez (`hoy.load`) generaron dos sesiones del mismo día en el mismo minuto. Se empezó una y se registraron las series. Al volver a Hoy, el servidor devolvió la otra, vacía: `planToday` cogía la primera del archivo y una planificada sin hora de inicio se ordena antes que la empezada. Al pulsar "Empezar sesión", la app pasó a la vacía. Las series no se borraron: siguieron en la primera sesión, que después se descartó desde la revisión. Descartar solo la marca (`status: 'discarded'`); los datos siguen en Drive.
 - **Arreglo:**

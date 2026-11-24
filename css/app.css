@@ -483,3 +483,81 @@ body.escribiendo .barra-accion { display: none; }
 .aviso-recuperar .acciones { margin: 0; }
 .compra.elegir input:checked ~ span { text-decoration: none; color: var(--tinta); }
 .compra.elegir input:checked ~ span.detalle { color: var(--tinta-2); }
+
+/* iOS: los campos de fecha y hora tienen un ancho mínimo propio y se salían de la tarjeta; los chips heredaban el azul del sistema. */
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; box-sizing: border-box; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value { text-align: left; }
+.chip-boton { color: var(--tinta); }
+
+/* ---------- Plegables (tarjetas que se despliegan) ---------- */
+.plegable { margin: 0 0 14px; background: var(--tarjeta); border-radius: var(--radio); box-shadow: var(--sombra); overflow: hidden; }
+.plegable-cab { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 14px 16px; border: 0; background: none; color: var(--tinta); text-align: left; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plegable-cab:active { transform: scale(.99); }
+.plegable-titulo { flex: 1; min-width: 0; }
+.plegable-flecha { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--tinta-2); border-bottom: 2px solid var(--tinta-2); transform: rotate(45deg) translate(-2px, -2px); transition: transform .25s ease; }
+.plegable.abierto > .plegable-cab .plegable-flecha { transform: rotate(-135deg) translate(-2px, -2px); }
+.plegable-cuerpo { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s cubic-bezier(.2, .8, .2, 1); }
+.plegable.abierto > .plegable-cuerpo { grid-template-rows: 1fr; }
+.plegable-interior { min-height: 0; overflow: hidden; padding: 0 16px; opacity: 0; transition: opacity .2s ease, padding .28s ease; }
+.plegable.abierto .plegable-interior { padding-bottom: 16px; opacity: 1; }
+
+/* ---------- Comida: resumen plegable, comidas en filas y captura rápida ---------- */
+.comida-inicio .resumen-dia { position: sticky; top: calc(env(safe-area-inset-top) + 8px); z-index: 3; }
+.comida-inicio .resumen-dia.abierto { position: static; }
+.minis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.mini { display: grid; gap: 3px; min-width: 0; }
+.mini-nombre { font: 600 11px var(--sans); letter-spacing: .02em; color: var(--tinta-2); text-transform: uppercase; }
+.mini-cifra { display: grid; font: 700 18px/1.1 var(--sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mini-cifra small { font: 500 11px var(--sans); color: var(--tinta-2); overflow: hidden; text-overflow: ellipsis; }
+.mini-barra { display: block; height: 5px; border-radius: 99px; background: var(--tarjeta-2); overflow: hidden; }
+.mini-relleno { display: block; height: 100%; border-radius: inherit; background: var(--tinta-2); transform-origin: left; animation: llenar .7s cubic-bezier(.2, .8, .2, 1) both; }
+.mini.kcal .mini-relleno { background: var(--acento); }
+.mini.prot .mini-relleno { background: var(--oliva); }
+@keyframes llenar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.resumen-dia .anillos-caja { margin: 4px 0 10px; }
+
+.comidas-dia { margin: 0 0 14px; }
+.comidas-dia .bloque-cab { margin: 0 4px 8px; }
+.comida-plegable { margin: 0 0 8px; animation: entrar .35s ease both; }
+.comida-fila { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.comida-hora { flex: none; min-width: 48px; padding: 6px 8px; border-radius: 10px; background: var(--tarjeta-2); font: 700 13px var(--sans); font-variant-numeric: tabular-nums; text-align: center; }
+.comida-texto { flex: 1; display: grid; min-width: 0; }
+.comida-texto b { font: 700 15px var(--sans); }
+.comida-texto small { font: 500 13px var(--sans); color: var(--tinta-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.comida-kcal { flex: none; font: 700 16px var(--sans); font-variant-numeric: tabular-nums; }
+.comida-kcal small { font: 500 12px var(--sans); color: var(--tinta-2); }
+.comida-plegable .lista { margin: 0; }
+.vacio-comidas { margin: 0 0 14px; padding: 18px; border: 2px dashed var(--linea); border-radius: var(--radio); text-align: center; }
+.vacio-comidas .vacio { margin: 0 0 4px; }
+
+.micros-cab { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.micros-cab small { grid-column: 1 / -1; font: 500 13px var(--sans); color: var(--tinta-2); }
+.micros-chips { display: flex; gap: 4px; }
+.mchip { min-width: 26px; padding: 3px 7px; border-radius: 99px; font: 700 12px var(--sans); text-align: center; background: var(--tarjeta-2); }
+.mchip.bajo, .mchip.alto { color: var(--error); }
+.mchip.ok { color: var(--oliva); }
+.micros-plegable .micros > .segmentos { margin-top: 0; }
+
+.cab-volver { margin: -4px 0 2px; }
+.volver { min-height: 44px; padding: 8px 0; border: 0; background: none; color: var(--acento); font: 600 15px var(--sans); cursor: pointer; }
+.cuando-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cuando-texto { font: 700 16px var(--sans); }
+.cuando .chips-datos { margin-top: 10px; }
+.capturas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 12px; }
+.captura { display: grid; align-content: center; justify-items: start; gap: 2px; min-height: 92px; padding: 16px; border: 0; border-radius: var(--radio); background: var(--tarjeta); box-shadow: var(--sombra); color: var(--tinta); text-align: left; cursor: pointer; transition: transform .12s ease, background-color .2s ease; -webkit-tap-highlight-color: transparent; }
+.captura:active { transform: scale(.97); }
+.captura b { font: 700 18px var(--sans); }
+.captura small { font: 500 13px var(--sans); color: var(--tinta-2); }
+.captura.hecho { background: var(--oliva-suave); }
+.captura.grabando { background: var(--boton); color: #fff; animation: latido 1.4s ease-out infinite; }
+.captura.grabando small { color: rgba(255, 255, 255, .85); }
+.captura:disabled { opacity: .5; }
+.escribir { display: block; margin: 0 0 12px; font: 600 13px var(--sans); color: var(--tinta-2); }
+.anadir-comida .miniaturas:empty { display: none; }
+.anadir-comida .btn-ancho { margin-top: 4px; }
+
+.sup-vacio { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 6px 6px 6px 16px; background: var(--tarjeta); border-radius: var(--radio); box-shadow: var(--sombra); }
+.sup-vacio span { display: grid; min-width: 0; }
+.sup-vacio b { font: 700 15px var(--sans); }
+.sup-vacio small { font: 500 13px var(--sans); color: var(--tinta-2); }
+.mchip.cero { color: var(--tinta-2); }
