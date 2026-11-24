@@ -7,10 +7,12 @@ import { createRecorder } from '../recorder.js';
 import { swr, borrar, leer } from '../lib/cache.js';
 import { estimarLocal, contarAhorroLocal } from '../lib/alimentos.js';
 import { ponerBarra, avisar } from '../lib/barra.js';
+import { plegable, recordado, recordar } from '../lib/plegable.js';
 import { MEAL_TYPES_ES, UNITS, scaleItem, pct, warningText, sumItems, fmtInt, fmtDec, estadoMicros, agruparMicros, FUENTES, escalaMicro, anillo, diasSemana, huecosRecientes, TIPOS_ELEGIBLES, fraccionReparto, textoReparto, repartir, desgloseMicro, avisoSol, NOTAS_MICRO } from '../lib/nutrition.js';
 
 const vigente = (el) => el.dataset.route === 'comida';
 let recorder = null;
+const cur = {};   // la pantalla de añadir abierta, para los avisos del grabador
 let fecha = null;
 let pantalla = 'inicio';   // si el usuario está capturando una comida, un dato nuevo no la pisa
 
@@ -46,13 +48,6 @@ async function cargar(el) {
     el.replaceChildren(h('section', {}, h('h2', {}, 'Comida'), h('p', { class: 'estado error' }, err.message),
       h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => render(el) }, 'Reintentar'))));
   }
-}
-
-function barra(etiqueta, valor, objetivo, unidad) {
-  const p = pct(valor, objetivo);
-  return h('div', { class: 'progreso' },
-    h('p', {}, h('span', { class: 'macro-nombre' }, etiqueta), h('span', { class: 'macro-cifra' }, fmtInt(valor || 0) + '/' + fmtInt(objetivo), h('small', {}, ' ' + unidad))),
-    h('progress', { max: 100, value: Math.min(100, p), 'aria-label': etiqueta + ': ' + p + ' %' }));
 }
 
 // Anillos de calorías (fuera) y proteína (dentro), con las cifras grandes al lado.
@@ -98,26 +93,59 @@ function inicio(el, st) {
   const aviso = huecos.length ? h('button', { type: 'button', class: 'aviso aviso-boton', onClick: () => irA(huecos[0]) },
     'No apuntaste nada ' + huecos.map((d) => 'el ' + diaCorto(d)).join(', ').replace(/, ([^,]*)$/, ' ni $1') + '. Toca aquí para añadirlo ahora: nunca es tarde.') : null;
 
-  const objetivos = t
-    ? h('div', {}, anillos(st.totals, t),
-        h('div', { class: 'bloque' },
-          h('div', { class: 'rejilla' }, barra('Hidratos', st.totals.carbsG, t.carbsG, 'g'), barra('Grasa', st.totals.fatG, t.fatG, 'g')),
-          h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.')))
-    : h('p', { class: 'aviso' }, 'Para calcular tus objetivos faltan tus datos: completa la bienvenida desde Hoy.');
-
-  const reales = st.meals.filter((m) => m.mealType !== 'supplement');
+  const reales = st.meals.filter((m) => m.mealType !== 'supplement')
+    .sort((a, b) => String(a.time || '99:99').localeCompare(String(b.time || '99:99')));
+  const totalDia = sumItems(reales.flatMap((m) => m.items || []));
   const comidas = reales.length
-    ? h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Comidas'), ...reales.map((m) => comidaNodo(el, st, m)))
-    : h('p', { class: 'vacio' }, 'Aún no has apuntado nada ' + nombreDia + '.');
+    ? h('div', { class: 'comidas-dia' },
+        h('div', { class: 'bloque-cab' }, h('p', { class: 'etiqueta' }, 'Comidas · ' + reales.length), h('span', { class: 'detalle' }, fmtInt(totalDia.kcal) + ' kcal')),
+        ...reales.map((m) => comidaNodo(el, st, m)))
+    : h('div', { class: 'vacio-comidas' }, h('p', { class: 'vacio' }, 'Aún no has apuntado nada ' + nombreDia + '.'),
+        h('p', { class: 'pista' }, 'Pulsa «Añadir» abajo: con una foto, la voz o un texto, o todo a la vez.'));
 
-  const micros = bloqueMicros(el, st);
-
-  el.replaceChildren(h('section', {}, h('h2', {}, 'Comida'), semana, aviso,
-    h('button', { type: 'button', class: 'btn btn-ancho', onClick: () => pantallaAnadir(el, st) },
-      esHoy ? 'Añadir comida' : 'Añadir comida del ' + diaCorto(st.date)),
-    h('p', { class: 'pista' }, 'Con una foto, la voz o un texto, o todo a la vez.'),
-    objetivos, bloqueSuplementos(el, st), comidas, micros,
+  // Al repintar (primero lo guardado en el móvil, luego lo del servidor) la página se queda donde estaba.
+  const y = window.scrollY;
+  el.replaceChildren(h('section', { class: 'comida-inicio' }, h('h2', {}, 'Comida'), semana, aviso,
+    resumenDia(st), bloqueSuplementos(el, st), comidas, bloqueMicros(el, st),
     h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrirRecetas(el, st) }, 'Recetas y lista de la compra'))));
+  window.scrollTo(0, y);
+
+  // Botón flotante: añadir siempre a mano, con lo que falta del día a la vista. "Foto" abre directamente la cámara.
+  const falta = t ? Math.round((t.kcal || 0) - (st.totals.kcal || 0)) : null;
+  ponerBarra(h('div', { class: 'barra-contenido' },
+    h('div', { class: 'barra-estado' },
+      h('b', {}, falta === null ? (esHoy ? 'Hoy' : diaCorto(st.date)) : falta > 0 ? 'Faltan ' + fmtInt(falta) + ' kcal' : 'Objetivo cumplido'),
+      h('span', {}, t ? 'Proteína ' + fmtInt(st.totals.proteinG || 0) + '/' + fmtInt(t.proteinG) + ' g' : (esHoy ? 'Apunta lo que comes' : 'Añade lo que comiste'))),
+    h('div', { class: 'barra-acciones' },
+      h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Añadir comida con una foto', onClick: () => pantallaAnadir(el, st, { foto: true }) }, 'Foto'),
+      h('button', { type: 'button', class: 'btn', onClick: () => pantallaAnadir(el, st) }, esHoy ? '+ Añadir' : '+ Añadir al ' + diaCorto(st.date)))));
+}
+
+// Resumen del día: plegado, cuatro cifras con su barrita; desplegado, los anillos y la explicación.
+const CLAVE_RESUMEN = 'comandante.comida.resumen';
+function resumenDia(st) {
+  const t = st.targets;
+  if (!t) return h('p', { class: 'aviso' }, 'Para calcular tus objetivos faltan tus datos: completa la bienvenida desde Hoy.');
+  const tot = st.totals || {};
+  const mini = (nombre, v, obj, unidad, clase) => {
+    const barra = h('i', { class: 'mini-relleno' });
+    barra.style.width = Math.min(100, pct(v || 0, obj)) + '%';
+    return h('span', { class: 'mini ' + clase },
+      h('span', { class: 'mini-nombre' }, nombre),
+      h('span', { class: 'mini-cifra' }, fmtInt(v || 0), h('small', {}, 'de ' + fmtInt(obj) + unidad)),
+      h('span', { class: 'mini-barra', 'aria-hidden': 'true' }, barra));
+  };
+  return plegable({
+    clase: 'resumen-dia',
+    abierto: recordado(CLAVE_RESUMEN, false),
+    onCambio: (a) => recordar(CLAVE_RESUMEN, a),
+    etiqueta: 'Resumen del día: calorías ' + fmtInt(tot.kcal || 0) + ' de ' + fmtInt(t.kcal) + ', proteína ' + fmtInt(tot.proteinG || 0) + ' de ' + fmtInt(t.proteinG) + ' g. Toca para ver más.',
+    cabecera: h('span', { class: 'minis' },
+      mini('Kcal', tot.kcal, t.kcal, '', 'kcal'), mini('Prot.', tot.proteinG, t.proteinG, ' g', 'prot'),
+      mini('Hidr.', tot.carbsG, t.carbsG, ' g', 'hidr'), mini('Grasa', tot.fatG, t.fatG, ' g', 'grasa')),
+    cuerpo: [anillos(tot, t),
+      h('p', { class: 'nota' }, 'Calculado con tu peso actual: mantenimiento estimado menos un 10 % y 2 g de proteína por kg. Se revisa cada semana.')]
+  });
 }
 
 // ---------- Suplementos ----------
@@ -127,8 +155,8 @@ function bloqueSuplementos(el, st) {
   const tomados = new Set(st.supplementsTaken || []);
   const gestionar = h('button', { type: 'button', class: 'enlace', onClick: () => abrirSuplementos(el, st) }, lista.length ? 'Gestionar' : 'Añadir');
   if (!lista.length) {
-    return h('div', { class: 'bloque' }, h('div', { class: 'bloque-cab' }, h('p', { class: 'etiqueta' }, 'Suplementos'), gestionar),
-      h('p', { class: 'nota' }, '¿Tomas creatina, vitamina D, hierro u omega 3? Añádelos una vez y márcalos cada día: lo que aportan cuenta en tus vitaminas y minerales.'));
+    return h('div', { class: 'sup-vacio' }, h('span', {}, h('b', {}, 'Suplementos'), h('small', {}, 'Creatina, vitamina D, hierro… cuentan en tus vitaminas')),
+      h('button', { type: 'button', class: 'btn btn-sec btn-mini', onClick: () => abrirSuplementos(el, st) }, 'Añadir'));
   }
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   return h('div', { class: 'bloque' }, h('div', { class: 'bloque-cab' }, h('p', { class: 'etiqueta' }, 'Suplementos'), gestionar),
@@ -198,8 +226,7 @@ function bloqueMicros(el, st) {
     onClick: () => { vistaMicros = m; inicio(el, st); } }, texto);
   const contador = (n, texto, clase) => h('div', { class: 'dato ' + clase }, h('span', { class: 'valor' }, String(n)), h('span', { class: 'dato-que' }, texto));
 
-  const caja = h('div', { class: 'bloque micros' },
-    h('p', { class: 'etiqueta' }, 'Vitaminas y minerales'),
+  const caja = h('div', { class: 'micros' },
     h('div', { class: 'segmentos', role: 'group', 'aria-label': 'Periodo' }, pestaña('semana', 'Media 7 días'), pestaña('hoy', 'Hoy')),
     h('div', { class: 'resumen' }, contador(g.bajos.length, 'a reforzar', 'bajo'), contador(g.altos.length, 'a vigilar', 'alto'), contador(g.ok.length, 'bien', 'ok')),
     g.bajos.length ? h('div', {}, h('h3', { class: 'micro-grupo' }, 'A reforzar'), h('ul', { class: 'micro-lista' }, g.bajos.map(fila))) : null,
@@ -213,8 +240,22 @@ function bloqueMicros(el, st) {
   // El ancho de las barras se pone por JavaScript: la política de seguridad no permite estilos en línea en el HTML.
   caja.querySelectorAll('.tramo').forEach((n) => { n.style.width = n.dataset.ancho + '%'; });
   caja.querySelectorAll('.escala-marca').forEach((n) => { n.style.left = n.dataset.pos + '%'; });
-  return caja;
+  // Plegado se ve lo esencial: cuántos hay que reforzar y cuáles.
+  const resumen = g.bajos.length
+    ? 'A reforzar: ' + g.bajos.slice(0, 3).map((m) => m.label).join(', ') + (g.bajos.length > 3 ? ' y ' + (g.bajos.length - 3) + ' más' : '')
+    : g.altos.length ? 'A vigilar: ' + g.altos.map((m) => m.label).join(', ') : 'Todo bien cubierto';
+  return plegable({
+    clase: 'micros-plegable',
+    abierto: recordado(CLAVE_MICROS, false),
+    onCambio: (a) => recordar(CLAVE_MICROS, a),
+    cabecera: h('span', { class: 'micros-cab' }, h('b', {}, 'Vitaminas y minerales'),
+      h('span', { class: 'micros-chips', 'aria-hidden': 'true' },
+        ...[[g.bajos.length, 'bajo'], [g.altos.length, 'alto'], [g.ok.length, 'ok']].map(([n, c]) => h('span', { class: 'mchip ' + c + (n ? '' : ' cero') }, String(n)))),
+      h('small', {}, resumen + (modo === 'semana' ? ' · media 7 días' : ' · hoy'))),
+    cuerpo: caja
+  });
 }
+const CLAVE_MICROS = 'comandante.comida.micros';
 
 function abrirHabitos(el, st) {
   ponerBarra(null);
@@ -230,18 +271,28 @@ function abrirRecetas(el, st) {
     .catch((err) => { console.error(err); pantalla = 'inicio'; });
 }
 
+const comidasAbiertas = new Set();   // qué comidas están desplegadas (sobrevive a los repintados)
 function comidaNodo(el, st, m) {
   const total = sumItems(m.items);
-  return h('div', { class: 'comida' },
-    h('div', { class: 'comida-cab' }, h('h3', {}, (m.time ? m.time + ' · ' : '') + (MEAL_TYPES_ES[m.mealType] || 'Comida')),
-      h('button', { type: 'button', class: 'btn btn-sec', 'aria-label': 'Borrar esta comida', onClick: async (e) => {
-        if (!confirm('¿Borrar esta comida?')) return;
-        e.currentTarget.disabled = true;
-        try { await call('meal.delete', { id: m.id, date: m.date }, { timeoutMs: 60000 }); borrar('comida:' + m.date); render(el); }
-        catch (err) { console.error(err); e.currentTarget.disabled = false; e.currentTarget.after(h('p', { class: 'estado error' }, err.message)); }
-      } }, 'Borrar')),
-    h('ul', { class: 'lista' }, m.items.map((it) => h('li', { class: 'fila medida' }, h('span', {}, it.name + ' · ' + fmtDec(it.quantity) + ' ' + it.unit), h('span', { class: 'valor-medida' }, fmtInt(it.kcal) + ' kcal')))),
-    h('p', { class: 'detalle' }, fmtInt(total.kcal) + ' kcal · P ' + fmtInt(total.proteinG) + ' g · H ' + fmtInt(total.carbsG) + ' g · G ' + fmtInt(total.fatG) + ' g'));
+  const borrarBtn = h('button', { type: 'button', class: 'btn btn-sec btn-mini', 'aria-label': 'Borrar esta comida', onClick: async (e) => {
+    if (!confirm('¿Borrar esta comida?')) return;
+    const b = e.currentTarget; b.disabled = true;
+    try { await call('meal.delete', { id: m.id, date: m.date }, { timeoutMs: 60000 }); comidasAbiertas.delete(m.id); borrar('comida:' + m.date); avisar('Comida borrada'); render(el); }
+    catch (err) { console.error(err); b.disabled = false; b.after(h('p', { class: 'estado error' }, err.message)); }
+  } }, 'Borrar');
+  return plegable({
+    clase: 'comida-plegable',
+    abierto: comidasAbiertas.has(m.id),
+    onCambio: (a) => { if (a) comidasAbiertas.add(m.id); else comidasAbiertas.delete(m.id); },
+    cabecera: h('span', { class: 'comida-fila' },
+      h('span', { class: 'comida-hora' }, m.time || '--:--'),
+      h('span', { class: 'comida-texto' }, h('b', {}, MEAL_TYPES_ES[m.mealType] || 'Comida'), h('small', {}, (m.items || []).map((i) => i.name).join(', '))),
+      h('span', { class: 'comida-kcal' }, fmtInt(total.kcal), h('small', {}, ' kcal'))),
+    cuerpo: [
+      h('ul', { class: 'lista' }, m.items.map((it) => h('li', { class: 'fila medida' }, h('span', {}, it.name + ' · ' + fmtDec(it.quantity) + ' ' + it.unit), h('span', { class: 'valor-medida' }, fmtInt(it.kcal) + ' kcal')))),
+      h('p', { class: 'detalle' }, 'P ' + fmtInt(total.proteinG) + ' g · H ' + fmtInt(total.carbsG) + ' g · G ' + fmtInt(total.fatG) + ' g' + (m.portion && m.portion.text ? ' · ' + m.portion.text : '')),
+      h('div', { class: 'acciones compactas' }, borrarBtn)]
+  });
 }
 
 // ---------- Añadir: foto, voz y texto, para cualquier día ----------
@@ -281,7 +332,7 @@ function controlReparto(estado, onChange) {
   return caja;
 }
 
-function pantallaAnadir(el, st) {
+function pantallaAnadir(el, st, opciones = {}) {
   ponerBarra(null);
   pantalla = 'otra';
   const fotos = [];   // { blob, url }
@@ -313,14 +364,25 @@ function pantallaAnadir(el, st) {
   let horaEditada = false;
   horaCampo.addEventListener('change', () => { horaEditada = !!horaCampo.value; });
   const hora = () => ({ editada: horaEditada ? horaCampo.value : null, alApuntar: horaCampo.value || horaLocal() });
+  // "Cuándo" plegado: se ve "Hoy · 20:45" y se despliega para cambiarlo.
+  const cuandoTexto = h('span', { class: 'cuando-texto' });
+  const pintarCuando = () => {
+    const d = dia.value || st.date;
+    const nombre = d === st.today ? 'Hoy' : d === sumarDias(st.today, -1) ? 'Ayer' : formatDateEs(d);
+    cuandoTexto.textContent = nombre + ' · ' + (horaCampo.value || 'sin hora');
+    atajos.querySelectorAll('.chip-boton').forEach((b) => b.classList.toggle('activo', b.dataset.dia === d));
+  };
   const atajos = h('div', { class: 'chips-datos' },
     ...[['Hoy', st.today], ['Ayer', sumarDias(st.today, -1)], ['Anteayer', sumarDias(st.today, -2)]].map(([t, d]) =>
-      h('button', { type: 'button', class: 'chip chip-boton', onClick: () => { dia.value = d; } }, t)));
+      h('button', { type: 'button', class: 'chip chip-boton', 'data-dia': d, onClick: () => { dia.value = d; pintarCuando(); } }, t)));
+  dia.addEventListener('change', pintarCuando);
+  horaCampo.addEventListener('change', pintarCuando);
   const miniaturas = h('div', { class: 'miniaturas' });
   const archivo = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
-  const btnFoto = h('button', { type: 'button', class: 'btn btn-sec' }, 'Añadir foto');
-  const area = h('textarea', { rows: 3, maxlength: 2000, 'aria-label': 'Descripción de la comida', placeholder: 'Opcional si hay foto o audio. Ej.: arroz con pollo, unos 200 g de arroz cocido; una manzana' });
-  const btnAudio = h('button', { type: 'button', class: 'btn btn-sec' }, 'Grabar audio');
+  const btnFoto = h('button', { type: 'button', class: 'captura' }, h('b', {}, 'Foto'), h('small', {}, 'del plato o la etiqueta'));
+  const area = h('textarea', { rows: 3, maxlength: 2000, 'aria-label': 'Descripción de la comida', placeholder: 'Ej.: arroz con pollo, unos 200 g de arroz cocido; una manzana' });
+  const btnAudio = h('button', { type: 'button', class: 'captura' }, h('b', {}, 'Voz'), h('small', {}, 'cuéntalo en voz alta'));
+  const textoAudio = (titulo, sub) => btnAudio.replaceChildren(h('b', {}, titulo), h('small', {}, sub));
   const audioInfo = h('p', { class: 'nota', hidden: true });
   const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
   const calcular = h('button', { type: 'button', class: 'btn btn-ancho' }, 'Calcular');
@@ -330,7 +392,8 @@ function pantallaAnadir(el, st) {
       h('button', { type: 'button', class: 'quitar', 'aria-label': 'Quitar la foto ' + (i + 1), onClick: () => { URL.revokeObjectURL(f.url); fotos.splice(i, 1); pintarFotos(); } }, '×'))));
     cajaReparto.hidden = !fotos.length;
     btnFoto.disabled = fotos.length >= MAX_FOTOS;
-    btnFoto.textContent = fotos.length ? 'Otra foto' : 'Añadir foto';
+    btnFoto.replaceChildren(h('b', {}, fotos.length ? 'Otra foto' : 'Foto'), h('small', {}, fotos.length ? fotos.length + ' de ' + MAX_FOTOS : 'del plato o la etiqueta'));
+    btnFoto.classList.toggle('hecho', fotos.length > 0);
   };
   btnFoto.addEventListener('click', () => archivo.click());
   archivo.addEventListener('change', async () => {
@@ -346,17 +409,19 @@ function pantallaAnadir(el, st) {
   });
   cajaReparto.hidden = true;
 
-  recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando) btnAudio.textContent = 'Parar · ' + Math.floor(ms / 1000) + ' s'; }, onAutoStop: () => { if (grabando) btnAudio.click(); } });
+  recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando && cur.textoAudio) cur.textoAudio('Parar', Math.floor(ms / 1000) + ' s grabando'); }, onAutoStop: () => { if (grabando && cur.btnAudio) cur.btnAudio.click(); } });
+  cur.textoAudio = textoAudio; cur.btnAudio = btnAudio;
   btnAudio.addEventListener('click', async () => {
     if (!grabando) {
-      try { await recorder.start(); grabando = true; btnAudio.classList.add('grabando'); btnAudio.textContent = 'Parar · 0 s'; }
+      try { await recorder.start(); grabando = true; btnAudio.classList.add('grabando'); textoAudio('Parar', '0 s grabando'); }
       catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'Sin acceso al micrófono. Actívalo en Ajustes de iOS para este sitio.'; }
       return;
     }
     grabando = false; btnAudio.classList.remove('grabando');
     try { const r = await recorder.stop(); audio = { blob: r.blob, mime: r.mime, ms: r.ms }; } catch (err) { console.error(err); }
     recorder.releaseMic();
-    btnAudio.textContent = audio ? 'Volver a grabar' : 'Grabar audio';
+    if (audio) textoAudio('Volver a grabar', 'audio de ' + Math.max(1, Math.round(audio.ms / 1000)) + ' s listo'); else textoAudio('Voz', 'cuéntalo en voz alta');
+    btnAudio.classList.toggle('hecho', !!audio);
     audioInfo.hidden = !audio;
     audioInfo.textContent = audio ? 'Audio de ' + Math.max(1, Math.round(audio.ms / 1000)) + ' s listo.' : '';
   });
@@ -382,14 +447,22 @@ function pantallaAnadir(el, st) {
     } catch (err) { console.error(err); calcular.disabled = false; estado.className = 'estado error'; estado.textContent = err.message + ' Lo que has añadido sigue aquí.'; }
   });
 
-  el.replaceChildren(h('section', {}, h('p', { class: 'etiqueta' }, 'Comida'), h('h2', {}, 'Añadir comida'),
-    h('div', { class: 'bloque' }, h('div', { class: 'rejilla' }, h('label', {}, 'Día', dia), h('label', {}, 'Hora', horaCampo)), atajos),
-    cajaSiempre,
-    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Foto'), miniaturas, archivo, cajaReparto,
-      h('div', { class: 'acciones' }, btnFoto), h('p', { class: 'nota' }, 'Del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad. Hasta 3 fotos; también vale la etiqueta del envase.')),
-    h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Voz o texto'), h('div', { class: 'acciones' }, btnAudio), audioInfo, area),
+  const salir = () => { if (grabando) { grabando = false; recorder.stop().catch(() => {}); } if (recorder) recorder.releaseMic(); fotos.forEach((f) => URL.revokeObjectURL(f.url)); inicio(el, st); };
+  el.replaceChildren(h('section', { class: 'anadir-comida' },
+    h('div', { class: 'cab-volver' }, h('button', { type: 'button', class: 'volver', 'aria-label': 'Volver a Comida', onClick: salir }, '‹ Comida')),
+    h('h2', {}, 'Añadir comida'),
+    plegable({ clase: 'cuando', abierto: false, etiqueta: null,
+      cabecera: h('span', { class: 'cuando-cab' }, h('span', { class: 'etiqueta' }, 'Cuándo'), cuandoTexto),
+      cuerpo: [h('div', { class: 'rejilla' }, h('label', {}, 'Día', dia), h('label', {}, 'Hora', horaCampo)), atajos] }),
+    h('div', { class: 'capturas' }, btnFoto, btnAudio), archivo,
+    miniaturas, cajaReparto, audioInfo,
+    h('label', { class: 'escribir' }, 'O escríbelo', area),
     calcular, estado,
-    h('div', { class: 'acciones fin' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => { if (recorder) recorder.releaseMic(); fotos.forEach((f) => URL.revokeObjectURL(f.url)); inicio(el, st); } }, 'Cancelar'))));
+    h('p', { class: 'nota' }, 'Foto: del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad; hasta 3, también vale la etiqueta del envase. Puedes juntar foto, voz y texto.'),
+    cajaSiempre));
+  pintarCuando();
+  // Desde el botón flotante "Foto": se abre la cámara en el mismo toque (iOS solo lo permite así, sin esperas).
+  if (opciones.foto) archivo.click();
 }
 
 // ---------- Revisar y guardar ----------
