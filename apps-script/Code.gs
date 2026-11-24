@@ -53,6 +53,8 @@ function doPost(e) {
     'session.save': () => sessionSave(payload.id),
     'session.discard': () => sessionDiscard(payload.id),
     'session.resume': () => sessionResume(payload.id),
+    'session.recover': () => sessionRecover(payload),
+    'sessions.recoverable': () => sessionsRecoverable(),
     'session.debrief': () => sessionDebrief(payload),
     'clip.process': () => clipProcess(payload),
     'body.extract': () => bodyExtract(payload),

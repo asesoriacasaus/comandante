@@ -477,3 +477,9 @@ body.escribiendo .barra-accion { display: none; }
 .micro-desglose { margin: 6px 0 0; font: 600 12px var(--sans); color: var(--oliva); font-variant-numeric: tabular-nums; }
 .micro-nota { font-style: italic; }
 .enlace-linea { min-height: 32px; padding: 0; text-decoration: underline; font-size: 13px; }
+
+/* Recuperar sesión descartada */
+.aviso-recuperar p { margin: 0 0 10px; }
+.aviso-recuperar .acciones { margin: 0; }
+.compra.elegir input:checked ~ span { text-decoration: none; color: var(--tinta); }
+.compra.elegir input:checked ~ span.detalle { color: var(--tinta-2); }
