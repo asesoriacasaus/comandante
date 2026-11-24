@@ -74,3 +74,14 @@ export function descansoMedio(sets) {
 
 /** "1:52" de unos segundos. */
 export function relojDescanso(sec) { return typeof sec === 'number' ? formatClock(sec) : ''; }
+
+/**
+ * Otra sesión del mismo día, con series y sin guardar, que este móvil tiene activa (o null).
+ * `activa` es el id guardado en el móvil y `viva` la copia local de esa sesión.
+ */
+export function otraSesionConTrabajo(s, activa, viva) {
+  if (!s || !activa || activa === s.id || !viva || viva.id !== activa) return null;
+  if (viva.date !== s.date || !['in_progress', 'review'].includes(viva.status)) return null;
+  const series = (viva.exercises || []).reduce((n, x) => n + (x.sets || []).length, 0);
+  return series > 0 ? viva : null;
+}

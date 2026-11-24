@@ -24,7 +24,10 @@ function mutateSession_(id, fn) {
     const idx = arr.findIndex((x) => x.id === id);
     if (idx < 0) throw { code: 'NOT_FOUND', message: 'Sesión no encontrada' };
     const next = fn(arr[idx]);
-    applyRestSecs_(next, (settings.training || {}).secPerRep);
+    // Histórico para los descansos imposibles: este mes y el anterior (lecturas en caché).
+    const previo = 'sessions/' + addDays_(path.slice(9, 16) + '-01', -1).slice(0, 7) + '.json';
+    const otros = arr.concat(readJson_(previo, []));
+    applyRestSecs_(next, (settings.training || {}).secPerRep, restHistory_(otros, id));
     next.metrics = computeSessionMetrics_(next, { bodyweightKg: latestBodyweight_(settings) });
     arr[idx] = next;
     writeFile_(path, arr);

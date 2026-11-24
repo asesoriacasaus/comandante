@@ -1388,6 +1388,25 @@ function test_pure_descanso_real() {
     clips: [{ id: 'c1', ts: t(0) }, { id: 'c2', ts: t(2) }] };
   applyRestSecs_(vieja, 4); assert_(vieja.exercises[0].sets[1].restSec === 88, 'con la hora del clip');
   assert_(validateSettings_(defaultSettings_()).filter((m) => /secPerRep/.test(m)).length === 0, 'ajuste por defecto válido');
+  // Menos de 1 minuto es imposible: se pone a la fuerza el descanso habitual y se marca.
+  const rapida = () => ({ plannedExercises: [{ exerciseId: 'press_banca', restSec: 150 }],
+    exercises: [{ exerciseId: 'press_banca', name: 'x', sets: [set(t(0), 10), set(t(0, 15), 10), set(t(0, 30), 12), set(t(3, 48), 12)] }], clips: [] });
+  const h = { porEjercicio: { press_banca: 140 }, general: 110 };
+  const a = applyRestSecs_(rapida(), 4, h).exercises[0].sets;
+  assert_(a[0].restSec === null && !a[0].restImputed, 'la primera sigue sin descanso');
+  assert_(a[1].restSec === 140 && a[1].restImputed === true && a[2].restSec === 140, 'imposibles → medio de ese ejercicio: ' + a.map((x) => x.restSec));
+  assert_(a[3].restSec === 150 && !a[3].restImputed, 'un descanso real de 1 min o más se respeta: ' + a[3].restSec);
+  assert_(applyRestSecs_(rapida(), 4, { porEjercicio: {}, general: 110 }).exercises[0].sets[1].restSec === 110, 'sin dato del ejercicio → medio general');
+  assert_(applyRestSecs_(rapida(), 4, null).exercises[0].sets[1].restSec === 150, 'sin histórico → el del plan');
+  const sinNada = rapida(); sinNada.plannedExercises = [];
+  assert_(applyRestSecs_(sinNada, 4, null).exercises[0].sets[1].restSec === null, 'sin ninguna referencia → sin descanso');
+  // El histórico ignora lo puesto a la fuerza, lo de menos de 1 min, la propia sesión y las descartadas.
+  const hs = restHistory_([
+    { id: 'a', status: 'done', exercises: [{ exerciseId: 'press_banca', sets: [{ restSec: 100 }, { restSec: 200 }, { restSec: 30 }, { restSec: 999, restImputed: true }] }] },
+    { id: 'b', status: 'discarded', exercises: [{ exerciseId: 'press_banca', sets: [{ restSec: 600 }, { restSec: 600 }] }] },
+    { id: 'yo', status: 'in_progress', exercises: [{ exerciseId: 'press_banca', sets: [{ restSec: 600 }] }] },
+    { id: 'c', status: 'done', exercises: [{ exerciseId: 'dominadas', sets: [{ restSec: 90 }] }] }], 'yo');
+  assert_(hs.porEjercicio.press_banca === 150 && hs.porEjercicio.dominadas === undefined && hs.general === 130, 'histórico: ' + JSON.stringify(hs));
   return 'ok';
 }
 
@@ -1477,6 +1496,18 @@ function test_pure_session_summary() {
   return 'ok';
 }
 
+function test_pure_sesion_de_hoy() {
+  const d = '2026-06-20';
+  const s = (id, status, sets) => ({ id: id, date: d, status: status, clips: [],
+    exercises: sets ? [{ exerciseId: 'press_banca', sets: [{ reps: 10 }] }] : [], startedAt: sets ? d + 'T09:00:00.000Z' : undefined });
+  const real = s('s_20260620_1028_real', 'in_progress', true);
+  const vacia = s('s_20260620_1028_vaci', 'planned', false);
+  assert_(pickTodaySession_([vacia, real], d).id === real.id, 'la vacía no tapa a la real (vacía primero)');
+  assert_(pickTodaySession_([real, vacia], d).id === real.id, 'la vacía no tapa a la real (real primero)');
+  assert_(pickTodaySession_([s('s_20260620_1028_desc', 'discarded', true)], d) === null, 'descartada no cuenta');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1484,7 +1515,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras, test_pure_sesion_de_hoy,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

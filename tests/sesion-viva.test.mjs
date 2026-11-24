@@ -49,3 +49,18 @@ test('ejercicio activo = el de la serie más reciente, no el último de la lista
   assert.equal(descansoMedio([{}]), null);
   assert.equal(relojDescanso(112), '1:52'); assert.equal(relojDescanso(null), '');
 });
+
+import { otraSesionConTrabajo } from '../js/lib/sesion-viva.js';
+
+test('otraSesionConTrabajo: no deja cambiar a una sesión vacía si el móvil graba otra de hoy con series', () => {
+  const nueva = { id: 's_b', date: '2026-06-20', status: 'planned' };
+  const viva = { id: 's_a', date: '2026-06-20', status: 'in_progress', exercises: [{ sets: [{ reps: 10 }] }] };
+  assert.equal(otraSesionConTrabajo(nueva, 's_a', viva), viva);
+  assert.equal(otraSesionConTrabajo(nueva, 's_a', Object.assign({}, viva, { status: 'review' })).id, 's_a');
+  assert.equal(otraSesionConTrabajo(nueva, 's_a', Object.assign({}, viva, { exercises: [] })), null, 'sin series, nada que proteger');
+  assert.equal(otraSesionConTrabajo(nueva, 's_a', Object.assign({}, viva, { date: '2026-06-19' })), null, 'la de ayer no cuenta');
+  assert.equal(otraSesionConTrabajo(nueva, 's_a', Object.assign({}, viva, { status: 'done' })), null, 'ya guardada');
+  assert.equal(otraSesionConTrabajo(viva, 's_a', viva), null, 'es la misma');
+  assert.equal(otraSesionConTrabajo(nueva, '', viva), null);
+  assert.equal(otraSesionConTrabajo(nueva, 's_c', viva), null, 'la copia local es de otra sesión');
+});
