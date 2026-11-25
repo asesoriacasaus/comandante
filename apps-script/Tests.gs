@@ -1139,7 +1139,7 @@ function test_pure_manual_entry() {
 
   // Lista para el selector
   const list = exerciseListForClient_();
-  assert_(list.length >= 90 && list.every((x) => x.id && x.name && x.implements.length > 0 && Object.keys(x).length === 3), 'lista con id, nombre e implementos');
+  assert_(list.length >= 90 && list.every((x) => x.id && x.name && x.implements.length > 0 && Object.keys(x).length === 6 && x.primary.length > 0 && x.kind), 'lista con id, nombre, implementos, músculos y tipo');
   const names = list.map((x) => normalizeText_(x.name));
   assert_(names.join('|') === names.slice().sort().join('|'), 'ordenada por nombre sin acentos');
   assert_(list.find((x) => x.id === 'press_banca').implements.indexOf('barbell') >= 0, 'implementos posibles');
@@ -1521,6 +1521,24 @@ function test_pure_recuperar_sesion() {
   return 'ok';
 }
 
+function test_pure_cambiar_ejercicio() {
+  const lib = exerciseSeed_();
+  const s = { status: 'in_progress', plannedExercises: [{ exerciseId: 'cruce_poleas', name: 'Cruce en poleas', sets: 3, repsMin: 12, repsMax: 15, targetRir: 2, restSec: 75, targetLoad: { implement: 'cable', stackKg: 20, totalKg: 20 } }],
+    exercises: [{ exerciseId: 'cruce_poleas', name: 'Cruce en poleas', sets: [{ order: 1, type: 'working', reps: 12, rir: 2, load: { implement: 'cable', stackKg: 20, totalKg: 20 }, at: '2026-06-20T10:00:00.000Z', flags: [] }] }] };
+  const r = applyEditOp_(s, { op: 'swap', from: 'cruce_poleas', to: 'aperturas' }, defaultSettings_().equipment, lib);
+  const p = r.plannedExercises[0];
+  assert_(p.exerciseId === 'aperturas' && p.sets === 3 && p.repsMin === 12 && p.swappedFrom === 'cruce_poleas', 'hereda el plan');
+  assert_(p.targetLoad && p.targetLoad.implement === 'cable', 'aperturas también admite polea: conserva la carga');
+  assert_(r.exercises[0].exerciseId === 'cruce_poleas', 'lo hecho se queda');
+  const r2 = applyEditOp_(s, { op: 'swap', from: 'cruce_poleas', to: 'flexiones', moveSets: true }, defaultSettings_().equipment, lib);
+  assert_(r2.plannedExercises[0].targetLoad === null, 'otro implemento: sin carga del plan');
+  assert_(r2.exercises.length === 1 && r2.exercises[0].exerciseId === 'flexiones' && r2.exercises[0].sets.length === 1, 'series movidas');
+  let fallo = '';
+  try { applyEditOp_(s, { op: 'swap', from: 'cruce_poleas', to: 'cruce_poleas' }, defaultSettings_().equipment, lib); } catch (e) { fallo = e.message; }
+  assert_(/distinto/.test(fallo), 'mismo ejercicio');
+  return 'ok';
+}
+
 function test_all() {
   const results = [];
   [test_pure_validators, test_pure_metrics, test_pure_helpers, test_pure_auth_lockout,
@@ -1528,7 +1546,7 @@ function test_all() {
     test_pure_plan_rules, test_pure_settings, test_pure_plan_from_history, test_pure_ai_plan,
     test_pure_prompts, test_pure_dictation, test_pure_clip_validation, test_pure_edit_ops, test_pure_ids,
     test_pure_review, test_pure_save_validation, test_pure_bar_inference, test_pure_measurements, test_pure_body_extraction, test_pure_scale, test_pure_nutrition_targets, test_pure_meal_extraction, test_pure_meal_totals,
-    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras, test_pure_sesion_de_hoy, test_pure_recuperar_sesion,
+    test_pure_runs, test_pure_weekly_facts, test_pure_weekly_rules, test_pure_weekly_email, test_pure_reminder, test_pure_week_key, test_pure_export_import, test_pure_lenient_loads, test_pure_manual_entry, test_pure_caso_real_cruce_poleas, test_pure_friendly_errors, test_pure_session_summary, test_pure_set_time, test_pure_op_once, test_pure_clip_ruido, test_pure_recipes, test_pure_debrief, test_pure_meal_inputs, test_pure_supplements, test_pure_ai_saver, test_pure_sup_catalogo, test_pure_food_db, test_pure_reglas_dictado, test_pure_descanso_real, test_pure_extras, test_pure_sesion_de_hoy, test_pure_recuperar_sesion, test_pure_cambiar_ejercicio,
     test_commit_roundtrip].forEach((fn) => {
     try {
       results.push(fn.name + ': ' + fn());

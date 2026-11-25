@@ -5,6 +5,7 @@ import { formatDateEs, todayIsoLocal, parseNum, horaLocal, horaComida } from '..
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
 import { crearOndas } from '../lib/ondas.js';
+import { abrirCamara } from '../lib/camara.js';
 import { swr, borrar, leer } from '../lib/cache.js';
 import { estimarLocal, contarAhorroLocal } from '../lib/alimentos.js';
 import { ponerBarra, avisar } from '../lib/barra.js';
@@ -396,7 +397,15 @@ function pantallaAnadir(el, st, opciones = {}) {
     btnFoto.replaceChildren(h('b', {}, fotos.length ? 'Otra foto' : 'Foto'), h('small', {}, fotos.length ? fotos.length + ' de ' + MAX_FOTOS : 'del plato o la etiqueta'));
     btnFoto.classList.toggle('hecho', fotos.length > 0);
   };
-  btnFoto.addEventListener('click', () => archivo.click());
+  // La cámara se abre dentro de la app; desde ahí también se puede elegir de la galería.
+  const abrirFoto = () => abrirCamara({
+    max: MAX_FOTOS - fotos.length,
+    onGaleria: () => archivo.click(),
+    onFoto: async (blob) => {
+      try { const peq = await shrinkImage(blob, 1280, 0.82); fotos.push({ blob: peq, url: URL.createObjectURL(peq) }); pintarFotos(); }
+      catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'No se pudo preparar la foto.'; }
+    } });
+  btnFoto.addEventListener('click', abrirFoto);
   archivo.addEventListener('change', async () => {
     const elegidos = [...archivo.files].slice(0, MAX_FOTOS - fotos.length);
     archivo.value = '';
@@ -464,8 +473,8 @@ function pantallaAnadir(el, st, opciones = {}) {
     h('p', { class: 'nota' }, 'Foto: del plato entero, con los cubiertos o la mano a la vista para calcular la cantidad; hasta 3, también vale la etiqueta del envase. Puedes juntar foto, voz y texto.'),
     cajaSiempre));
   pintarCuando();
-  // Desde el botón flotante "Foto": se abre la cámara en el mismo toque (iOS solo lo permite así, sin esperas).
-  if (opciones.foto) archivo.click();
+  // Desde el botón flotante "Foto": se abre directamente la cámara de la app.
+  if (opciones.foto) abrirFoto();
 }
 
 // ---------- Revisar y guardar ----------

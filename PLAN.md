@@ -677,7 +677,10 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - Preguntar una vez qué agua se bebe: grifo, con el municipio, o embotellada, con la marca. Tomar los miligramos por litro de la etiqueta o de los datos públicos del agua del municipio, o pedírselos al usuario. Preguntar también cuánta se bebe al día (o registrarla).
    - Sumar el aporte diario al calcio y al magnesio, marcado como "del agua".
    - Al hilo: avisar de que el **sodio** sale más bajo de lo real si no se apunta la sal añadida al cocinar.
-9. **Cambiar el ejercicio desde su propio recuadro (24 de noviembre de 2026). PENDIENTE.**
+9. **Cambiar el ejercicio desde su propio recuadro (24 de noviembre de 2026). DESARROLLADO (25 de noviembre de 2026).**
+   - Hecho: botón "⇄ Cambiar" en cada ejercicio de la sesión (hecho, en curso o pendiente del plan). Abre una hoja inferior al estilo iOS con tarjetas que entran escalonadas, agrupadas y **ordenadas de más a menos material y espacio**, como pidió el usuario: máquina o polea, banco o rack, barra corta, poco espacio, sin material. Cada tarjeta lleva una barra de nivel de material, los implementos, los músculos y por qué es equivalente. Se calculan en el móvil sin IA (`js/lib/alternativas.js`; la biblioteca ya trae músculos y tipo, caché `ejercicios2`). Si ya hay series, pregunta si se quedan con el original o eran del nuevo (corregir el registro).
+   - Servidor: operación de edición `swap` (`swapExercise_` en `ClipProcess.gs`, igual que `aplicarOpLocal` en el móvil, también sin conexión). Hereda series, repeticiones, RIR y descanso; la carga del plan solo si el implemento coincide. Lo hecho se queda salvo `moveSets`. Queda en `session.swaps` y el plan muestra "en lugar de…".
+   - Pendiente: recordar la alternativa favorita y proponerla en el plan.
    - Motivo: la máquina de cruce de poleas está casi siempre ocupada. Hace falta sustituir un ejercicio en el momento por otro equivalente que necesite menos material o menos espacio.
    - **Botón "Cambiar ejercicio"** dentro del recuadro de cada ejercicio (en curso, con series hechas o pendiente del plan), usable antes, durante o después de sus series.
    - **Tarjetas de alternativas** (3 a 5, deslizables), calculadas en el móvil sin IA con la biblioteca de ejercicios (`apps-script/Exercises.gs`, ya trae implementos, grupo principal y secundario, y tipo compuesto o aislamiento):
@@ -719,6 +722,12 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
 13. **Dos entrenamientos el mismo día, a petición (25 de noviembre de 2026). DESARROLLADO.**
    - Con la sesión de hoy guardada, Hoy muestra "Hacer otra sesión hoy" (pide confirmación). `plan.extra` genera la siguiente de la rotación con la nota `second_today` ("Segunda sesión de hoy… si ya vas cansado, baja la carga").
    - Nunca hay dos sesiones abiertas: si la de hoy no está guardada, se devuelve esa. La comprobación va dentro del lock: dos toques seguidos crean una sola. Entre varias del día, Hoy muestra la abierta o, si todas están hechas, la última empezada.
+
+14. **Cámara dentro de la app (25 de noviembre de 2026). DESARROLLADO.**
+   - "Foto" (en la barra flotante y en Añadir) abre la cámara en vivo dentro de una hoja de la app (`js/lib/camara.js`, `getUserMedia` con la cámara trasera), con disparador, destello y hasta 3 fotos; "Listo" vuelve. Si no hay permiso o el navegador no deja, se ofrece "Galería". La cámara se apaga al cerrar. **No probado en un iPhone real.**
+15. **Dinamismo al estilo de Apple en toda la app (25 de noviembre de 2026). DESARROLLADO.**
+   - Hojas inferiores con efecto muelle, fondo difuminado y cierre arrastrando hacia abajo (`js/lib/hoja.js`), para cambiar ejercicio, la cámara y el menú "⋯" de la revisión (ahora hoja de acciones, con confirmación de descarte en otra hoja). Se suman a los plegables de Comida, la entrada de cada pantalla, el detalle del Diario que se despliega y la respuesta de las pestañas al tocar. Todo respeta "Reducir movimiento".
+   - El formulario de serie a mano sigue en la página: dentro de una hoja chocaría con el teclado del iPhone. Valorarlo aparte.
 
 ### Fallo del 24 de noviembre de 2026: sesión duplicada y progreso "perdido"
 - **Qué pasó:** al abrir Hoy, dos cargas a la vez (`hoy.load`) generaron dos sesiones del mismo día en el mismo minuto. Se empezó una y se registraron las series. Al volver a Hoy, el servidor devolvió la otra, vacía: `planToday` cogía la primera del archivo y una planificada sin hora de inicio se ordena antes que la empezada. Al pulsar "Empezar sesión", la app pasó a la vacía. Las series no se borraron: siguieron en la primera sesión, que después se descartó desde la revisión. Descartar solo la marca (`status: 'discarded'`); los datos siguen en Drive.
