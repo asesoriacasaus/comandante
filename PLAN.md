@@ -712,6 +712,14 @@ Se irán añadiendo aquí. Se desarrollan juntas cuando el usuario lo pida. **El
    - **Añadir:** "‹ Comida" arriba, "Cuándo" plegado ("Hoy · 20:45"), Foto y Voz como dos botones grandes, el texto debajo y "Calcular" en la página (la barra flotante se esconde con el teclado). "Lo de siempre" al final.
    - Animaciones cortas (despliegue, barras que se llenan, entrada de filas) y respeta "Reducir movimiento".
 
+12. **Ondas de audio al grabar (25 de noviembre de 2026). DESARROLLADO.**
+   - `js/lib/ondas.js` dibuja barras en un `<canvas>` en espejo desde el centro: los graves, donde está la voz, en medio. La grabadora (`js/recorder.js`) expone `niveles()` con un `AnalyserNode` sobre el mismo micrófono. El `AudioContext` se crea dentro del toque del usuario, como exige iOS, y si falla se graba igual, sin ondas.
+   - Se ven en la Sesión (bajo el botón Grabar), en Comida > Voz y en el resumen hablado. Con el dictado del iPhone no se puede leer el micrófono: las barras se mueven solas para indicar que se escucha.
+   - Con "Reducir movimiento", pocas actualizaciones. **No probado en un iPhone real.**
+13. **Dos entrenamientos el mismo día, a petición (25 de noviembre de 2026). DESARROLLADO.**
+   - Con la sesión de hoy guardada, Hoy muestra "Hacer otra sesión hoy" (pide confirmación). `plan.extra` genera la siguiente de la rotación con la nota `second_today` ("Segunda sesión de hoy… si ya vas cansado, baja la carga").
+   - Nunca hay dos sesiones abiertas: si la de hoy no está guardada, se devuelve esa. La comprobación va dentro del lock: dos toques seguidos crean una sola. Entre varias del día, Hoy muestra la abierta o, si todas están hechas, la última empezada.
+
 ### Fallo del 24 de noviembre de 2026: sesión duplicada y progreso "perdido"
 - **Qué pasó:** al abrir Hoy, dos cargas a la vez (`hoy.load`) generaron dos sesiones del mismo día en el mismo minuto. Se empezó una y se registraron las series. Al volver a Hoy, el servidor devolvió la otra, vacía: `planToday` cogía la primera del archivo y una planificada sin hora de inicio se ordena antes que la empezada. Al pulsar "Empezar sesión", la app pasó a la vacía. Las series no se borraron: siguieron en la primera sesión, que después se descartó desde la revisión. Descartar solo la marca (`status: 'discarded'`); los datos siguen en Drive.
 - **Arreglo:**

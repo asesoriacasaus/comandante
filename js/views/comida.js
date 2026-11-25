@@ -4,6 +4,7 @@ import { h, cargando } from '../lib/dom.js';
 import { formatDateEs, todayIsoLocal, parseNum, horaLocal, horaComida } from '../lib/format.js';
 import { blobToBase64, shrinkImage } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
+import { crearOndas } from '../lib/ondas.js';
 import { swr, borrar, leer } from '../lib/cache.js';
 import { estimarLocal, contarAhorroLocal } from '../lib/alimentos.js';
 import { ponerBarra, avisar } from '../lib/barra.js';
@@ -411,13 +412,15 @@ function pantallaAnadir(el, st, opciones = {}) {
 
   recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando && cur.textoAudio) cur.textoAudio('Parar', Math.floor(ms / 1000) + ' s grabando'); }, onAutoStop: () => { if (grabando && cur.btnAudio) cur.btnAudio.click(); } });
   cur.textoAudio = textoAudio; cur.btnAudio = btnAudio;
+  const ondas = crearOndas(() => recorder.niveles(), { clase: 'ondas-comida' });
+  ondas.nodo.hidden = true;
   btnAudio.addEventListener('click', async () => {
     if (!grabando) {
-      try { await recorder.start(); grabando = true; btnAudio.classList.add('grabando'); textoAudio('Parar', '0 s grabando'); }
+      try { await recorder.start(); grabando = true; btnAudio.classList.add('grabando'); textoAudio('Parar', '0 s grabando'); ondas.nodo.hidden = false; ondas.iniciar(); }
       catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'Sin acceso al micrófono. Actívalo en Ajustes de iOS para este sitio.'; }
       return;
     }
-    grabando = false; btnAudio.classList.remove('grabando');
+    grabando = false; btnAudio.classList.remove('grabando'); ondas.parar(); ondas.nodo.hidden = true;
     try { const r = await recorder.stop(); audio = { blob: r.blob, mime: r.mime, ms: r.ms }; } catch (err) { console.error(err); }
     recorder.releaseMic();
     if (audio) textoAudio('Volver a grabar', 'audio de ' + Math.max(1, Math.round(audio.ms / 1000)) + ' s listo'); else textoAudio('Voz', 'cuéntalo en voz alta');
@@ -454,7 +457,7 @@ function pantallaAnadir(el, st, opciones = {}) {
     plegable({ clase: 'cuando', abierto: false, etiqueta: null,
       cabecera: h('span', { class: 'cuando-cab' }, h('span', { class: 'etiqueta' }, 'Cuándo'), cuandoTexto),
       cuerpo: [h('div', { class: 'rejilla' }, h('label', {}, 'Día', dia), h('label', {}, 'Hora', horaCampo)), atajos] }),
-    h('div', { class: 'capturas' }, btnFoto, btnAudio), archivo,
+    h('div', { class: 'capturas' }, btnFoto, btnAudio), ondas.nodo, archivo,
     miniaturas, cajaReparto, audioInfo,
     h('label', { class: 'escribir' }, 'O escríbelo', area),
     calcular, estado,

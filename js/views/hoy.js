@@ -16,7 +16,8 @@ const AVISOS = {
   deload: 'Semana de descarga: menos volumen y menos carga para recuperar.',
   priority: 'Hay una serie extra en algunos ejercicios porque la semana pasada te quedaste corto de volumen en esos grupos.',
   long_run: 'Hoy se ha adelantado una sesión sin pierna por tu tirada larga reciente.',
-  legs_after_long_run: 'Toca pierna con una tirada larga reciente. Ve con cuidado y baja la intensidad si hace falta.'
+  legs_after_long_run: 'Toca pierna con una tirada larga reciente. Ve con cuidado y baja la intensidad si hace falta.',
+  second_today: 'Segunda sesión de hoy: es la siguiente de tu rotación. Si ya vas cansado, baja la carga.'
 };
 
 const vigente = (el) => el.dataset.route === 'hoy';
@@ -111,7 +112,7 @@ function renderSesion(el, s, deCache = false) {
   const ejercicios = s.status === 'done' ? (s.exercises || []) : (s.plannedExercises || []);
   const avisos = (s.notes || []).filter((n) => AVISOS[n]).map((n) => h('p', { class: 'aviso' }, AVISOS[n]));
   const lista = s.status === 'done'
-    ? h('p', { class: 'vacio' }, 'Ya has entrenado hoy. Descansa: la próxima sesión se calcula mañana.')
+    ? h('p', { class: 'vacio' }, 'Ya has entrenado hoy. Descansa: la próxima sesión se calcula mañana. Si quieres entrenar otra vez hoy, puedes hacerlo con el botón de arriba.')
     : h('ul', { class: 'lista' }, ejercicios.map((x) => h('li', { class: 'ejercicio' },
         h('h3', {}, x.name || x.exerciseId),
         h('p', { class: 'detalle' }, x.sets + ' × ' + formatReps(x) + ' · RIR ' + x.targetRir + (x.restSec ? ' · descanso ' + formatRest(x.restSec) : '')),
@@ -164,7 +165,21 @@ function sesionVivaDeHoy(s) {
 }
 
 function accion(el, s) {
-  if (s.status === 'done') return null;
+  if (s.status === 'done') {
+    // Opcional: una segunda sesión el mismo día (la siguiente de la rotación).
+    const estado = h('p', { class: 'estado', role: 'status', 'aria-live': 'polite' });
+    const btn = h('button', { type: 'button', class: 'btn btn-sec' }, 'Hacer otra sesión hoy');
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Hacer otra sesión hoy? Te preparo la siguiente de tu rotación.')) return;
+      btn.disabled = true; estado.className = 'estado'; estado.textContent = 'Preparando la segunda sesión…';
+      try {
+        const r = await call('plan.extra', {}, SLOW);
+        borrar('hoy');
+        if (vigente(el)) renderSesion(el, r.session);
+      } catch (err) { btn.disabled = false; estado.className = 'estado error'; estado.textContent = err.message; }
+    });
+    return h('div', { class: 'acciones' }, btn, estado);
+  }
   if (s.status === 'review') return h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: (e) => empezar(el, s, e.currentTarget, '#revision') }, 'Revisar y guardar'));
   return h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onClick: (e) => empezar(el, s, e.currentTarget) },
     s.status === 'in_progress' ? 'Continuar sesión' : 'Empezar sesión'));

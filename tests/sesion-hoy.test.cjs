@@ -79,3 +79,15 @@ test('una sesión descartada hoy no impide crear otra', () => {
   assert.equal(r.id, 's_20260620_1028_nuev');
   assert.equal(m.sesiones().length, 2);
 });
+
+test('segunda sesión forzada: con la de hoy hecha se crea otra; con una abierta, no', () => {
+  const hecha = ses('s_20260620_0900_hech', 'done', conSeries);
+  const m = mundo([hecha]);
+  const extra = (id) => m.run('commitTodaySession_(' + JSON.stringify(ses(id, 'planned')) + ', "Europe/Madrid", "' + HOY + '", true)');
+  assert.equal(extra('s_20260620_1900_seg1').id, 's_20260620_1900_seg1', 'se crea la segunda');
+  assert.equal(extra('s_20260620_1900_seg2').id, 's_20260620_1900_seg1', 'dos peticiones seguidas: una sola segunda sesión');
+  assert.equal(m.sesiones().length, 2);
+  assert.equal(m.run('pickTodaySession_(' + JSON.stringify(m.sesiones()) + ', "' + HOY + '")').id, 's_20260620_1900_seg1', 'Hoy muestra la nueva');
+  const sinExtra = mundo([hecha]);
+  assert.equal(sinExtra.run('commitTodaySession_(' + JSON.stringify(ses('s_20260620_1900_xxxx', 'planned')) + ', "Europe/Madrid", "' + HOY + '")').id, hecha.id, 'sin pedirla, no se crea');
+});

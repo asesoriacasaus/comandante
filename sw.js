@@ -46,6 +46,7 @@ const SHELL = [
   './js/lib/dictado.js',
   './js/lib/barra.js',
   './js/lib/plegable.js',
+  './js/lib/ondas.js',
   './js/lib/ediciones.js',
   './js/views/progreso.js',
   './js/views/carreras.js',

@@ -43,6 +43,35 @@ export function createIdbStore() {
 // ---------- Grabadora ----------
 export function createRecorder({ onTick = () => {}, onAutoStop = () => {} } = {}) {
   let stream = null; let rec = null; let chunks = []; let t0 = 0; let timer = null; let auto = null;
+  // Para dibujar las ondas: un analizador sobre el mismo micrófono. Es opcional: si falla, se graba igual.
+  let actx = null; let fuente = null; let analizador = null; let datos = null;
+
+  function prepararAudio() {   // se llama dentro del toque del usuario (iOS solo deja arrancar el audio así)
+    try {
+      const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
+      if (!AC) return;
+      actx = actx || new AC();
+      if (actx.state === 'suspended') actx.resume().catch(() => {});
+    } catch (_) { actx = null; }
+  }
+  function conectarAnalizador() {
+    try {
+      if (!actx || !stream) return;
+      if (fuente && fuente.mediaStream === stream) return;
+      if (fuente) fuente.disconnect();
+      fuente = actx.createMediaStreamSource(stream);
+      analizador = actx.createAnalyser();
+      analizador.fftSize = 256; analizador.smoothingTimeConstant = 0.75;
+      fuente.connect(analizador);
+      datos = new Uint8Array(analizador.frequencyBinCount);
+    } catch (_) { analizador = null; }
+  }
+  /** Espectro actual (0-255 por banda) o null si no hay analizador o no se está grabando. */
+  function niveles() {
+    if (!analizador || !rec || rec.state !== 'recording') return null;
+    analizador.getByteFrequencyData(datos);
+    return datos;
+  }
 
   async function acquireMic() {
     if (stream && stream.getTracks().every((t) => t.readyState === 'live')) return;
@@ -54,10 +83,14 @@ export function createRecorder({ onTick = () => {}, onAutoStop = () => {} } = {}
   function releaseMic() {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     stream = null;
+    try { if (fuente) fuente.disconnect(); } catch (_) { /* nada */ }
+    fuente = null; analizador = null;
   }
 
   async function start() {
+    prepararAudio();
     await acquireMic();
+    conectarAnalizador();
     const mime = pickAudioMime();
     rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     chunks = [];
@@ -81,5 +114,5 @@ export function createRecorder({ onTick = () => {}, onAutoStop = () => {} } = {}
     });
   }
 
-  return { start, stop, releaseMic, isRecording: () => !!rec && rec.state === 'recording' };
+  return { start, stop, releaseMic, niveles, isRecording: () => !!rec && rec.state === 'recording' };
 }

@@ -561,3 +561,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .sup-vacio b { font: 700 15px var(--sans); }
 .sup-vacio small { font: 500 13px var(--sans); color: var(--tinta-2); }
 .mchip.cero { color: var(--tinta-2); }
+
+/* Ondas de audio mientras se graba (el color de las barras sale de `color`) */
+.ondas { display: block; width: 100%; max-width: 320px; height: 44px; margin: 10px auto 4px; color: var(--acento); animation: desplegar .25s ease both; }
+.ondas[hidden] { display: none; }
+.ondas-comida { max-width: none; margin: -2px 0 12px; }

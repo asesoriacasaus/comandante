@@ -9,6 +9,7 @@ import { ponerBarra, avisar, escribiendo, desplazando, irA, debeIrAlActivo } fro
 import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
 import { crearDictado, modoDictado, ERRORES_GRAVES } from '../lib/dictado.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
+import { crearOndas } from '../lib/ondas.js';
 import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
 import { valoresDeHeard, valorDeCarga } from '../lib/serie.js';
@@ -53,6 +54,8 @@ export function render(el) {
   }
   const st = { id, modo: modoDictado(), session: null, recording: false, processing: 0, msg: '', msgType: '', ms: 0, queueInfo: { waiting: 0, errors: 0 },
     editing: null, timer: null, formulario: null, ejercicios: null, scrollForm: false };
+  // Ondas mientras se graba: con audio siguen la voz; con el dictado del iPhone solo indican que se escucha.
+  st.ondas = crearOndas(() => (st.modo === 'iphone' ? null : recorder.niveles()), { clase: 'ondas-sesion' });
 
   const queue = createQueue({
     store,
@@ -82,6 +85,7 @@ export function render(el) {
     st.ultimoTotal = total;
     el.replaceChildren(view(st, { queue, el, paint, id, editar, enviar }));
     window.scrollTo(0, y);
+    if (st.recording) st.ondas.iniciar(); else st.ondas.parar();
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
     else if (irActivo) irA(el.querySelector('.bloque.actual'));
   }
@@ -260,6 +264,7 @@ function view(st, ctx) {
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
+    st.recording && st.ondas ? st.ondas.nodo : null,
     h('p', { class: 'modo-dictado' }, st.modo === 'iphone' ? 'Dictado del iPhone · sin gastar IA en lo que se entienda' : 'Grabación de audio · la interpreta la IA'),
     (s.clips || []).length < 2 ? h('p', { class: 'pista' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
