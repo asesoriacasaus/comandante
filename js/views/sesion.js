@@ -9,8 +9,10 @@ import { ponerBarra, avisar, escribiendo, desplazando, irA, debeIrAlActivo } fro
 import { ediciones, vistaLocal, esFalloDeRed } from '../lib/ediciones.js';
 import { crearDictado, modoDictado, ERRORES_GRAVES } from '../lib/dictado.js';
 import { createIdbStore, createRecorder } from '../recorder.js';
-import { abrirFormulario, nodoFormulario } from './serie-form.js';
+import { crearOndas } from '../lib/ondas.js';
+import { abrirCambio } from './cambiar.js';
 import { cargarEjercicios } from '../lib/ejercicios.js';
+import { abrirFormulario, nodoFormulario } from './serie-form.js';
 import { valoresDeHeard, valorDeCarga } from '../lib/serie.js';
 import { groupsEs, formatLoad, formatClock, formatDateEs, loadField, parseNum, describeHeard, quoteTranscript } from '../lib/format.js';
 
@@ -53,6 +55,8 @@ export function render(el) {
   }
   const st = { id, modo: modoDictado(), session: null, recording: false, processing: 0, msg: '', msgType: '', ms: 0, queueInfo: { waiting: 0, errors: 0 },
     editing: null, timer: null, formulario: null, ejercicios: null, scrollForm: false };
+  // Ondas mientras se graba: con audio siguen la voz; con el dictado del iPhone solo indican que se escucha.
+  st.ondas = crearOndas(() => (st.modo === 'iphone' ? null : recorder.niveles()), { clase: 'ondas-sesion' });
 
   const queue = createQueue({
     store,
@@ -82,6 +86,7 @@ export function render(el) {
     st.ultimoTotal = total;
     el.replaceChildren(view(st, { queue, el, paint, id, editar, enviar }));
     window.scrollTo(0, y);
+    if (st.recording) st.ondas.iniciar(); else st.ondas.parar();
     if (st.scrollForm) { st.scrollForm = false; const f = el.querySelector('.form-serie'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'center' }); }
     else if (irActivo) irA(el.querySelector('.bloque.actual'));
   }
@@ -260,6 +265,7 @@ function view(st, ctx) {
     h('h2', {}, groupsEs(s.groups).replace(/^./, (c) => c.toUpperCase())),
     h('button', { type: 'button', class: 'btn btn-grabar' + (st.recording ? ' activo' : ''), onClick: toggleRecord },
       st.recording ? 'Parar' : 'Grabar'),
+    st.recording && st.ondas ? st.ondas.nodo : null,
     h('p', { class: 'modo-dictado' }, st.modo === 'iphone' ? 'Dictado del iPhone · sin gastar IA en lo que se entienda' : 'Grabación de audio · la interpreta la IA'),
     (s.clips || []).length < 2 ? h('p', { class: 'pista' }, 'Con música o ruido: acerca el móvil a la boca y di una frase corta, por ejemplo «press banca, quince a cada lado, diez repeticiones, me quedaban dos». Si algo no se oye claro, te lo dejo pendiente para completarlo, sin inventar.') : null,
     h('p', { class: 'estado ' + st.msgType, role: 'status', 'aria-live': 'polite' }, st.msg),
@@ -286,13 +292,24 @@ function view(st, ctx) {
       h('button', { type: 'button', class: 'btn', onClick: () => abrir(cfgPendiente(p, i)) }, 'Completar a mano'),
       h('button', { type: 'button', class: 'btn btn-sec', onClick: () => edit({ op: 'dismiss_pending', index: i }) }, 'Descartar')))));
 
+  // Cambiar un ejercicio por otro (máquina ocupada...): hoja con alternativas. El cambio va por la misma vía que las demás ediciones.
+  const cambiar = (exerciseId, nombre, nSeries) => abrirCambio({ exerciseId, nombre, nSeries,
+    plan: (s.plannedExercises || []).find((p) => p.exerciseId === exerciseId) || null,
+    cargarLista: async () => st.ejercicios || (st.ejercicios = await cargarEjercicios()),
+    aplicar: async (op) => { await ctx.editar(op); paint(); } });
+  const botonCambiar = (exerciseId, nombre, nSeries) => h('button', { type: 'button', class: 'cambiar-btn', 'aria-label': 'Cambiar ' + nombre + ' por otro ejercicio',
+    onClick: () => cambiar(exerciseId, nombre, nSeries) }, '⇄ Cambiar');
+  const nombreDe = (id) => { const e = (st.ejercicios || []).find((q) => q.id === id); return e ? e.name : id; };
+  const enLugarDe = (id) => { const p = (s.plannedExercises || []).find((q) => q.exerciseId === id); return p && p.swappedFrom ? h('p', { class: 'nota-cambio' }, 'En lugar de ' + nombreDe(p.swappedFrom)) : null; };
+
   const done = new Set((s.exercises || []).map((x) => x.exerciseId));
   (s.exercises || []).forEach((x) => {
     const current = x.exerciseId === activoId;
     const meta = objetivo(s, x.exerciseId, seriesHechas(x));
     const medio = descansoMedio(x.sets);
     nodes.push(h('div', { class: 'bloque' + (current ? ' actual' : '') },
-      h('h3', {}, x.name + (current ? ' · en curso' : '')),
+      h('div', { class: 'bloque-titulo' }, h('h3', {}, x.name + (current ? ' · en curso' : '')), botonCambiar(x.exerciseId, x.name, x.sets.length)),
+      enLugarDe(x.exerciseId),
       meta ? h('p', { class: 'objetivo' }, meta) : null,
       current ? reloj : null,
       medio !== null ? h('p', { class: 'descanso-medio' }, 'Descanso medio de este ejercicio: ' + relojDescanso(medio)) : null,
@@ -312,10 +329,11 @@ function view(st, ctx) {
 
   const resto = (s.plannedExercises || []).filter((p) => !done.has(p.exerciseId));
   if (resto.length) nodes.push(h('div', { class: 'bloque' }, h('p', { class: 'etiqueta' }, 'Pendiente del plan'),
-    h('ul', { class: 'lista' }, resto.map((p) => h('li', {}, h('button', { type: 'button', class: 'fila fila-boton', 'aria-label': 'Añadir series de ' + p.name, onClick: () => abrir({
+    h('ul', { class: 'lista' }, resto.map((p) => h('li', { class: 'pendiente-plan' }, h('button', { type: 'button', class: 'fila fila-boton', 'aria-label': 'Añadir series de ' + p.name, onClick: () => abrir({
       titulo: 'Serie a mano: ' + p.name, exerciseId: p.exerciseId, implement: p.targetLoad ? p.targetLoad.implement : null,
-      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name),
-      h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax + (p.targetLoad ? ' · ' + formatLoad(p.targetLoad) : ''))))))));
+      valor: p.targetLoad ? valorDeCarga(p.targetLoad) : '', reps: p.repsMax }) }, h('span', {}, p.name, p.swappedFrom ? h('small', { class: 'nota-cambio' }, ' · en lugar de ' + nombreDe(p.swappedFrom)) : null),
+      h('span', { class: 'detalle' }, p.sets + ' × ' + p.repsMin + '-' + p.repsMax + (p.targetLoad ? ' · ' + formatLoad(p.targetLoad) : ''))),
+      botonCambiar(p.exerciseId, p.name, 0))))));
 
   nodes.push(h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn btn-sec', onClick: () => abrir({ titulo: 'Añadir un ejercicio a mano' }) }, 'Añadir otro ejercicio a mano')));
   const terminar = async () => {

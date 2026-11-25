@@ -4,6 +4,7 @@ import { call } from '../api.js';
 import { h } from '../lib/dom.js';
 import { blobToBase64 } from '../lib/media.js';
 import { createRecorder } from '../recorder.js';
+import { crearOndas } from '../lib/ondas.js';
 
 let recorder = null;
 
@@ -49,14 +50,16 @@ export function bloqueResumen(session, onGuardado) {
   };
 
   recorder = recorder || createRecorder({ onTick: (ms) => { if (grabando) estado.textContent = 'Grabando ' + Math.floor(ms / 1000) + ' s'; }, onAutoStop: () => { if (grabando) boton.click(); } });
+  const ondas = crearOndas(() => recorder.niveles(), { clase: 'ondas-resumen' });
+  ondas.nodo.hidden = true;
   boton.addEventListener('click', async () => {
     if (clip) { enviar(); return; }
     if (!grabando) {
-      try { await recorder.start(); grabando = true; boton.textContent = 'Parar'; boton.classList.add('activo'); estado.className = 'estado'; estado.textContent = 'Grabando 0 s'; }
+      try { await recorder.start(); grabando = true; boton.textContent = 'Parar'; boton.classList.add('activo'); estado.className = 'estado'; estado.textContent = 'Grabando 0 s'; ondas.nodo.hidden = false; ondas.iniciar(); }
       catch (err) { console.error(err); estado.className = 'estado error'; estado.textContent = 'Sin acceso al micrófono. Actívalo en Ajustes de iOS para este sitio.'; }
       return;
     }
-    grabando = false; boton.classList.remove('activo');
+    grabando = false; boton.classList.remove('activo'); ondas.parar(); ondas.nodo.hidden = true;
     try { clip = await recorder.stop(); } catch (err) { console.error(err); boton.textContent = 'Grabar resumen'; return; }
     recorder.releaseMic();
     enviar();
@@ -66,6 +69,6 @@ export function bloqueResumen(session, onGuardado) {
     h('p', { class: 'etiqueta' }, 'Resumen hablado del entreno'),
     session.debrief ? vistaResumen(session.debrief)
       : h('p', { class: 'nota' }, 'Cuenta en voz alta cómo ha ido: energía, sensaciones, molestias y qué quieres cambiar la próxima vez. Hasta 75 segundos.'),
-    h('div', { class: 'acciones' }, boton), estado));
+    h('div', { class: 'acciones' }, boton), ondas.nodo, estado));
   return caja;
 }

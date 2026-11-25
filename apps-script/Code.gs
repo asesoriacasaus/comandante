@@ -41,6 +41,7 @@ function doPost(e) {
     'plan.cycle.accept': () => acceptCycle(payload.cycle),
     'plan.today': () => planToday(),
     'hoy.load': () => hoyLoad(),
+    'plan.extra': () => planExtra(),
     'session.message': () => sessionMessage(payload.id),
     'session.reviewMessage': () => sessionReviewMessage(payload.id),
     'session.start': () => sessionStart(payload.id),

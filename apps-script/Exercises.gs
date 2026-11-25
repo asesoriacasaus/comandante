@@ -176,6 +176,6 @@ function findExercise_(query, library) {
 
 /** Lista ligera para el selector de ejercicios del cliente. */
 function exerciseListForClient_() {
-  return exerciseSeed_().map((x) => ({ id: x.id, name: x.name, implements: x.implements }))
+  return exerciseSeed_().map((x) => ({ id: x.id, name: x.name, implements: x.implements, primary: x.primary, secondary: x.secondary, kind: x.kind }))
     .sort((a, b) => (normalizeText_(a.name) < normalizeText_(b.name) ? -1 : 1));
 }

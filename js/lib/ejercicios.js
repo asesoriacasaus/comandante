@@ -6,10 +6,10 @@ let enMemoria = null;
 
 export async function cargarEjercicios() {
   if (enMemoria) return enMemoria;
-  const hit = leer('ejercicios');
+  const hit = leer('ejercicios2');
   if (hit && Array.isArray(hit.data) && hit.data.length) { enMemoria = hit.data; return enMemoria; }
   const r = await call('exercises.list', {}, { timeoutMs: 60000, silent: true });
   enMemoria = r.exercises;
-  guardar('ejercicios', enMemoria);
+  guardar('ejercicios2', enMemoria);
   return enMemoria;
 }

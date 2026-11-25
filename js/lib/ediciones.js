@@ -50,10 +50,33 @@ export function aplicarOpLocal(session, op, nombres = {}) {
       x.sets = x.sets.filter((q) => q.order !== op.order); reordenar(x);
       if (!x.sets.length) s.exercises = s.exercises.filter((q) => q !== x);
     }
+  } else if (op.op === 'swap') {
+    cambiarLocal(s, op, nombres);
   } else if (op.op === 'dismiss_pending') {
     if (s.pending && Number.isInteger(op.index)) s.pending.splice(op.index, 1);
   }
   return s;
+}
+
+/** Igual que swapExercise_ del servidor, salvo la carga del plan (sin la biblioteca, se quita si cambia el ejercicio). */
+function cambiarLocal(s, op, nombres) {
+  const nombre = nombres[op.to] || op.toName || op.to;
+  s.plannedExercises = s.plannedExercises || [];
+  const i = s.plannedExercises.findIndex((p) => p.exerciseId === op.from);
+  const yaEsta = s.plannedExercises.some((p) => p.exerciseId === op.to);
+  if (i >= 0 && yaEsta) s.plannedExercises.splice(i, 1);
+  else if (i >= 0) s.plannedExercises[i] = Object.assign({}, s.plannedExercises[i], { exerciseId: op.to, name: nombre, targetLoad: op.keepLoad ? s.plannedExercises[i].targetLoad : null, swappedFrom: op.from });
+  else if (!yaEsta) s.plannedExercises.push({ exerciseId: op.to, name: nombre, sets: 3, repsMin: 8, repsMax: 12, targetRir: 2, restSec: 90, targetLoad: null, swappedFrom: op.from });
+  if (op.moveSets) {
+    const x = s.exercises.find((q) => q.exerciseId === op.from);
+    if (x) {
+      let y = s.exercises.find((q) => q.exerciseId === op.to);
+      if (!y) { y = { exerciseId: op.to, name: nombre, sets: [] }; s.exercises.splice(s.exercises.indexOf(x), 0, y); }
+      y.sets = y.sets.concat(x.sets).sort((m, n) => String(m.at || '').localeCompare(String(n.at || '')));
+      reordenar(y);
+      s.exercises = s.exercises.filter((q) => q !== x);
+    }
+  }
 }
 
 /** La sesión tal como la verá el usuario: la del servidor más las ediciones que aún no se han enviado. */

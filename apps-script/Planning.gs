@@ -79,8 +79,13 @@ function acceptCycle(cycle) {
   });
 }
 
-/** Sesión de hoy: la existente o una nueva. Nunca llama a Gemini si ya está generada. */
-function planToday() {
+/**
+ * Sesión de hoy: la existente o una nueva. Nunca llama a Gemini si ya está generada.
+ * Con `opts.extra` (segunda sesión del día, a petición): si la de hoy ya está hecha, se genera la siguiente de la rotación.
+ * Si hay una sin terminar, se devuelve esa: nunca dos abiertas a la vez.
+ */
+function planToday(opts) {
+  const extra = !!(opts && opts.extra);
   const settings = getSettings();
   if (!isOnboarded_(settings)) throw { code: 'ONBOARDING', message: 'Faltan tus datos en la pantalla de bienvenida' };
   const plan = readPlan_();
@@ -92,7 +97,7 @@ function planToday() {
   const sessions = loadSessionsSince_(addDays_(today, -120), today);
 
   const existing = pickTodaySession_(sessions, today);
-  if (existing) return { session: existing, source: 'existing' };
+  if (existing && !(extra && existing.status === 'done')) return { session: existing, source: 'existing' };
 
   const runs = loadRunsSince_(addDays_(today, -7), today);
   const pick = pickNextSession_(plan.cycle, sessions, runs, nowIso);
@@ -122,7 +127,7 @@ function planToday() {
     const pr = applyPriority_(ruled.exercises, plan.priorityGroups, library);
     if (pr.boosted.length) { ruled.exercises = pr.exercises; ruled.notes.push('priority'); }
   }
-  const notes = ruled.notes.concat(pick.reason === 'long_run_skip_legs' ? ['long_run'] : [], pick.warning ? [pick.warning] : []);
+  const notes = ruled.notes.concat(pick.reason === 'long_run_skip_legs' ? ['long_run'] : [], pick.warning ? [pick.warning] : [], existing ? ['second_today'] : []);
 
   const rec = { id: makeId_('s', today, tz), date: today, status: 'planned', cycleKey: pick.key, groups: pick.groups,
     plannedExercises: ruled.exercises, clips: [], exercises: [], notes: notes,
@@ -130,7 +135,7 @@ function planToday() {
     coachMessage: neutralCoachMessage_(pick.groups, notes), coachMessageSource: 'neutral' };
   // Dos cargas de Hoy a la vez (abrir la app y tocar la pestaña, por ejemplo) generaban dos sesiones del mismo día.
   // La generación va fuera del lock (puede tardar); la comprobación final y la escritura, dentro.
-  const ganadora = commitTodaySession_(rec, tz, today);
+  const ganadora = commitTodaySession_(rec, tz, today, extra);
   if (ganadora.id !== rec.id) return { session: ganadora, source: 'existing' };
   if (lastDeloadDate !== plan.lastDeloadDate) {
     withLock_(() => { writeFile_('plan/current.json', Object.assign({}, plan, { lastDeloadDate: lastDeloadDate })); bumpRevision_(); });
@@ -158,12 +163,16 @@ function pickTodaySession_(sessions, today) {
 }
 
 /** Guarda la sesión nueva de hoy salvo que, dentro del lock, ya exista una: entonces devuelve esa y no escribe nada. */
-function commitTodaySession_(rec, tz, today) {
-  const r = commitSession_(rec, tz, today, (arr) => pickTodaySession_(arr, today));
+function commitTodaySession_(rec, tz, today, extra) {
+  // Con `extra`, una sesión ya hecha no impide crear otra; una abierta (planificada, en curso o en revisión), sí.
+  const r = commitSession_(rec, tz, today, (arr) => { const ya = pickTodaySession_(arr, today); return ya && !(extra && ya.status === 'done') ? ya : null; });
   return r.existing || rec;
 }
 
 /** Estado y sesión de hoy en UNA sola llamada. Si la sesión falla, el estado se devuelve igualmente. */
+/** Segunda sesión del día, a petición del usuario. */
+function planExtra() { return planToday({ extra: true }); }
+
 function hoyLoad() {
   const state = planState();
   let today = null;

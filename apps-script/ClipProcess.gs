@@ -207,6 +207,37 @@ function friendlySetError_(msg) {
   return m.charAt(0).toUpperCase() + m.slice(1) + (/[.!?]$/.test(m) ? '' : '.');
 }
 
+/**
+ * Pura salvo por mutar `s`. Cambia `de` por `a` en lo planificado: hereda series, repeticiones, RIR y descanso; la carga
+ * del plan solo si el implemento habitual coincide. Lo ya hecho se queda con el ejercicio original salvo con `moverSeries`
+ * (corregir un registro). Igual que aplicarOpLocal en js/lib/ediciones.js.
+ */
+function swapExercise_(s, de, a, moverSeries) {
+  s.plannedExercises = s.plannedExercises || [];
+  const i = s.plannedExercises.findIndex((p) => p.exerciseId === de.id);
+  const yaEsta = s.plannedExercises.some((p) => p.exerciseId === a.id);
+  if (i >= 0 && yaEsta) s.plannedExercises.splice(i, 1);
+  else if (i >= 0) {
+    const p = s.plannedExercises[i];
+    const carga = p.targetLoad && (a.implements || []).indexOf(p.targetLoad.implement) >= 0 ? p.targetLoad : null;
+    s.plannedExercises[i] = Object.assign({}, p, { exerciseId: a.id, name: a.name, targetLoad: carga, swappedFrom: de.id });
+  } else if (!yaEsta) {
+    s.plannedExercises.push({ exerciseId: a.id, name: a.name, sets: 3, repsMin: 8, repsMax: 12, targetRir: 2, restSec: 90, targetLoad: null, swappedFrom: de.id });
+  }
+  if (moverSeries) {
+    const x = (s.exercises || []).find((q) => q.exerciseId === de.id);
+    if (x) {
+      let y = s.exercises.find((q) => q.exerciseId === a.id);
+      if (!y) { y = { exerciseId: a.id, name: a.name, sets: [] }; s.exercises.splice(s.exercises.indexOf(x), 0, y); }
+      y.sets = y.sets.concat(x.sets).sort((m, n) => String(m.at || '').localeCompare(String(n.at || '')));
+      y.sets.forEach((st, k) => { st.order = k + 1; });
+      s.exercises = s.exercises.filter((q) => q !== x);
+    }
+  }
+  s.swaps = (s.swaps || []).concat([{ from: de.id, to: a.id, at: new Date().toISOString(), moved: !!moverSeries }]);
+  return s;
+}
+
 /** Operaciones de edición manual sobre una sesión. Devuelve una copia nueva o lanza VALIDATION. */
 function applyEditOp_(session, op, eq, library) {
   const s = JSON.parse(JSON.stringify(session));
@@ -255,6 +286,12 @@ function applyEditOp_(session, op, eq, library) {
       if (op.dismissPending < 0 || op.dismissPending >= s.pending.length) fail('pendiente no encontrado');
       s.pending.splice(op.dismissPending, 1);
     }
+  } else if (op.op === 'swap') {
+    // Cambiar un ejercicio por otro equivalente (máquina ocupada, falta de espacio...). Ver swapExercise_.
+    const de = exerciseById_(op.from, library) || fail('ejercicio desconocido');
+    const a = exerciseById_(op.to, library) || fail('ejercicio desconocido');
+    if (de.id === a.id) fail('elige un ejercicio distinto');
+    swapExercise_(s, de, a, !!op.moveSets);
   } else if (op.op === 'dismiss_pending') {
     s.pending = s.pending || [];
     if (!Number.isInteger(op.index) || op.index < 0 || op.index >= s.pending.length) fail('pendiente no encontrado');

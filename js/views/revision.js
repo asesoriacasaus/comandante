@@ -8,6 +8,7 @@ import { valorDeCarga } from '../lib/serie.js';
 import { borrar, swr, guardar, leer } from '../lib/cache.js';
 import { bloqueResumen } from './resumen-hablado.js';
 import { ponerBarra, avisar } from '../lib/barra.js';
+import { hojaAcciones } from '../lib/hoja.js';
 import { descansoMedio, relojDescanso } from '../lib/sesion-viva.js';
 import { figuraMusculos } from '../lib/musculos.js';
 
@@ -172,7 +173,6 @@ function vista(st, ctx) {
     await call('session.resume', { id: ctx.id }, { timeoutMs: 60000 }); ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar); location.hash = '#sesion';
   });
   const descartar = () => run(async () => {
-    if (!confirm('¿Descartar esta sesión? No se podrá recuperar.')) return;
     await call('session.discard', { id: ctx.id }, { timeoutMs: 60000 });
     ['hoy', 'revision-' + ctx.id, 'sesion-viva'].forEach(borrar);
     try { localStorage.removeItem(ACTIVE_KEY); } catch (_) { /* sin almacenamiento */ }
@@ -180,17 +180,16 @@ function vista(st, ctx) {
     location.hash = '#hoy';
   });
   // Barra flotante: guardar siempre a mano y el estado a la vista. "Seguir grabando" y "Descartar" van en un menú aparte para no pulsarlos sin querer.
-  const menu = h('div', { class: 'barra-menu', hidden: true, role: 'menu' },
-    h('button', { type: 'button', role: 'menuitem', onClick: seguir }, 'Seguir grabando'),
-    h('button', { type: 'button', role: 'menuitem', class: 'peligro', onClick: descartar }, 'Descartar sesión'));
-  const mas = h('button', { type: 'button', class: 'barra-mas', 'aria-label': 'Más opciones', 'aria-expanded': 'false', onClick: () => {
-    menu.hidden = !menu.hidden; mas.setAttribute('aria-expanded', String(!menu.hidden));
-  } }, '⋯');
+  // Hoja de acciones al estilo iOS; descartar pide una segunda confirmación en otra hoja.
+  const confirmarDescarte = () => hojaAcciones({ titulo: '¿Descartar esta sesión? Podrás recuperarla desde el Diario durante dos semanas.',
+    acciones: [{ texto: 'Descartar sesión', peligro: true, accion: descartar }] });
+  const mas = h('button', { type: 'button', class: 'barra-mas', 'aria-label': 'Más opciones', 'aria-haspopup': 'dialog', onClick: () => hojaAcciones({
+    titulo: 'Más opciones',
+    acciones: [{ texto: 'Seguir grabando', accion: seguir }, { texto: 'Descartar sesión', peligro: true, accion: confirmarDescarte }] }) }, '⋯');
   const pend = (s.pending || []).length;
   ponerBarra(h('div', { class: 'barra-contenido' },
     h('div', { class: 'barra-estado' }, h('b', { class: 'sin-guardar' }, 'Sin guardar'), h('span', {}, pend ? pend + (pend === 1 ? ' pendiente por resolver' : ' pendientes por resolver') : 'Revisa y guarda')),
-    h('div', { class: 'barra-acciones' }, h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: guardarSesion }, 'Guardar sesión'), mas),
-    menu));
+    h('div', { class: 'barra-acciones' }, h('button', { type: 'button', class: 'btn', disabled: st.busy, onClick: guardarSesion }, 'Guardar sesión'), mas)));
   return h('section', {}, nodes);
 }
 
